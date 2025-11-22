@@ -1,0 +1,17 @@
+{
+  "name": "My Inventory Labels",
+  "version": "1.0.0",
+  "slug": "my_inventory_labels",
+  "description": "Inventory label web app (Flask) — runs as a Supervisor add-on with Ingress",
+  "arch": ["aarch64", "amd64", "armv7", "armhf"],
+  "startup": "services",
+  "boot": "auto",
+  "options": {
+    "port": 5000
+  },
+  "schema": {
+    "port": "int"
+  },
+  "ingress": true,
+  "host_network": false
+}
