@@ -11,11 +11,15 @@ WORKDIR /usr/src/app
 COPY app/ ./app
 COPY app/requirements.txt ./requirements.txt
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install Python dependencies and gunicorn
+RUN pip install --no-cache-dir -r requirements.txt gunicorn
 
-EXPOSE 5000
+# Default port and worker configuration (can be overridden by env)
+ENV PORT=5000
+ENV GUNICORN_WORKERS=2
 
-# Ensure the app listens on 0.0.0.0 and uses the configured port (defaults to 5000)
-# Adjust this command if your app uses gunicorn/uvicorn or a different entrypoint.
-CMD ["python", "app/main.py"]
+EXPOSE ${PORT}
+
+# Run the FastAPI app via gunicorn using uvicorn workers
+# Uses environment variables PORT and GUNICORN_WORKERS
+CMD ["sh", "-c", "gunicorn -k uvicorn.workers.UvicornWorker app.main:app --bind 0.0.0.0:${PORT} --workers ${GUNICORN_WORKERS} --threads 4"]
