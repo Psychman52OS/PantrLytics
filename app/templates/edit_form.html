@@ -1,0 +1,325 @@
+{# templates/edit_form.html #}
+<form id="app-modal-close" method="dialog">
+  <button class="btn btn-ghost" value="close">✕</button>
+</form>
+
+<div class="modal-card">
+  <header class="page-header">
+    <div class="page-header-text">
+      <h1 class="page-title">Edit item</h1>
+      <p class="page-subtitle">
+        Serial
+        <span class="code link-serial">{{ item.serial_number }}</span>
+      </p>
+    </div>
+  </header>
+
+  {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+  {% endif %}
+
+  <form
+    method="post"
+    action="{{ url_for('edit_item_submit', item_id=item.id) }}"
+    enctype="multipart/form-data"
+    data-edit-form
+    class="js-validate-required"
+  >
+    <div class="form-grid">
+      <!-- Name -->
+      <div class="field">
+        <label class="kv-label" for="name">Name {% if required_fields and 'name' in required_fields %}(REQUIRED){% endif %}</label>
+        <input
+          class="input"
+          id="name"
+          name="name"
+          type="text"
+          value="{{ item.name }}"
+          {% if required_fields and 'name' in required_fields %}required{% endif %}
+        >
+      </div>
+
+      <!-- Category -->
+      <div class="field">
+        <label class="kv-label" for="category">Category {% if required_fields and 'category' in required_fields %}(REQUIRED){% endif %}</label>
+        <input
+          class="input js-suggest"
+          id="category"
+          name="category"
+          list="edit-cat-list"
+          value="{{ item.category or '' }}"
+          data-options='{{ cats|tojson }}'
+          {% if required_fields and 'category' in required_fields %}required{% endif %}
+        >
+        <datalist id="edit-cat-list">
+          {% for c in cats %}<option value="{{ c }}">{% endfor %}
+        </datalist>
+      </div>
+
+      <!-- Tags -->
+      <div class="field">
+        <label class="kv-label" for="tags">Tags {% if required_fields and 'tags' in required_fields %}(REQUIRED){% endif %}</label>
+        <input
+          class="input"
+          id="tags"
+          name="tags"
+          type="text"
+          value="{{ item.tags or '' }}"
+          {% if required_fields and 'tags' in required_fields %}required{% endif %}
+        >
+      </div>
+
+      <!-- Location -->
+      <div class="field">
+        <label class="kv-label" for="location">Location {% if required_fields and 'location' in required_fields %}(REQUIRED){% endif %}</label>
+        <input
+          class="input js-suggest"
+          id="location"
+          name="location"
+          list="edit-loc-list"
+          value="{{ item.location or '' }}"
+          data-options='{{ locations|tojson }}'
+          {% if required_fields and 'location' in required_fields %}required{% endif %}
+        >
+        <datalist id="edit-loc-list">
+          {% for loc in locations %}<option value="{{ loc }}">{% endfor %}
+        </datalist>
+      </div>
+
+      <!-- Bin -->
+      <div class="field">
+        <label class="kv-label" for="bin_number">Bin # {% if required_fields and 'bin_number' in required_fields %}(REQUIRED){% endif %}</label>
+        <input
+          class="input js-suggest"
+          id="bin_number"
+          name="bin_number"
+          list="edit-bin-list"
+          value="{{ item.bin_number or '' }}"
+          data-options='{{ bins|tojson }}'
+          {% if required_fields and 'bin_number' in required_fields %}required{% endif %}
+        >
+        <datalist id="edit-bin-list">
+          {% for b in bins %}<option value="{{ b }}">{% endfor %}
+        </datalist>
+      </div>
+
+      <!-- Quantity -->
+      <div class="field">
+        <label class="kv-label" for="quantity">Quantity {% if required_fields and 'quantity' in required_fields %}(REQUIRED){% endif %}</label>
+        <input
+          class="input"
+          id="quantity"
+          name="quantity"
+          type="number"
+          min="0"
+          step="1"
+          value="{{ item.quantity }}"
+          {% if required_fields and 'quantity' in required_fields %}required{% endif %}
+        >
+      </div>
+
+      <!-- Unit -->
+      <div class="field">
+        <label class="kv-label" for="unit">Unit {% if required_fields and 'unit' in required_fields %}(REQUIRED){% endif %}</label>
+        <input
+          class="input"
+          id="unit"
+          name="unit"
+          type="text"
+          value="{{ item.unit or '' }}"
+          {% if required_fields and 'unit' in required_fields %}required{% endif %}
+        >
+      </div>
+
+      <!-- Condition -->
+      <div class="field">
+        <label class="kv-label" for="condition">Condition {% if required_fields and 'condition' in required_fields %}(REQUIRED){% endif %}</label>
+        <input
+          class="input"
+          id="condition"
+          name="condition"
+          type="text"
+          value="{{ item.condition or '' }}"
+          {% if required_fields and 'condition' in required_fields %}required{% endif %}
+        >
+      </div>
+
+      <!-- Cook date -->
+      <div class="field">
+        <label class="kv-label" for="cook_date">Cook date {% if required_fields and 'cook_date' in required_fields %}(REQUIRED){% endif %}</label>
+        <input
+          class="input"
+          id="cook_date"
+          name="cook_date"
+          type="date"
+          value="{{ item.cook_date or '' }}"
+          {% if required_fields and 'cook_date' in required_fields %}required{% endif %}
+        >
+      </div>
+
+      <!-- Use-by date -->
+      <div class="field">
+        <label class="kv-label" for="use_by_date">Use-by date {% if required_fields and 'use_by_date' in required_fields %}(REQUIRED){% endif %}</label>
+        <input
+          class="input"
+          id="use_by_date"
+          name="use_by_date"
+          type="date"
+          value="{{ item.use_by_date or '' }}"
+          {% if required_fields and 'use_by_date' in required_fields %}required{% endif %}
+        >
+      </div>
+
+      <!-- Use Within -->
+      <div class="field">
+        <label class="kv-label" for="use_within">Use Within {% if required_fields and 'use_within' in required_fields %}(REQUIRED){% endif %}</label>
+        <select class="input" id="use_within" name="use_within">
+          <option value="">—</option>
+          {% for uw in use_withins %}
+            <option value="{{ uw }}" {% if item.use_within == uw %}selected{% endif %}>
+              {{ uw }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Notes -->
+      <div class="field field--full">
+        <label class="kv-label" for="notes">Notes {% if required_fields and 'notes' in required_fields %}(REQUIRED){% endif %}</label>
+        <textarea
+          class="input"
+          id="notes"
+          name="notes"
+          rows="3"
+          {% if required_fields and 'notes' in required_fields %}required{% endif %}
+        >{{ item.notes or "" }}</textarea>
+      </div>
+
+      <!-- Photo upload -->
+      <div class="field field--full">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <label class="kv-label" for="photos">Add photos</label>
+          <small class="muted">You can add multiple; originals are compressed.</small>
+        </div>
+        <label class="file-input">
+          <span class="file-btn">Choose photos</span>
+          <input
+            class="input"
+            id="photos"
+            name="photos"
+            type="file"
+            accept="image/*"
+            multiple
+          >
+          <span class="file-name">Select one or more files</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-primary" type="submit">
+        Save changes
+      </button>
+      <button class="btn btn-secondary" type="button" onclick="closeModal()">
+        Cancel
+      </button>
+    </div>
+  </form>
+</div>
+
+{% if photos or item.photo_path %}
+  <div class="modal-card" style="margin-top:10px;">
+    <div class="page-header">
+      <div class="page-header-text">
+        <h3 class="page-title" style="font-size:15px;">Manage photos</h3>
+        <p class="page-subtitle">Delete existing photos without affecting other changes.</p>
+      </div>
+    </div>
+    {% if photos %}
+      <div class="thumb-row" style="margin-top:10px;">
+        {% for p in photos %}
+          <div class="thumb" style="width:72px; height:72px; position:relative;">
+            <img src="{{ url_for('photo_by_id', photo_id=p.id) }}" alt="Photo {{ loop.index }}">
+            <form method="post" action="{{ url_for('delete_photo', photo_id=p.id) }}" style="position:absolute; top:2px; right:2px;">
+              <button class="btn btn-danger btn-small" type="submit" title="Delete photo" style="padding:2px 6px;">×</button>
+            </form>
+          </div>
+        {% endfor %}
+      </div>
+      <form method="post" action="{{ url_for('delete_all_photos', item_id=item.id) }}" style="margin-top:8px;">
+        <button class="btn btn-danger btn-small" type="submit">Delete all photos</button>
+      </form>
+    {% elif item.photo_path %}
+      <div class="thumb-row" style="margin-top:10px;">
+        <div class="thumb" style="width:72px; height:72px;">
+          <img src="{{ url_for('photo', item_id=item.id) }}" alt="Current photo">
+        </div>
+      </div>
+    {% endif %}
+  </div>
+{% endif %}
+
+<script>
+// Simple dropdown assist that always shows all options when clicking the chip
+(function(){
+  const inputs = document.querySelectorAll('.js-suggest');
+  inputs.forEach((inp) => {
+    const options = (() => {
+      try { return JSON.parse(inp.dataset.options || '[]'); } catch (e) { return []; }
+    })();
+    if (!options.length) return;
+    const wrapper = document.createElement('div');
+    wrapper.style.position = 'relative';
+    inp.parentNode.insertBefore(wrapper, inp);
+    wrapper.appendChild(inp);
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = '▼';
+    btn.className = 'btn btn-ghost';
+    btn.style.position = 'absolute';
+    btn.style.right = '6px';
+    btn.style.top = '50%';
+    btn.style.transform = 'translateY(-50%)';
+    btn.style.padding = '2px 6px';
+    btn.style.height = '26px';
+    wrapper.appendChild(btn);
+
+    const list = document.createElement('div');
+    list.className = 'card';
+    list.style.position = 'absolute';
+    list.style.top = 'calc(100% + 4px)';
+    list.style.left = '0';
+    list.style.right = '0';
+    list.style.maxHeight = '180px';
+    list.style.overflow = 'auto';
+    list.style.display = 'none';
+    list.style.zIndex = '50';
+
+    options.forEach((opt) => {
+      const row = document.createElement('div');
+      row.textContent = opt;
+      row.style.padding = '8px';
+      row.style.cursor = 'pointer';
+      row.addEventListener('click', () => {
+        inp.value = opt;
+        list.style.display = 'none';
+        inp.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      list.appendChild(row);
+    });
+
+    wrapper.appendChild(list);
+
+    function toggle() {
+      list.style.display = list.style.display === 'none' ? 'block' : 'none';
+    }
+
+    btn.addEventListener('click', toggle);
+    inp.addEventListener('focus', () => { list.style.display = 'block'; });
+    document.addEventListener('click', (e) => {
+      if (!wrapper.contains(e.target)) list.style.display = 'none';
+    });
+  });
+})();
+</script>

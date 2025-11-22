@@ -1,0 +1,254 @@
+{% extends "layout.html" %}
+{% block title %}{{ item.name }} · Pantrlytics{% endblock %}
+
+{% block content %}
+<section class="card">
+
+  <!-- Header with big name + serial -->
+  <header class="page-header">
+    <div class="page-header-text">
+      <h1 class="page-title item-title">{{ item.name }}</h1>
+      <p class="page-subtitle">
+        Serial
+        <span class="code link-serial">{{ item.serial_number }}</span>
+      </p>
+    </div>
+  </header>
+
+  {% if expiry_info %}
+    {% set sev = expiry_info.severity %}
+    <div class="alert-expiry {% if sev in ['overdue','critical'] %}danger{% elif sev in ['soon','watch'] %}warn{% endif %}">
+      <strong>
+        {% if expiry_info.days < 0 %}
+          Past due by {{ expiry_info.days | abs }} day{% if expiry_info.days|abs != 1 %}s{% endif %}
+        {% else %}
+          Expires in {{ expiry_info.days }} day{% if expiry_info.days != 1 %}s{% endif %}
+        {% endif %}
+      </strong>
+      <span class="muted">Use-by {{ item.use_by_date or '—' }}</span>
+    </div>
+  {% endif %}
+
+  <!-- Main details + photo on the right -->
+  <div class="detail-grid">
+    <!-- Left column: key/value info -->
+    <div class="kv">
+      <div>
+        <span class="kv-label">Category</span>
+        <span class="kv-value">{{ item.category or "—" }}</span>
+      </div>
+      <div>
+        <span class="kv-label">Bin</span>
+        <span class="kv-value">{{ item.bin_number or "—" }}</span>
+      </div>
+      <div>
+        <span class="kv-label">Qty</span>
+        <span class="kv-value">{{ item.quantity }} {{ item.unit or "" }}</span>
+      </div>
+      <div>
+        <span class="kv-label">Location</span>
+        <span class="kv-value">{{ item.location or "—" }}</span>
+      </div>
+      <div>
+        <span class="kv-label">Condition</span>
+        <span class="kv-value">{{ item.condition or "—" }}</span>
+      </div>
+      <div>
+        <span class="kv-label">Cook Date</span>
+        <span class="kv-value">{{ item.cook_date or "—" }}</span>
+      </div>
+      <div>
+        <span class="kv-label">Use-by</span>
+        <span class="kv-value">{{ item.use_by_date or "—" }}</span>
+      </div>
+      <div>
+        <span class="kv-label">Use Within</span>
+        <span class="kv-value">{{ item.use_within or "—" }}</span>
+      </div>
+      <div>
+        <span class="kv-label">Tags</span>
+        <span class="kv-value">{{ item.tags or "—" }}</span>
+      </div>
+      <div class="field--full">
+        <span class="kv-label">Notes</span>
+        <span class="kv-value wrap">{{ item.notes or "—" }}</span>
+      </div>
+      <div>
+        <span class="kv-label">Created</span>
+        <span class="kv-value">{{ format_datetime(item.created_at) }}</span>
+      </div>
+      {% if BASE_URL %}
+      <div class="kv-row">
+        <span class="kv-label">Direct label URL</span>
+        <span class="kv-value">
+          {{ BASE_URL.rstrip('/') }}/label/{{ item.id }}.png
+        </span>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Right column: photos -->
+    <aside class="detail-photo-card">
+      <div class="detail-photo-header">
+        <span class="kv-label">Photos</span>
+      </div>
+
+      {% if photos and photos|length %}
+        <div class="photo-grid">
+          {% for p in photos %}
+            <button
+              class="thumb js-photo-open"
+              data-index="{{ loop.index0 }}"
+              data-photo-url="{{ url_for('photo_by_id', photo_id=p.id) }}"
+              type="button"
+              title="Click to view full photo"
+            >
+              <img src="{{ url_for('photo_by_id', photo_id=p.id) }}" alt="Photo {{ loop.index }}">
+              <span class="thumb-overlay">Click to view</span>
+            </button>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="muted">No photo yet.</div>
+      {% endif %}
+    </aside>
+  </div>
+
+  <!-- Actions row -->
+  <div class="actions">
+    <form method="post"
+          action="{{ url_for('duplicate_item', item_id=item.id) }}"
+          style="display:inline">
+      <button class="btn btn-primary" type="submit">
+        Duplicate
+      </button>
+    </form>
+
+    <a class="btn" href="{{ url_for('label_png', item_id=item.id) }}"
+       target="_blank" rel="noopener">
+      Preview Label
+    </a>
+
+    <form method="post"
+          action="{{ url_for('print_label_post', item_id=item.id) }}"
+          style="display:inline">
+      <button class="btn" type="submit">Print Label</button>
+    </form>
+
+    <a
+      class="btn btn-secondary"
+      href="{{ url_for('label_designer') }}"
+    >
+      Designer
+    </a>
+
+    <button
+      class="btn btn-accent"
+      type="button"
+      data-edit-url="{{ url_for('edit_item_form', item_id=item.id) }}?partial=1"
+      onclick="openModal(this.dataset.editUrl)">
+      Edit
+    </button>
+
+    <form method="post"
+          action="{{ url_for('delete_item', item_id=item.id) }}"
+          style="display:inline"
+          onsubmit="return confirm('Delete this item?');">
+      <button class="btn btn-danger" type="submit">Delete</button>
+    </form>
+
+    <a class="btn btn-secondary" href="{{ url_for('index') }}">Back</a>
+  </div>
+  <script>
+    (function(){
+      document.addEventListener('DOMContentLoaded', () => {
+        const dlg = document.getElementById('app-modal');
+        const body = document.getElementById('app-modal-body');
+        const openers = Array.from(document.querySelectorAll('.js-photo-open'));
+        if (!openers.length || !dlg || !body) return;
+        // Build photo list from buttons (preserves current order)
+        const photos = openers
+          .map(btn => btn.dataset.photoUrl)
+          .filter(Boolean)
+          .filter((url, idx, arr) => arr.indexOf(url) === idx);
+        if (!photos.length) return;
+        function renderCarousel(startIndex = 0) {
+          let idx = startIndex;
+          function update() {
+            body.innerHTML = `
+              <div class="modal-card" style="min-width:420px; width:clamp(420px, 90vw, 960px); height:clamp(600px, 90vh, 900px); display:flex; flex-direction:column; gap:12px; overflow:hidden;">
+                <div style="display:flex; justify-content:flex-start; align-items:center;">
+                  <strong>Photos (${idx+1} / ${photos.length})</strong>
+                </div>
+                <div style="flex:1; min-height:0; display:flex; align-items:center; justify-content:center; border:1px solid var(--border); border-radius:12px; background: color-mix(in oklab, var(--card), var(--bg) 10%); padding:8px; overflow:hidden;">
+                  <img src="${photos[idx]}" alt="photo" style="max-width:100%; max-height:100%; width:auto; height:auto; object-fit:contain; border-radius:10px;">
+                </div>
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+                  <button class="btn btn-secondary" ${idx===0?'disabled':''} id="prev-photo" aria-label="Previous">←</button>
+                  <div style="display:flex; flex:1; gap:8px; overflow-x:auto; padding:4px 0; justify-content:center; flex-wrap:wrap; max-height:88px;">
+                    ${photos.map((url, thumbIdx) => `
+                      <button class="thumb" data-thumb="${thumbIdx}" style="width:64px; height:64px; border:${thumbIdx===idx?'2px solid var(--accent)':'1px solid var(--border)'}; border-radius:8px; overflow:hidden; padding:0;">
+                        <img src="${url}" alt="thumb ${thumbIdx+1}" style="width:100%; height:100%; object-fit:cover;">
+                      </button>
+                    `).join('')}
+                  </div>
+                  <button class="btn btn-secondary" ${idx===photos.length-1?'disabled':''} id="next-photo" aria-label="Next">→</button>
+                </div>
+              </div>
+            `;
+            if (typeof dlg.showModal === "function") dlg.showModal(); else dlg.setAttribute("open","open");
+            body.querySelector('#prev-photo')?.addEventListener('click', () => { if (idx>0) { idx--; update(); } });
+            body.querySelector('#next-photo')?.addEventListener('click', () => { if (idx < photos.length-1) { idx++; update(); } });
+            body.querySelectorAll('[data-thumb]').forEach(btn => {
+              btn.addEventListener('click', () => {
+                const t = parseInt(btn.dataset.thumb || '0', 10);
+                if (!Number.isNaN(t)) { idx = t; update(); }
+              });
+            });
+          }
+          update();
+        }
+        openers.forEach(btn => {
+          btn.addEventListener('click', () => {
+            const idx = parseInt(btn.dataset.index || '0', 10);
+            renderCarousel(Number.isNaN(idx) ? 0 : idx);
+          });
+        });
+      });
+    })();
+  </script>
+</section>
+
+{% if auto_edit %}
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    // 🔧 Strip ?auto_edit=1 from the URL so reloads don't re-open the modal
+    try {
+      const url = new URL(window.location.href);
+      if (url.searchParams.has('auto_edit')) {
+        url.searchParams.delete('auto_edit');
+        const newSearch = url.search ? url.search : '';
+        window.history.replaceState(
+          null,
+          '',
+          url.pathname + newSearch
+        );
+      }
+    } catch (e) {
+      // Fallback: just drop the query entirely
+      try {
+        window.history.replaceState(null, '', window.location.pathname);
+      } catch (_) {
+        // ignore
+      }
+    }
+
+    // Now actually open the edit modal once
+    const editUrl = "{{ url_for('edit_item_form', item_id=item.id) }}?partial=1";
+    if (window.openModal) {
+      window.openModal(editUrl);
+    }
+  });
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,26 @@
+{% extends "layout.html" %}
+{% block title %}Admin Login · Pantrlytics{% endblock %}
+
+{% block content %}
+<section class="card admin-card" style="max-width:420px; margin: 40px auto;">
+  <header class="page-header">
+    <div class="page-header-text">
+      <h1 class="page-title">Admin login</h1>
+      <p class="page-subtitle">Enter the admin password to continue.</p>
+    </div>
+  </header>
+  {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+  {% endif %}
+  <form method="post" class="form-grid">
+    <div class="field field--full">
+      <label>Password</label>
+      <input class="input" type="password" name="admin_password_attempt" autofocus required>
+    </div>
+    <div class="actions">
+      <button class="btn btn-primary" type="submit">Sign in</button>
+      <a class="btn btn-secondary" href="{{ url_for('index') }}">Cancel</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Pantrlytics{% endblock %}</title>
+
+  <!-- Minimal fallback only (so page stays readable if CSS 404s).
+       The real look comes from /static/styles.css below. -->
+  <style>
+    :root{
+      --bg:#0b0b0d; --text:#e5e7eb; --link:#4dabf7;
+    }
+    html,body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif
+    }
+    a{color:var(--link);text-decoration:none}
+    .container{max-width:1100px;margin:0 auto;padding:16px}
+  </style>
+
+  <link rel="stylesheet"
+      href="{{ (request.scope.get('root_path','') ~ '/assets/styles.css?v=' ~ css_version) | replace('//','/') }}">
+</head>
+<body>
+  <script>
+    // Apply theme class early to avoid flash
+    (function() {
+      const theme = localStorage.getItem('app_theme') || document.documentElement.dataset.theme || 'dark';
+      document.documentElement.dataset.theme = theme;
+    })();
+  </script>
+  <header class="app-header">
+    <div class="container">
+      <h1 class="app-title">
+        <a href="{{ url_for('index') }}">Pantrlytics</a>
+      </h1>
+      <nav class="nav">
+        <a href="{{ url_for('index') }}">All Items</a>
+        <a href="{{ url_for('new_item') }}">New Item</a>
+        <a href="{{ url_for('label_designer') }}">Designer</a>
+        <a href="{{ url_for('reports') }}">Reports</a>
+        <a href="{{ url_for('admin') }}">Admin</a>
+        <a href="{{ url_for('backup_page') }}">Backup</a>
+        <a href="{{ url_for('whoami') }}">Who am I</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    {% block content %}{% endblock %}
+
+    <!-- Modal -->
+    <dialog id="app-modal">
+      <form method="dialog" id="app-modal-close">
+        <button class="btn btn-small btn-ghost" value="close" aria-label="Close dialog">
+          ✕
+        </button>
+      </form>
+      <div id="app-modal-body" class="modal-card"></div>
+    </dialog>
+  </main>
+<script>
+  const dlg  = document.getElementById('app-modal');
+  const body = document.getElementById('app-modal-body');
+
+  async function openModal(url) {
+    try {
+      const res  = await fetch(url, {
+        headers: {
+          "Accept": "text/html",
+          "X-Requested-With": "fetch"
+        }
+      });
+      const html = await res.text();
+      body.innerHTML = html;
+
+      if (typeof dlg.showModal === "function") {
+        dlg.showModal();
+      } else {
+        dlg.setAttribute("open", "open");
+      }
+
+      const form = body.querySelector('form[data-edit-form]');
+      if (form) {
+        form.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const submitBtn = form.querySelector('button[type="submit"]') || form.querySelector('.btn-primary');
+          const originalText = submitBtn ? submitBtn.textContent : '';
+          if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Saving…'; }
+          const fd  = new FormData(form);
+          let data = null;
+          try {
+            const res2 = await fetch(form.action, {
+              method: 'POST',
+              body: fd,
+              headers: {
+                "Accept": "application/json",
+                "X-Requested-With": "fetch"
+              }
+            });
+            const ct = res2.headers.get('content-type') || '';
+            if (ct.includes('application/json')) {
+              data = await res2.json();
+            } else if (res2.ok) {
+              // non-JSON but ok (e.g. redirect) -> reload
+              window.location.reload();
+              return;
+            }
+          } catch (err) {
+            console.error(err);
+          } finally {
+            if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = originalText || 'Save'; }
+          }
+
+          if (data && data.ok) {
+            closeModal();
+            const urlObj = new URL(window.location.href);
+            urlObj.searchParams.delete('edit');
+            window.location.href = urlObj.toString();
+          } else {
+            alert('Save failed');
+          }
+        });
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Failed to load editor.');
+    }
+  }
+
+  function closeModal(){
+    if (!dlg) return;
+    if (typeof dlg.close === "function") {
+      dlg.close();
+    } else {
+      dlg.removeAttribute("open");
+    }
+  }
+
+  // ✅ Click outside the modal content to close
+  if (dlg) {
+    dlg.addEventListener('click', (event) => {
+      // Only close if the user clicked the backdrop, not inside the card
+      if (event.target === dlg) {
+        closeModal();
+      }
+    });
+  }
+
+  window.openModal  = openModal;
+  window.closeModal = closeModal;
+
+  // Theme switcher listener (ties into admin radio)
+  document.addEventListener('change', (e) => {
+    const form = e.target.closest('#theme-form');
+    if (!form) return;
+    const toggle = form.querySelector('input[name="theme_toggle"]');
+    const themeInput = form.querySelector('input[name="theme"]');
+    const val = toggle && toggle.checked ? 'light' : 'dark';
+    if (themeInput) themeInput.value = val;
+    document.documentElement.dataset.theme = val;
+    try { localStorage.setItem('app_theme', val); } catch (_e) {}
+    form.submit();
+  });
+
+  // Simple required validation helper
+  document.addEventListener('submit', (e) => {
+    const form = e.target;
+    if (!form.classList.contains('js-validate-required')) return;
+    let valid = true;
+    form.querySelectorAll('.field-error-message').forEach(el => el.remove());
+    form.querySelectorAll('.field').forEach(f => f.classList.remove('field-error'));
+    const requiredInputs = form.querySelectorAll('[required]');
+    requiredInputs.forEach(inp => {
+      if (!inp.value || (typeof inp.value === 'string' && !inp.value.trim())) {
+        valid = false;
+        const field = inp.closest('.field') || inp.parentElement;
+        if (field) {
+          field.classList.add('field-error');
+          const msg = document.createElement('div');
+          msg.className = 'field-error-message';
+          msg.textContent = 'Required';
+          field.appendChild(msg);
+        }
+      }
+    });
+    if (!valid) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  });
+
+  // File input filename display
+  document.addEventListener('change', (e) => {
+    const input = e.target;
+    if (!(input instanceof HTMLInputElement)) return;
+    if (input.type !== 'file') return;
+    const wrapper = input.closest('.file-input');
+    if (!wrapper) return;
+    const label = wrapper.querySelector('.file-name');
+    if (!label) return;
+    const files = Array.from(input.files || []);
+    if (!files.length) {
+      label.textContent = 'No file chosen';
+      return;
+    }
+    const names = files.slice(0,3).map(f => f.name).join(', ');
+    label.textContent = files.length > 3 ? `${files.length} files selected (${names}…)` : names;
+  });
+</script>
+</body>
+</html>

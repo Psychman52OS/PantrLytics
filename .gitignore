@@ -1,0 +1,19 @@
+__pycache__/
+*.pyc
+*.pyo
+*.db
+*.sqlite
+.python-version
+.venv/
+venv/
+env/
+.env
+
+# Local runtime data
+/data/
+/photos/
+/inventory.db
+
+# Editor/OS junk
+.DS_Store
+Thumbs.db

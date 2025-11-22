@@ -1,0 +1,138 @@
+{% extends "layout.html" %}
+{% block title %}Backup · Inventory & Labels{% endblock %}
+{% block content %}
+<section class="card">
+  <header class="page-header">
+    <div class="page-header-text">
+      <h1 class="page-title">Backups</h1>
+      <p class="page-subtitle">Export your data and files or schedule automatic daily backups.</p>
+    </div>
+  </header>
+
+  {% if msg %}
+    <div class="alert alert-success">{{ msg }}</div>
+  {% endif %}
+  {% if err %}
+    <div class="alert alert-error">{{ err }}</div>
+  {% endif %}
+
+  <form method="post" action="{{ url_for('backup_run') }}">
+    <div class="admin-columns" style="margin-bottom:12px;">
+      <div class="admin-section-header" style="margin-bottom:8px;">
+        <h2>What to include</h2>
+        <p class="admin-section-help">Choose the parts to bundle into a .zip backup.</p>
+      </div>
+      <ul class="admin-sortable-list admin-required-list">
+        <li class="admin-sortable-row">
+          <div class="admin-column-label">
+            <div class="admin-column-title">Database</div>
+            <div class="admin-column-sub">inventory.db (all items)</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" name="include_db" {% if options.include_db %}checked{% endif %}>
+            <span class="slider"></span>
+          </label>
+        </li>
+        <li class="admin-sortable-row">
+          <div class="admin-column-label">
+            <div class="admin-column-title">Photos</div>
+            <div class="admin-column-sub">All uploaded item photos</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" name="include_photos" {% if options.include_photos %}checked{% endif %}>
+            <span class="slider"></span>
+          </label>
+        </li>
+        <li class="admin-sortable-row">
+          <div class="admin-column-label">
+            <div class="admin-column-title">CSV export</div>
+            <div class="admin-column-sub">Current items as export.csv</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" name="include_export" {% if options.include_export %}checked{% endif %}>
+            <span class="slider"></span>
+          </label>
+        </li>
+        <li class="admin-sortable-row">
+          <div class="admin-column-label">
+            <div class="admin-column-title">Add-on options</div>
+            <div class="admin-column-sub">options.json (config)</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" name="include_config" {% if options.include_config %}checked{% endif %}>
+            <span class="slider"></span>
+          </label>
+        </li>
+      </ul>
+    </div>
+
+    <div class="admin-columns" style="margin-bottom:12px;">
+      <div class="admin-section-header" style="margin-bottom:8px;">
+        <h2>Auto backup</h2>
+        <p class="admin-section-help">Optional daily backup at a set time (server local time).</p>
+      </div>
+      <div class="admin-inline-form" style="align-items:center; gap:10px; flex-wrap:wrap;">
+        <label class="switch">
+          <input type="checkbox" name="schedule_enabled" {% if schedule.enabled %}checked{% endif %}>
+          <span class="slider"></span>
+        </label>
+        <input class="input" style="max-width:120px;" type="time" name="schedule_time" value="{{ schedule.time }}">
+        <span class="admin-section-help">Time of day (24h)</span>
+      </div>
+      <div class="field" style="margin-top:6px;">
+        <label class="admin-section-help">Target folder for backups</label>
+        <div class="admin-inline-form" style="gap:10px; flex-wrap:wrap;">
+          <input class="input" type="text" name="backup_target_dir" value="{{ options.target_dir }}" placeholder="{{ options.target_dir }}">
+          <button type="button" class="btn btn-secondary" onclick="alert('Browsers cannot pick a folder for the server; enter a path on the host where you want backups saved. Default is {{ options.target_dir }}.')">Choose folder</button>
+        </div>
+        <div class="admin-section-help">Enter a writable path on the host. Default is {{ options.target_dir }}.</div>
+      </div>
+    </div>
+
+    <div class="actions" style="margin-top:12px;">
+      <button class="btn btn-primary" type="submit">Create backup (.zip)</button>
+    </div>
+  </form>
+
+  <div class="admin-columns" style="margin-top:16px;">
+    <div class="admin-section-header" style="margin-bottom:8px;">
+      <h2>Restore from backup</h2>
+      <p class="admin-section-help">Upload a backup zip to restore DB, photos, and options.</p>
+    </div>
+    <form method="post" action="{{ url_for('backup_restore') }}" enctype="multipart/form-data" class="admin-inline-form" style="gap:10px; flex-wrap:wrap;">
+      <label class="file-input">
+        <span class="file-btn">Choose backup zip</span>
+        <input type="file" name="file" accept=".zip" required>
+        <span class="file-name">No file chosen</span>
+      </label>
+      <button class="btn btn-secondary" type="submit">Restore</button>
+    </form>
+  </div>
+
+  <div class="admin-columns" style="margin-top:16px;">
+    <div class="admin-section-header" style="margin-bottom:8px;">
+      <h2>CSV export</h2>
+      <p class="admin-section-help">Select which fields to include, then download.</p>
+    </div>
+    <form method="post" action="{{ url_for('export_custom') }}" class="admin-display-form" id="export-form">
+      <ul class="admin-sortable-list admin-required-list">
+        {% for f in export_fields %}
+          <li class="admin-sortable-row">
+            <div class="admin-column-label">
+              <div class="admin-column-title">{{ f.label }}</div>
+              <div class="admin-column-sub">{{ f.key }}</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" name="fields" value="{{ f.key }}" checked>
+              <span class="slider"></span>
+            </label>
+          </li>
+        {% endfor %}
+      </ul>
+      <div class="actions" style="margin-top:12px;">
+        <button class="btn btn-primary" type="submit">Download CSV</button>
+      </div>
+    </form>
+  </div>
+</section>
+{% endblock %}

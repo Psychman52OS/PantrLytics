@@ -1,0 +1,252 @@
+{% extends "layout.html" %}
+{% block title %}Designer · Inventory & Labels{% endblock %}
+
+{% block content %}
+
+<section class="card">
+  <header class="page-header">
+    <div class="page-header-text">
+      <h1 class="page-title">Label Designer</h1>
+      <p class="page-subtitle">
+        Quick one-off labels, plus global presets used when printing items.
+      </p>
+    </div>
+  </header>
+
+  <!-- Quick Label card -->
+  <div class="detail-grid">
+    <section class="kv">
+      <h2 class="card-title">Quick Label</h2>
+      <p class="muted">
+        Fast one-off labels that do <strong>not</strong> come from items.
+        Title is big, description is smaller. No presets.
+      </p>
+
+      {% if quick_printed %}
+        <p class="muted">✅ Quick label sent to printer.</p>
+      {% endif %}
+      {% if quick_error %}
+        <p class="muted">⚠️ Print error: {{ quick_error }}</p>
+      {% endif %}
+
+      <form method="post" class="form-grid">
+        <div class="field field--full">
+          <label class="kv-label" for="quick_title">Title</label>
+          <input
+            class="input"
+            id="quick_title"
+            name="title"
+            type="text"
+            placeholder="e.g. FRAGILE"
+            required
+          >
+        </div>
+
+        <div class="field field--full">
+          <label class="kv-label" for="quick_desc">Description</label>
+          <textarea
+            class="input"
+            id="quick_desc"
+            name="description"
+            rows="2"
+            placeholder="e.g. Handle with care"
+          ></textarea>
+        </div>
+
+        <div class="actions field--full">
+          <button
+            class="btn btn-secondary"
+            type="submit"
+            formaction="{{ url_for('quick_label_preview') }}"
+            formtarget="_blank"
+          >
+            Preview
+          </button>
+          <button
+            class="btn btn-primary"
+            type="submit"
+            formaction="{{ url_for('quick_label_print') }}"
+          >
+            Print quick label
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Presets summary -->
+    <aside class="detail-photo-card">
+      <h2 class="card-title">How presets work</h2>
+      <p class="muted">
+        <strong>Item labels</strong> (when you click <em>Print Label</em> on an item)
+        always use the <strong>current default preset</strong>.
+      </p>
+      <p class="muted">
+        Create a few presets (e.g. “Freezer basic”, “Pantry detail”) and mark
+        one as default. You can switch defaults any time from here.
+      </p>
+    </aside>
+  </div>
+</section>
+
+<!-- Item label presets -->
+<section class="card" style="margin-top:16px;">
+  <header class="page-header">
+    <div class="page-header-text">
+      <h2 class="page-title">Item Label Presets</h2>
+      <p class="page-subtitle">
+        Global presets for printing item labels. Advanced mode: choose fields,
+        font scale, QR, and basic alignment.
+      </p>
+    </div>
+  </header>
+
+  {% if presets %}
+    <div class="table-wrap" style="margin-bottom:16px;">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Media</th>
+            <th>Fields</th>
+            <th>Default</th>
+            <th class="right">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in presets %}
+            <tr>
+              <td>{{ p.name }}</td>
+              <td>{{ p.media }}</td>
+              <td>
+                {# very compact summary of included fields #}
+                {% set fields = [] %}
+                {% if p.include_name %}{% set _ = fields.append("Name") %}{% endif %}
+                {% if p.include_location %}{% set _ = fields.append("Location") %}{% endif %}
+                {% if p.include_bin %}{% set _ = fields.append("Bin") %}{% endif %}
+                {% if p.include_qty_unit %}{% set _ = fields.append("Qty+Unit") %}{% endif %}
+                {% if p.include_condition %}{% set _ = fields.append("Condition") %}{% endif %}
+                {% if p.include_cook_date %}{% set _ = fields.append("Cook") %}{% endif %}
+                {% if p.include_use_by %}{% set _ = fields.append("Use-by") %}{% endif %}
+                {% if p.include_use_within %}{% set _ = fields.append("Use Within") %}{% endif %}
+                {% if p.include_qr %}{% set _ = fields.append("QR") %}{% endif %}
+                {{ fields|join(", ") }}
+              </td>
+              <td>
+                {% if p.is_default %}
+                  <span class="muted">✅ Default</span>
+                {% else %}
+                  <form method="post" action="{{ url_for('label_preset_default') }}">
+                    <input type="hidden" name="preset_id" value="{{ p.id }}">
+                    <button class="btn btn-small btn-secondary" type="submit">
+                      Make default
+                    </button>
+                  </form>
+                {% endif %}
+              </td>
+              <td class="right">
+                <form method="post"
+                      action="{{ url_for('label_preset_delete') }}"
+                      onsubmit="return confirm('Delete this preset?');"
+                      style="display:inline">
+                  <input type="hidden" name="preset_id" value="{{ p.id }}">
+                  <button class="btn btn-small btn-danger" type="submit">
+                    Delete
+                  </button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="muted">
+      No presets yet. Create one below.
+    </p>
+  {% endif %}
+
+  <!-- Create new preset -->
+  <h3 class="card-title" style="margin-top:8px;">New preset</h3>
+
+  <form method="post" action="{{ url_for('label_preset_save') }}" class="form-grid">
+    <div class="field">
+      <label class="kv-label" for="preset_name">Name</label>
+      <input
+        class="input"
+        id="preset_name"
+        name="name"
+        type="text"
+        placeholder="e.g. Freezer basic"
+        required
+      >
+    </div>
+
+    <div class="field">
+      <label class="kv-label" for="preset_media">Media</label>
+      <select class="input" id="preset_media" name="media">
+        <option value="w79h252">Small address (w79h252)</option>
+        <option value="w154h64">Large label (w154h64)</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label class="kv-label">Fields</label>
+      <div class="muted" style="font-size:12px;">
+        Select what shows on the label. Quantity and Unit are combined.
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;font-size:12px;">
+        <label><input type="checkbox" name="include_name" checked> Name</label>
+        <label><input type="checkbox" name="include_location" checked> Location</label>
+        <label><input type="checkbox" name="include_bin" checked> Bin</label>
+        <label><input type="checkbox" name="include_qty_unit" checked> Qty+Unit</label>
+        <label><input type="checkbox" name="include_condition"> Condition</label>
+        <label><input type="checkbox" name="include_cook_date"> Cook date</label>
+        <label><input type="checkbox" name="include_use_by" checked> Use-by</label>
+        <label><input type="checkbox" name="include_use_within"> Use Within</label>
+        <label><input type="checkbox" name="include_qr" checked> QR code</label>
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="kv-label" for="font_scale">Font scale</label>
+      <input
+        class="input"
+        id="font_scale"
+        name="font_scale"
+        type="number"
+        step="0.1"
+        min="0.6"
+        max="1.4"
+        value="1.0"
+      >
+      <p class="muted" style="font-size:12px;margin-top:4px;">
+        1.0 = normal, lower = smaller text, higher = bigger.
+      </p>
+    </div>
+
+    <div class="field">
+      <label class="kv-label">Alignment</label>
+      <label style="font-size:12px;">
+        <input type="checkbox" name="align_center">
+        Center text (advanced)
+      </label>
+    </div>
+
+    <div class="field">
+      <label class="kv-label">Default?</label>
+      <label style="font-size:12px;">
+        <input type="checkbox" name="make_default"
+          {% if not presets %}checked{% endif %}>
+        Make this the default preset
+      </label>
+    </div>
+
+    <div class="actions field--full">
+      <button class="btn btn-primary" type="submit">
+        Save preset
+      </button>
+    </div>
+  </form>
+</section>
+
+{% endblock %}

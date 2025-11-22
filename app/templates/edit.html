@@ -1,0 +1,85 @@
+<form class="form-grid" data-edit-form method="post"
+      action="{{ url_for('edit_item_submit', item_id=item.id) }}"
+      enctype="multipart/form-data">
+
+  <h2 class="field--full" style="margin:0 0 8px">Edit Item</h2>
+
+  <label class="field">
+    <span>Name</span>
+    <input class="input" type="text" name="name" value="{{ item.name }}" required>
+  </label>
+
+  <label class="field">
+    <span>Category</span>
+    <input class="input" type="text" name="category" value="{{ item.category or '' }}">
+  </label>
+
+  <label class="field">
+    <span>Tags (comma-separated)</span>
+    <input class="input" type="text" name="tags" value="{{ item.tags or '' }}">
+  </label>
+
+  <label class="field">
+    <span>Location</span>
+    {% set loc = item.location or '' %}
+    <select class="input" name="location">
+      <option value="" {{ 'selected' if loc=='' else '' }}>—</option>
+      <option value="pantry" {{ 'selected' if loc=='pantry' else '' }}>pantry</option>
+      <option value="fridge" {{ 'selected' if loc=='fridge' else '' }}>fridge</option>
+      <option value="freezer" {{ 'selected' if loc=='freezer' else '' }}>freezer</option>
+      <option value="bulk_freezer" {{ 'selected' if loc=='bulk_freezer' else '' }}>bulk_freezer</option>
+    </select>
+  </label>
+
+  <label class="field">
+    <span>Bin #</span>
+    <input class="input" type="text" name="bin_number" value="{{ item.bin_number or '' }}">
+  </label>
+
+  <label class="field">
+    <span>Quantity</span>
+    <input class="input" type="number" name="quantity" value="{{ item.quantity }}" min="0" step="1">
+  </label>
+
+  <label class="field">
+    <span>Unit</span>
+    <input class="input" type="text" name="unit" value="{{ item.unit or '' }}">
+  </label>
+
+  <label class="field">
+    <span>Condition</span>
+    {% set cond = item.condition or '' %}
+    <select class="input" name="condition">
+      <option value="" {{ 'selected' if cond=='' else '' }}>—</option>
+      <option value="new" {{ 'selected' if cond=='new' else '' }}>new</option>
+      <option value="good" {{ 'selected' if cond=='good' else '' }}>good</option>
+      <option value="used" {{ 'selected' if cond=='used' else '' }}>used</option>
+      <option value="expired" {{ 'selected' if cond=='expired' else '' }}>expired</option>
+    </select>
+  </label>
+
+  <label class="field">
+    <span>Cook date</span>
+    <input class="input" type="date" name="cook_date" value="{{ item.cook_date or '' }}">
+  </label>
+
+  <label class="field">
+    <span>Use-by date</span>
+    <input class="input" type="date" name="use_by_date" value="{{ item.use_by_date or '' }}">
+  </label>
+
+  <label class="field field--full">
+    <span>Notes</span>
+    <textarea class="input" name="notes" rows="3">{{ item.notes or '' }}</textarea>
+  </label>
+
+  <label class="field field--full">
+    <span>Replace photo (optional)</span>
+    <input class="input" type="file" name="photo" accept="image/*">
+  </label>
+
+  <div class="actions field--full">
+    <button class="btn btn-secondary" type="button" data-close-modal>Cancel</button>
+    <button class="btn" type="submit">Save changes</button>
+  </div>
+</form>

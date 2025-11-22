@@ -1,0 +1,161 @@
+{% extends "layout.html" %}
+{% block title %}Reports · Pantrlytics{% endblock %}
+
+{% block content %}
+<section class="card">
+  <header class="page-header">
+    <div class="page-header-text">
+      <h1 class="page-title">Reports</h1>
+      <p class="page-subtitle">Expiration risk, aging, and compliance at a glance.</p>
+    </div>
+    <form method="get" class="reports-filters">
+      <div class="field">
+        <label>Horizon</label>
+        <select class="input" name="horizon">
+          {% for key,label in [
+            ('7','Next 7d'),
+            ('14','Next 14d'),
+            ('30','Next 30d'),
+            ('60','Next 60d'),
+            ('all','All')
+          ] %}
+            <option value="{{ key }}" {% if horizon==key %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>Category</label>
+        <select class="input" name="category">
+          <option value="">All</option>
+          {% for c in categories %}
+            <option value="{{ c }}" {% if category==c %}selected{% endif %}>{{ c }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>Location</label>
+        <select class="input" name="location">
+          <option value="">All</option>
+          {% for l in locations %}
+            <option value="{{ l }}" {% if location==l %}selected{% endif %}>{{ l }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button class="btn btn-primary" type="submit">Apply</button>
+    </form>
+  </header>
+
+  <div class="kpi-grid">
+    <div class="kpi-card danger">
+      <div class="kpi-label">Expired</div>
+      <div class="kpi-value">{{ summary.overdue }}</div>
+    </div>
+    <div class="kpi-card hot">
+      <div class="kpi-label">Expires ≤7d</div>
+      <div class="kpi-value">{{ summary.d7 }}</div>
+    </div>
+    <div class="kpi-card warn">
+      <div class="kpi-label">Expires ≤14d</div>
+      <div class="kpi-value">{{ summary.d14 }}</div>
+    </div>
+    <div class="kpi-card soon">
+      <div class="kpi-label">Expires ≤30d</div>
+      <div class="kpi-value">{{ summary.d30 }}</div>
+    </div>
+    <div class="kpi-card calm">
+      <div class="kpi-label">Expires ≤60d</div>
+      <div class="kpi-value">{{ summary.d60 }}</div>
+    </div>
+    <div class="kpi-card neutral">
+      <div class="kpi-label">Total in view</div>
+      <div class="kpi-value">{{ summary.total }}</div>
+    </div>
+  </div>
+
+  <div class="reports-grid">
+    <section class="report-card">
+      <div class="report-head">
+        <h3>Use-within compliance</h3>
+        <p class="muted">Items exceeding their intended window.</p>
+      </div>
+      {% if compliance_rate is not none %}
+        <div class="kpi-large">
+          <div class="kpi-value">{{ compliance_rate }}%</div>
+          <div class="kpi-label">Compliant</div>
+        </div>
+      {% else %}
+        <div class="muted">Not enough data yet.</div>
+      {% endif %}
+
+      <div class="report-head" style="margin-top:16px;">
+        <h3>Aging waterfall</h3>
+      </div>
+      <div class="bar-chart">
+        {% for label,count in aging.items() %}
+          <div class="bar">
+            <div class="bar-label">{{ label }}</div>
+            <div class="bar-track">
+              <span class="bar-fill" style="width: {{ (count or 0) * 6 }}px;"></span>
+            </div>
+            <div class="bar-value">{{ count }}</div>
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="report-card">
+      <div class="report-head">
+        <h3>Heatmap (Category x Location)</h3>
+        <p class="muted">Where upcoming expirations are concentrated.</p>
+      </div>
+      <div class="heatmap">
+        {% for cat, locs in heatmap.items() %}
+          <div class="heat-row">
+            <div class="heat-cat">{{ cat }}</div>
+            <div class="heat-cells">
+              {% for loc,val in locs.items() %}
+                <div class="heat-cell">
+                  <div class="heat-loc">{{ loc }}</div>
+                  <div class="heat-val">{{ val }}</div>
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+        {% else %}
+          <div class="muted">No expiring items to map.</div>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
+
+  <section class="report-card" style="margin-top:14px;">
+    <div class="report-head">
+      <h3>Upcoming risk (top 25)</h3>
+      <p class="muted">Sorted by days remaining.</p>
+    </div>
+    <div class="report-list">
+      {% for item in expiring %}
+        <div class="report-row">
+          <div>
+            <div class="report-title">
+              <a href="{{ url_for('show_item', item_id=item.id) }}">{{ item.name }}</a>
+              {% if item.expiry_info %}
+                <span class="pill pill-{{ item.expiry_info.severity }}">{{ item.expiry_info.badge }}</span>
+              {% endif %}
+            </div>
+            <div class="report-sub">
+              {{ item.category or "No category" }} · {{ item.location or "No location" }}
+            </div>
+          </div>
+          <div class="report-meta">
+            <div class="muted">Use-by</div>
+            <div>{{ item.use_by_date or "—" }}</div>
+          </div>
+        </div>
+      {% else %}
+        <div class="muted">No items in this horizon.</div>
+      {% endfor %}
+    </div>
+  </section>
+</section>
+{% endblock %}

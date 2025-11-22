@@ -1,0 +1,30 @@
+name: Inventory & Labels
+version: 0.6.29
+slug: my_inventory_labels
+description: Inventory database with on-demand label generation and IPP printing
+arch:
+  - aarch64
+  - amd64
+  - armv7
+startup: services
+init: false
+ingress: true
+ingress_entry: /
+panel_icon: mdi:barcode
+hassio_api: true
+homeassistant: "2024.1.0"
+
+ports:
+  "8099/tcp": 8099 
+
+options:
+  base_url: ""
+  ipp_host: ""
+  ipp_printer: ""
+  serial_prefix: "USERconfigurable-"
+
+schema:
+  base_url: str?
+  ipp_host: str?
+  ipp_printer: str?
+  serial_prefix: str?

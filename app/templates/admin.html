@@ -1,0 +1,691 @@
+{% extends "layout.html" %}
+{% block title %}Admin · Pantrlytics{% endblock %}
+
+{% block content %}
+<section class="card admin-card">
+  <header class="page-header">
+    <div class="page-header-text">
+      <h1 class="page-title">Admin</h1>
+      <p class="page-subtitle">
+        Manage categories, bins, locations, and "Use Within" values used by your items.
+      </p>
+    </div>
+    <div class="btn-group" style="margin-top:10px;">
+      <button type="button" class="btn btn-secondary" id="expand-all">Expand all</button>
+      <button type="button" class="btn btn-secondary" id="collapse-all">Collapse all</button>
+      <form method="post" style="margin:0;">
+        <input type="hidden" name="lock_admin" value="1">
+        <button class="btn btn-accent" type="submit">Lock admin</button>
+      </form>
+    </div>
+  </header>
+
+  <!-- Health checks -->
+  <section class="admin-section" id="health-section">
+    <div class="admin-section-header">
+      <h2>Health</h2>
+      <p class="admin-section-help">Quick status for printing and storage.</p>
+    </div>
+    <div class="admin-list">
+      <div class="admin-list-row" style="border-radius:12px; border:1px solid var(--border); padding:8px 10px; background: var(--card);">
+        <span class="admin-list-name">IPP connectivity</span>
+        <span class="admin-section-help">{{ health.ipp_status }}</span>
+      </div>
+      <div class="admin-list-row" style="border-radius:12px; border:1px solid var(--border); padding:8px 10px; background: var(--card);">
+        <span class="admin-list-name">Disk (DATA_DIR)</span>
+        <span class="admin-section-help">
+          {{ (health.disk.used / (1024*1024)) | round(0) }} MB used /
+          {{ (health.disk.total / (1024*1024)) | round(0) }} MB total
+        </span>
+      </div>
+      <div class="admin-list-row" style="border-radius:12px; border:1px solid var(--border); padding:8px 10px; background: var(--card);">
+        <span class="admin-list-name">Total items</span>
+        <span class="admin-section-help">{{ health.item_count }}</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Display preferences -->
+  <section class="admin-section" id="main-table-columns">
+    <div class="admin-section-header">
+      <h2>Main table columns</h2>
+      <p class="admin-section-help">
+        Choose which fields show on the home page (Name is always shown) and set their order.
+      </p>
+    </div>
+    <form method="post" class="admin-display-form admin-columns" id="display-columns-form">
+      <input type="hidden" name="display_fields_action" value="save">
+      <input type="hidden" name="display_fields_order" id="display_fields_order" value="">
+      <div id="display-save-status" class="admin-save-status" aria-live="polite"></div>
+      <ul class="admin-sortable-list" id="display-fields-list">
+        {% for f in display_fields_defs %}
+          <li class="admin-sortable-row" data-key="{{ f.key }}" draggable="true">
+            <button type="button" class="drag-handle" aria-label="Drag to reorder">
+              ☰
+            </button>
+            <div class="admin-column-label">
+              <div class="admin-column-title">{{ f.label }}</div>
+              <div class="admin-column-sub">{{ f.key }}</div>
+            </div>
+            <label class="switch">
+              <input
+                type="checkbox"
+                name="display_fields"
+                value="{{ f.key }}"
+                {% if f.key in selected_display_fields %}checked{% endif %}
+              >
+              <span class="slider"></span>
+            </label>
+          </li>
+        {% endfor %}
+      </ul>
+      <p class="admin-section-help">Drag the ☰ handle to reorder. Toggle to show/hide.</p>
+    </form>
+  </section>
+
+  <!-- Required fields -->
+  <section class="admin-section" id="required-fields">
+    <div class="admin-section-header">
+      <h2>Required fields</h2>
+      <p class="admin-section-help">
+        Pick which fields must be filled when creating or editing an item.
+      </p>
+    </div>
+    <form method="post" class="admin-display-form admin-columns" id="required-fields-form">
+      <input type="hidden" name="required_fields_action" value="save">
+      <div id="required-save-status" class="admin-save-status" aria-live="polite"></div>
+      <ul class="admin-sortable-list admin-required-list">
+        {% for f in required_field_defs %}
+          <li class="admin-sortable-row">
+            <div class="admin-column-label">
+              <div class="admin-column-title">{{ f.label }}</div>
+              <div class="admin-column-sub">
+                {{ f.key }}
+                <span class="required-badge" data-key="{{ f.key }}" {% if f.key not in selected_required_fields %}style="display:none;"{% endif %}>REQUIRED</span>
+              </div>
+            </div>
+            <label class="switch">
+              <input
+                type="checkbox"
+                name="required_fields"
+                value="{{ f.key }}"
+                {% if f.key in selected_required_fields %}checked{% endif %}
+              >
+              <span class="slider"></span>
+            </label>
+          </li>
+        {% endfor %}
+      </ul>
+    </form>
+  </section>
+
+  <!-- Theme -->
+  <section class="admin-section" id="theme-section">
+    <div class="admin-section-header">
+      <h2>Theme</h2>
+      <p class="admin-section-help">Choose light or dark UI.</p>
+    </div>
+    <form method="post" class="theme-switch-row" id="theme-form">
+      <input type="hidden" name="theme_action" value="save">
+      <input type="hidden" name="theme" value="{{ current_theme }}">
+      <span class="theme-label">Dark</span>
+      <label class="switch theme-switch">
+        <input type="checkbox" name="theme_toggle" {% if current_theme == 'light' %}checked{% endif %}>
+        <span class="slider"></span>
+      </label>
+      <span class="theme-label">Light</span>
+    </form>
+  </section>
+
+  <!-- Admin password -->
+  <section class="admin-section" id="admin-password">
+    <div class="admin-section-header">
+      <h2>Admin password</h2>
+      <p class="admin-section-help">Set a new admin password (default is "password").</p>
+    </div>
+    {% if pass_error %}
+      <div class="alert alert-error">{{ pass_error }}</div>
+    {% elif pass_success %}
+      <div class="alert alert-success">{{ pass_success }}</div>
+    {% endif %}
+    <form method="post" class="form-grid" style="grid-template-columns:1fr; gap:8px;">
+      <input type="hidden" name="change_admin_password" value="1">
+      <div class="field field--full">
+        <label>Current password</label>
+        <input class="input" type="password" name="current_password" required>
+      </div>
+      <div class="field field--full">
+        <label>New password</label>
+        <input class="input" type="password" name="new_password" required>
+      </div>
+      <div class="field field--full">
+        <label>Confirm new password</label>
+        <input class="input" type="password" name="new_password2" required>
+      </div>
+      <div class="actions">
+        <button class="btn btn-primary" type="submit">Update password</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="admin-section" id="app-heading">
+    <div class="admin-section-header">
+      <h2>App heading</h2>
+      <p class="admin-section-help">Title shown on the main page next to “New item”.</p>
+    </div>
+    <form method="post" class="admin-inline-form" style="gap:10px; align-items:center;">
+      <input type="hidden" name="app_heading_action" value="save">
+      <input class="input" type="text" name="app_heading_value" value="{{ app_heading }}" style="max-width:260px;">
+      <button class="btn btn-primary" type="submit">Save</button>
+    </form>
+  </section>
+
+  <div class="admin-grid">
+
+    <!-- Categories -->
+    <section class="admin-section" id="categories">
+      <div class="admin-section-header">
+        <h2>Categories</h2>
+        <p class="admin-section-help">
+          e.g. Meat, Veg, Prepared Meal… Drag to reorder. Edit via modal.
+        </p>
+      </div>
+
+      <form method="post" class="admin-inline-form">
+        <input type="text" name="new_category" class="input" placeholder="New category…">
+        <button class="btn btn-primary btn-small" type="submit">Add</button>
+      </form>
+
+      <form method="post" id="category-order-form" class="admin-display-form admin-columns">
+        <input type="hidden" name="category_order_action" value="save">
+        <input type="hidden" name="category_order" id="category_order" value="">
+        <div id="category-status" class="admin-save-status" aria-live="polite"></div>
+        <ul class="admin-sortable-list" id="category-list">
+          {% for cat in cats %}
+            <li class="admin-sortable-row" data-id="{{ cat.id }}" draggable="true">
+              <button type="button" class="drag-handle" aria-label="Drag to reorder">☰</button>
+              <div class="admin-column-label">
+                <div class="admin-column-title">{{ cat.name }}</div>
+              </div>
+              <div class="btn-group">
+                <button type="button" class="btn btn-small btn-ghost js-entity-edit" data-entity="category" data-id="{{ cat.id }}" data-name="{{ cat.name }}">Edit</button>
+                <button class="btn btn-danger btn-small js-delete-row" type="button" data-entity="category" data-id="{{ cat.id }}">Delete</button>
+              </div>
+            </li>
+          {% else %}
+            <li class="admin-empty muted">No categories yet.</li>
+          {% endfor %}
+        </ul>
+      </form>
+    </section>
+
+    <!-- Bins -->
+    <section class="admin-section" id="bins">
+      <div class="admin-section-header">
+        <h2>Bins</h2>
+        <p class="admin-section-help">
+          e.g. A1, Freezer Top Left… Drag to reorder. Edit via modal.
+        </p>
+      </div>
+
+      <form method="post" class="admin-inline-form">
+        <input type="text" name="new_bin" class="input" placeholder="New bin…">
+        <button class="btn btn-primary btn-small" type="submit">Add</button>
+      </form>
+
+      <form method="post" id="bin-order-form" class="admin-display-form admin-columns">
+        <input type="hidden" name="bin_order_action" value="save">
+        <input type="hidden" name="bin_order" id="bin_order" value="">
+        <div id="bin-status" class="admin-save-status" aria-live="polite"></div>
+        <ul class="admin-sortable-list" id="bin-list">
+          {% for b in bins %}
+            <li class="admin-sortable-row" data-id="{{ b.id }}" draggable="true">
+              <button type="button" class="drag-handle" aria-label="Drag to reorder">☰</button>
+              <div class="admin-column-label">
+                <div class="admin-column-title">{{ b.name }}</div>
+              </div>
+              <div class="btn-group">
+                <button type="button" class="btn btn-small btn-ghost js-entity-edit" data-entity="bin" data-id="{{ b.id }}" data-name="{{ b.name }}">Edit</button>
+                <button class="btn btn-danger btn-small js-delete-row" type="button" data-entity="bin" data-id="{{ b.id }}">Delete</button>
+              </div>
+            </li>
+          {% else %}
+            <li class="admin-empty muted">No bins yet.</li>
+          {% endfor %}
+        </ul>
+      </form>
+    </section>
+
+    <!-- Locations -->
+    <section class="admin-section" id="locations">
+      <div class="admin-section-header">
+        <h2>Locations</h2>
+        <p class="admin-section-help">
+          e.g. Bulk Freezer, Fridge, Pantry… Drag to reorder. Edit via modal.
+        </p>
+      </div>
+
+      <form method="post" class="admin-inline-form">
+        <input type="text" name="new_location" class="input" placeholder="New location…">
+        <button class="btn btn-primary btn-small" type="submit">Add</button>
+      </form>
+
+      <form method="post" id="location-order-form" class="admin-display-form admin-columns">
+        <input type="hidden" name="location_order_action" value="save">
+        <input type="hidden" name="location_order" id="location_order" value="">
+        <div id="location-status" class="admin-save-status" aria-live="polite"></div>
+        <ul class="admin-sortable-list" id="location-list">
+          {% for loc in locations %}
+            <li class="admin-sortable-row" data-id="{{ loc.id }}" draggable="true">
+              <button type="button" class="drag-handle" aria-label="Drag to reorder">☰</button>
+              <div class="admin-column-label">
+                <div class="admin-column-title">{{ loc.name }}</div>
+              </div>
+              <div class="btn-group">
+                <button type="button" class="btn btn-small btn-ghost js-entity-edit" data-entity="location" data-id="{{ loc.id }}" data-name="{{ loc.name }}">Edit</button>
+                <button class="btn btn-danger btn-small js-delete-row" type="button" data-entity="location" data-id="{{ loc.id }}">Delete</button>
+              </div>
+            </li>
+          {% else %}
+            <li class="admin-empty muted">No locations yet.</li>
+          {% endfor %}
+        </ul>
+      </form>
+    </section>
+
+    <!-- Use Within -->
+    <section class="admin-section" id="usewithin">
+      <div class="admin-section-header">
+        <h2>Use Within</h2>
+        <p class="admin-section-help">
+          e.g. 1 Day, 2 Days, 3 Days… Drag to reorder. Edit via modal.
+        </p>
+      </div>
+
+      <form method="post" class="admin-inline-form">
+        <input
+          type="text"
+          name="new_use_within"
+          class="input"
+          placeholder="New Use Within…"
+        >
+        <button class="btn btn-primary btn-small" type="submit">
+          Add
+        </button>
+      </form>
+
+      <form method="post" id="usewithin-order-form" class="admin-display-form admin-columns">
+        <input type="hidden" name="usewithin_order_action" value="save">
+        <input type="hidden" name="usewithin_order" id="usewithin_order" value="">
+        <div id="usewithin-status" class="admin-save-status" aria-live="polite"></div>
+        <ul class="admin-sortable-list" id="usewithin-list">
+          {% for uw in use_withins %}
+            <li class="admin-sortable-row" data-id="{{ uw.id }}" draggable="true">
+              <button type="button" class="drag-handle" aria-label="Drag to reorder">☰</button>
+              <div class="admin-column-label">
+                <div class="admin-column-title">{{ uw.name }}</div>
+              </div>
+              <div class="btn-group">
+                <button type="button" class="btn btn-small btn-ghost js-entity-edit" data-entity="use_within" data-id="{{ uw.id }}" data-name="{{ uw.name }}">Edit</button>
+                <button class="btn btn-danger btn-small js-delete-row" type="button" data-entity="use_within" data-id="{{ uw.id }}">Delete</button>
+              </div>
+            </li>
+          {% else %}
+            <li class="admin-empty muted">No Use Within values yet.</li>
+          {% endfor %}
+        </ul>
+      </form>
+    </section>
+
+  </div>
+</section>
+
+<script>
+(function(){
+  const list = document.getElementById('display-fields-list');
+  const hiddenOrder = document.getElementById('display_fields_order');
+  const form = document.getElementById('display-columns-form');
+  const statusEl = document.getElementById('display-save-status');
+  if (!list || !hiddenOrder || !form) return;
+
+  let saveTimer = null;
+
+  // Drag + drop ordering
+  let draggingEl = null;
+
+  function serialize() {
+    const keys = Array.from(list.querySelectorAll('[data-key]')).map(li => li.dataset.key);
+    hiddenOrder.value = keys.join(',');
+  }
+
+  async function saveForm() {
+    serialize();
+    if (statusEl) {
+      statusEl.textContent = "Saving…";
+      statusEl.classList.add("saving");
+    }
+    const fd = new FormData(form);
+    try {
+      await fetch(window.location.href, {
+        method: "POST",
+        body: fd,
+      });
+      if (statusEl) {
+        statusEl.textContent = "Saved";
+        statusEl.classList.remove("saving");
+      }
+    } catch (e) {
+      if (statusEl) {
+        statusEl.textContent = "Save failed";
+        statusEl.classList.remove("saving");
+      }
+    }
+  }
+
+  function scheduleSave() {
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveForm, 250);
+  }
+
+  list.addEventListener('dragstart', (e) => {
+    const li = e.target.closest('[data-key]');
+    if (!li) return;
+    draggingEl = li;
+    li.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', li.dataset.key);
+  });
+
+  list.addEventListener('dragend', () => {
+    if (draggingEl) draggingEl.classList.remove('dragging');
+    draggingEl = null;
+    scheduleSave();
+  });
+
+  list.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    const target = e.target.closest('[data-key]');
+    if (!target || target === draggingEl) return;
+    const rect = target.getBoundingClientRect();
+    const before = (e.clientY - rect.top) / (rect.height || 1) < 0.5;
+    if (before) {
+      list.insertBefore(draggingEl, target);
+    } else {
+      list.insertBefore(draggingEl, target.nextSibling);
+    }
+    serialize();
+  });
+
+  list.addEventListener('change', (e) => {
+    if (e.target.matches('input[type="checkbox"]')) {
+      scheduleSave();
+    }
+  });
+
+  // If someone clicks the save button, still do the async save
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    saveForm();
+  });
+
+  serialize();
+})();
+
+// Required fields auto-save (no reordering)
+(function(){
+  const form = document.getElementById('required-fields-form');
+  const statusEl = document.getElementById('required-save-status');
+  if (!form) return;
+
+  let timer = null;
+  async function saveRequired() {
+    if (statusEl) {
+      statusEl.textContent = "Saving…";
+      statusEl.classList.add("saving");
+    }
+    const fd = new FormData(form);
+    try {
+      await fetch(window.location.href, {
+        method: "POST",
+        body: fd,
+      });
+      if (statusEl) {
+        statusEl.textContent = "Saved";
+        statusEl.classList.remove("saving");
+      }
+    } catch (e) {
+      if (statusEl) {
+        statusEl.textContent = "Save failed";
+        statusEl.classList.remove("saving");
+      }
+    }
+  }
+
+  function schedule() {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(saveRequired, 250);
+  }
+
+  form.addEventListener('change', (e) => {
+    if (e.target.matches('input[type="checkbox"]')) {
+      schedule();
+      // Toggle badge visibility
+      const li = e.target.closest('li');
+      if (li) {
+        const key = e.target.value;
+        const badge = li.querySelector('.required-badge');
+        if (badge) {
+          badge.style.display = e.target.checked ? 'inline-block' : 'none';
+        }
+      }
+    }
+  });
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    saveRequired();
+  });
+})();
+
+// Use Within ordering auto-save
+function registerSortable(listId, hiddenId, statusId, formId) {
+  const list = document.getElementById(listId);
+  const hidden = document.getElementById(hiddenId);
+  const statusEl = document.getElementById(statusId);
+  const form = document.getElementById(formId);
+  if (!list || !hidden || !form) return;
+
+  let draggingEl = null;
+  let timer = null;
+
+  function serialize() {
+    const ids = Array.from(list.querySelectorAll('[data-id]')).map(li => li.dataset.id);
+    hidden.value = ids.join(',');
+  }
+
+  async function saveOrder() {
+    serialize();
+    if (statusEl) { statusEl.textContent = "Saving…"; statusEl.classList.add("saving"); }
+    const fd = new FormData(form);
+    try {
+      await fetch(window.location.href, { method: "POST", body: fd });
+      if (statusEl) { statusEl.textContent = "Saved"; statusEl.classList.remove("saving"); }
+    } catch (e) {
+      if (statusEl) { statusEl.textContent = "Save failed"; statusEl.classList.remove("saving"); }
+    }
+  }
+
+  function scheduleSave() {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(saveOrder, 250);
+  }
+
+  list.addEventListener('dragstart', (e) => {
+    const li = e.target.closest('[data-id]');
+    if (!li) return;
+    draggingEl = li;
+    li.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', li.dataset.id);
+  });
+
+  list.addEventListener('dragend', () => {
+    if (draggingEl) draggingEl.classList.remove('dragging');
+    draggingEl = null;
+    saveOrder();
+  });
+
+  list.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    const target = e.target.closest('[data-id]');
+    if (!target || target === draggingEl) return;
+    const rect = target.getBoundingClientRect();
+    const before = (e.clientY - rect.top) / (rect.height || 1) < 0.5;
+    if (before) {
+      list.insertBefore(draggingEl, target);
+    } else {
+      list.insertBefore(draggingEl, target.nextSibling);
+    }
+    serialize();
+  });
+
+  serialize();
+  // Persist initial order if nothing saved yet (hidden empty)
+  if (!hidden.value) {
+    saveOrder();
+  }
+}
+
+registerSortable('usewithin-list', 'usewithin_order', 'usewithin-status', 'usewithin-order-form');
+registerSortable('category-list', 'category_order', 'category-status', 'category-order-form');
+registerSortable('bin-list', 'bin_order', 'bin-status', 'bin-order-form');
+registerSortable('location-list', 'location_order', 'location-status', 'location-order-form');
+
+// Collapsible sections
+(function(){
+  const sections = Array.from(document.querySelectorAll('.admin-section'));
+  const collapseAllBtn = document.getElementById('collapse-all');
+  const expandAllBtn = document.getElementById('expand-all');
+  const STORAGE_KEY = 'admin-collapse-state-v1';
+
+  function loadState() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return {};
+      return JSON.parse(raw) || {};
+    } catch (_e) {
+      return {};
+    }
+  }
+
+  function saveState(state) {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (_e) {}
+  }
+
+  const state = loadState();
+
+  function setCollapsed(sec, collapsed) {
+    sec.dataset.collapsed = collapsed ? '1' : '0';
+    const btn = sec.querySelector('.collapse-toggle');
+    if (btn) {
+      btn.dataset.icon = collapsed ? '▶' : '▼';
+      btn.setAttribute('aria-expanded', (!collapsed).toString());
+    }
+    if (sec.id) {
+      state[sec.id] = collapsed ? 1 : 0;
+      saveState(state);
+    }
+  }
+
+  sections.forEach(sec => {
+    const header = sec.querySelector('.admin-section-header');
+    if (!header) return;
+    header.style.display = 'flex';
+    header.style.flexDirection = 'column';
+    header.style.alignItems = 'flex-start';
+    header.style.gap = '6px';
+    header.style.position = 'relative';
+    header.style.paddingRight = '44px';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-ghost btn-small collapse-toggle';
+    btn.addEventListener('click', () => {
+      const nextState = sec.dataset.collapsed !== '1';
+      setCollapsed(sec, nextState);
+    });
+    header.appendChild(btn);
+    const startCollapsed = sec.id && state.hasOwnProperty(sec.id) ? Boolean(state[sec.id]) : true;
+    setCollapsed(sec, startCollapsed); // default collapsed unless remembered open
+  });
+
+  collapseAllBtn?.addEventListener('click', () => {
+    sections.forEach(sec => setCollapsed(sec, true));
+  });
+  expandAllBtn?.addEventListener('click', () => {
+    sections.forEach(sec => setCollapsed(sec, false));
+  });
+})();
+
+// Delete buttons (avoid nested forms interfering with ordering saves)
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('.js-delete-row');
+  if (!btn) return;
+  const entity = btn.dataset.entity;
+  const id = btn.dataset.id;
+  if (!entity || !id) return;
+  if (!confirm('Delete this entry?')) return;
+  const fd = new FormData();
+  fd.append(`delete_${entity}_id`, id);
+  fetch(window.location.href, { method: 'POST', body: fd })
+    .then(() => window.location.reload())
+    .catch(() => alert('Delete failed'));
+});
+
+// Preserve scroll position after form submissions so the page doesn't jump to top
+(function(){
+  const KEY = 'admin-scroll';
+  window.addEventListener('beforeunload', () => {
+    try { sessionStorage.setItem(KEY, String(window.scrollY)); } catch (_e) {}
+  });
+  window.addEventListener('DOMContentLoaded', () => {
+    try {
+      const y = parseInt(sessionStorage.getItem(KEY) || '0', 10);
+      if (!Number.isNaN(y)) {
+        window.scrollTo({ top: y, behavior: 'instant' });
+      }
+    } catch (_e) {}
+  });
+})();
+
+// Entity edit modal
+(function(){
+  const dlg = document.getElementById('app-modal');
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.js-entity-edit');
+    if (!btn) return;
+    const body = document.getElementById('app-modal-body');
+    const dialogEl = document.getElementById('app-modal');
+    if (!body || !dialogEl) return;
+    const entity = btn.dataset.entity;
+    const id = btn.dataset.id;
+    const name = btn.dataset.name || '';
+    if (!entity || !id) return;
+
+    const form = document.createElement('form');
+    form.method = 'post';
+    form.innerHTML = `
+      <h3 style="margin:0 0 10px;">Edit ${entity}</h3>
+      <input type="hidden" name="edit_${entity}_id" value="${id}">
+      <input class="input" type="text" name="edit_${entity}_name" value="${name}" style="width:100%; margin-bottom:10px;" required>
+      <div class="btn-group">
+        <button class="btn btn-primary" type="submit">Save</button>
+        <button class="btn btn-secondary" type="button" onclick="window.closeModal && window.closeModal()">Cancel</button>
+      </div>
+    `;
+    body.innerHTML = '';
+    body.appendChild(form);
+    if (typeof dialogEl.showModal === 'function') dialogEl.showModal(); else dialogEl.setAttribute('open','open');
+  });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,126 @@
+{% extends "layout.html" %}
+{% block title %}New Item · Inventory & Labels{% endblock %}
+{% block content %}
+<section class="card">
+  <h2 class="card-title">Create Item</h2>
+
+  {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+  {% endif %}
+
+  <form class="form-grid js-validate-required" method="post" enctype="multipart/form-data">
+    <div class="field">
+      <label>Name {% if 'name' in required_fields %}(REQUIRED){% endif %}</label>
+      <input class="input" type="text" name="name"
+             value="{{ form_values.name or '' }}"
+             {% if 'name' in required_fields %}required{% endif %}>
+    </div>
+
+    <div class="field">
+      <label>Category {% if 'category' in required_fields %}(REQUIRED){% endif %}</label>
+      <input class="input" list="cat-list" name="category" placeholder="Type or pick…"
+             value="{{ form_values.category or '' }}"
+             {% if 'category' in required_fields %}required{% endif %}>
+      <datalist id="cat-list">
+        {% for c in cats %}<option value="{{ c }}">{% endfor %}
+      </datalist>
+    </div>
+
+    <div class="field">
+      <label>Tags (comma-separated) {% if 'tags' in required_fields %}(REQUIRED){% endif %}</label>
+      <input class="input" type="text" name="tags"
+             value="{{ form_values.tags or '' }}"
+             {% if 'tags' in required_fields %}required{% endif %}>
+    </div>
+
+    <div class="field">
+      <label for="location">Location {% if 'location' in required_fields %}(REQUIRED){% endif %}</label>
+      <input class="input" list="loc-list" id="location" name="location"
+             value="{{ form_values.location or '' }}"
+             {% if 'location' in required_fields %}required{% endif %}>
+      <datalist id="loc-list">
+        {% for loc in locations %}<option value="{{ loc }}">{% endfor %}
+      </datalist>
+    </div>
+
+    <div class="field">
+      <label>Bin # {% if 'bin_number' in required_fields %}(REQUIRED){% endif %}</label>
+      <input class="input" list="bin-list" name="bin_number" placeholder="Type or pick…"
+             value="{{ form_values.bin_number or '' }}"
+             {% if 'bin_number' in required_fields %}required{% endif %}>
+      <datalist id="bin-list">
+        {% for b in bins %}<option value="{{ b }}">{% endfor %}
+      </datalist>
+    </div>
+
+    <div class="field">
+      <label>Quantity {% if 'quantity' in required_fields %}(REQUIRED){% endif %}</label>
+      <input class="input" type="number" name="quantity"
+             value="{{ form_values.quantity if form_values.quantity is not none else 1 }}"
+             min="0"
+             {% if 'quantity' in required_fields %}required{% endif %}>
+    </div>
+
+    <div class="field">
+      <label>Unit {% if 'unit' in required_fields %}(REQUIRED){% endif %}</label>
+      <input class="input" type="text" name="unit"
+             value="{{ form_values.unit or 'each' }}"
+             {% if 'unit' in required_fields %}required{% endif %}>
+    </div>
+
+    <div class="field">
+      <label>Condition {% if 'condition' in required_fields %}(REQUIRED){% endif %}</label>
+      <input class="input" type="text" name="condition" placeholder="new / good / used / frozen"
+             value="{{ form_values.condition or '' }}"
+             {% if 'condition' in required_fields %}required{% endif %}>
+    </div>
+
+    <div class="field">
+      <label>Cook date {% if 'cook_date' in required_fields %}(REQUIRED){% endif %}</label>
+      <input class="input" type="date" name="cook_date"
+             value="{{ form_values.cook_date or '' }}"
+             {% if 'cook_date' in required_fields %}required{% endif %}>
+    </div>
+
+    <div class="field">
+      <label>Use-by date {% if 'use_by_date' in required_fields %}(REQUIRED){% endif %}</label>
+      <input class="input" type="date" name="use_by_date"
+             value="{{ form_values.use_by_date or '' }}"
+             {% if 'use_by_date' in required_fields %}required{% endif %}>
+    </div>
+
+    <div class="field">
+      <label>Use Within {% if 'use_within' in required_fields %}(REQUIRED){% endif %}</label>
+      <select class="input" name="use_within">
+        <option value="">—</option>
+        {% for uw in use_withins %}
+          <option value="{{ uw }}" {% if form_values.use_within == uw %}selected{% endif %}>
+            {{ uw }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="field field--full">
+      <label>Notes {% if 'notes' in required_fields %}(REQUIRED){% endif %}</label>
+      <textarea class="input" name="notes" rows="3"
+        {% if 'notes' in required_fields %}required{% endif %}
+      >{{ form_values.notes or "" }}</textarea>
+    </div>
+
+    <div class="field field--full">
+      <label>Photos</label>
+      <label class="file-input">
+        <span class="file-btn">Choose photos</span>
+        <input class="input" type="file" name="photos" accept="image/*" multiple>
+        <span class="file-name">You can select multiple files</span>
+      </label>
+    </div>
+
+    <div class="actions field--full">
+      <button class="btn" type="submit">Save</button>
+      <a class="btn btn-secondary" href="{{ url_for('index') }}">Cancel</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

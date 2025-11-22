@@ -1,0 +1,490 @@
+{% extends "layout.html" %}
+{% block title %}{{ app_heading }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-text">
+    <h1 class="page-title">{{ app_heading }}</h1>
+    <p class="page-subtitle">
+      Search, review, and print labels for everything in the bunker.
+    </p>
+  </div>
+  <div class="page-header-actions">
+    <a class="btn btn-primary" href="{{ url_for('new_item') }}">
+      <span class="btn-icon-left">＋</span>
+      <span>New Item</span>
+    </a>
+    <a class="btn btn-secondary" href="{{ url_for('admin') }}">
+      Manage Categories &amp; Bins
+    </a>
+  </div>
+</div>
+
+<div class="filter-toggle-row">
+  <button type="button" class="btn btn-secondary" id="toggle-filters">Show filters &amp; search</button>
+</div>
+
+<form method="get" class="search-and-filters" id="filter-panel">
+    <!-- TOP SEARCH BAR -->
+    <div class="search-row">
+        <input
+            type="text"
+            name="q"
+            class="filter-input search-input"
+            placeholder="Search name / serial / barcode / tags / notes / location / bin / etc…"
+            value="{{ q }}"
+            list="search-suggestions"
+        >
+        <button class="btn-primary" type="submit">Search</button>
+        <datalist id="search-suggestions">
+          {% for s in search_suggestions %}
+            <option value="{{ s }}">
+          {% endfor %}
+        </datalist>
+    </div>
+
+    <!-- FILTER GRID -->
+    <div class="filters-row">
+
+        <div class="filter-group">
+            <label>Category</label>
+            <select name="category" class="filter-input">
+                <option value="">(Any)</option>
+                {% for c in cats %}
+                    <option value="{{ c }}" {% if category == c %}selected{% endif %}>{{ c }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label>Location</label>
+            <select name="location" class="filter-input">
+                <option value="">(Any)</option>
+                {% for l in locations %}
+                    <option value="{{ l }}" {% if location == l %}selected{% endif %}>{{ l }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label>Bin</label>
+            <select name="bin_number" class="filter-input">
+                <option value="">(Any)</option>
+                {% for b in bins %}
+                    <option value="{{ b }}" {% if bin_number == b %}selected{% endif %}>{{ b }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label>Cook date</label>
+            <input type="date" name="cook_date" class="filter-input"
+                   value="{{ cook_date }}">
+        </div>
+
+        <div class="filter-group">
+            <label>Use-by date</label>
+            <input type="date" name="use_by_date" class="filter-input"
+                   value="{{ use_by_date }}">
+        </div>
+
+        <div class="filter-group">
+            <label>Tags (contains)</label>
+            <input type="text" name="tags" class="filter-input"
+                   placeholder="e.g. beef, freezer"
+                   value="{{ tags }}">
+        </div>
+
+    </div>
+
+    <!-- ACTION BUTTONS -->
+    <div class="filters-actions">
+        <button class="btn-primary" type="submit">Apply filters</button>
+        <a class="btn-clear-filters" href="{{ url_for('index') }}">Clear</a>
+    </div>
+</form>
+
+<div class="quick-filters row">
+  <div class="chip-row">
+    <span class="chip-label">Quick filters · Categories:</span>
+    {% for c in categories %}
+      {% set is_active = category == c %}
+      <a class="chip {% if is_active %}chip-active{% endif %}"
+         href="?category={{ '' if is_active else c | urlencode }}&location={{ location | urlencode }}&bin={{ bin | urlencode }}&cook_date={{ cook_date | urlencode }}&use_by_date={{ use_by_date | urlencode }}&tags={{ tags | urlencode }}&q={{ q | urlencode }}">
+        {{ c }} <span class="chip-count">{{ cat_counts.get(c, 0) }}</span>
+      </a>
+    {% else %}
+      <span class="admin-section-help">None yet</span>
+    {% endfor %}
+  </div>
+  <div class="chip-row">
+    <span class="chip-label">Quick filters · Locations:</span>
+    {% for l in locations %}
+      {% set is_active = location == l %}
+      <a class="chip {% if is_active %}chip-active{% endif %}"
+         href="?category={{ category | urlencode }}&location={{ '' if is_active else l | urlencode }}&bin={{ bin | urlencode }}&cook_date={{ cook_date | urlencode }}&use_by_date={{ use_by_date | urlencode }}&tags={{ tags | urlencode }}&q={{ q | urlencode }}">
+        {{ l }} <span class="chip-count">{{ loc_counts.get(l, 0) }}</span>
+      </a>
+    {% else %}
+      <span class="admin-section-help">None yet</span>
+    {% endfor %}
+  </div>
+</div>
+
+  {% if items %}
+  <div class="table-wrap">
+    <table class="table table-inventory">
+      <thead>
+        <tr>
+          <th class="sortable" data-sort-index="0" data-sort-type="text">Name</th>
+          {% set base_sort_index = 1 %}
+          {% for col in display_fields %}
+            <th
+              class="sortable"
+              data-sort-index="{{ base_sort_index + loop.index0 }}"
+              data-sort-type="{{ col.sort_type }}"
+            >
+              {{ col.label }}
+            </th>
+          {% endfor %}
+          <th class="right">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in items %}
+        <tr>
+          {# Name (clickable to open details) #}
+          <td class="col-name">
+            <a class="link name-link" href="{{ url_for('show_item', item_id=item.id) }}">
+              {{ item.name }}
+            </a>
+            {% if item.expiry_info %}
+              <span class="pill {{ item.expiry_info.severity }}"> {{ item.expiry_info.badge }} </span>
+            {% endif %}
+          </td>
+
+          {% for col in display_fields %}
+            {% set val = item|attr(col.key) %}
+            <td class="col-{{ col.key }}">
+              {% if col.key == "quantity" %}
+                {{ val }}
+              {% elif col.key in ["cook_date", "use_by_date", "last_audit_date"] %}
+                {{ val or "—" }}
+              {% elif col.key == "notes" %}
+                <span class="wrap">{{ val or "—" }}</span>
+              {% else %}
+                {{ val or "—" }}
+              {% endif %}
+            </td>
+          {% endfor %}
+
+          {# Actions (unchanged) #}
+          <td class="right col-actions">
+            <div class="btn-group">
+              <a
+                class="btn btn-small btn-ghost"
+                href="{{ url_for('show_item', item_id=item.id) }}"
+                title="Open details"
+              >
+                Open
+              </a>
+
+              <a
+                class="btn btn-small btn-ghost"
+                href="{{ url_for('label_png', item_id=item.id) }}"
+                target="_blank"
+                rel="noopener"
+                title="Preview label"
+              >
+                Preview
+              </a>
+
+              <a
+                class="btn btn-small btn-ghost"
+                href="{{ url_for('print_label_get', item_id=item.id) }}"
+                title="Send label to printer"
+              >
+                Print
+              </a>
+
+              <button
+                type="button"
+                class="btn btn-small btn-accent js-edit"
+                data-edit-url="{{ url_for('edit_item_form', item_id=item.id) }}?partial=1"
+                title="Edit item"
+              >
+                Edit
+              </button>
+
+              <form
+                method="post"
+                action="{{ url_for('delete_item', item_id=item.id) }}"
+                style="display:inline"
+                onsubmit="return confirm('Delete this item?');"
+              >
+                <button type="submit" class="btn btn-small btn-danger" title="Delete item">
+                  Delete
+                </button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="pagination">
+    {% set total_pages = ((total_count + per_page - 1) // per_page) %}
+    <div class="pagination-info">Page {{ page }} of {{ total_pages }} ({{ total_count }} items)</div>
+    <div class="pagination-controls">
+      {% if page > 1 %}
+        <a class="btn" href="{{ url_for('index', page=page-1, q=q, category=category, location=location, bin=bin, cook_date=cook_date, use_by_date=use_by_date, tags=tags) }}">← Prev</a>
+      {% endif %}
+      {% if page < total_pages %}
+        <a class="btn" href="{{ url_for('index', page=page+1, q=q, category=category, location=location, bin=bin, cook_date=cook_date, use_by_date=use_by_date, tags=tags) }}">Next →</a>
+      {% endif %}
+    </div>
+  </div>
+  {% else %}
+    <p class="muted">
+      No items yet.
+      <a class="link" href="{{ url_for('new_item') }}">Create one</a>.
+    </p>
+  {% endif %}
+</section>
+
+<script>
+// Edit modal wiring (unchanged)
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('.js-edit');
+  if (!btn) return;
+  const url = btn.getAttribute('data-edit-url');
+  if (window.openModal && url) {
+    openModal(url);
+  } else {
+    console.error("openModal() not available or URL missing.");
+  }
+});
+
+// Table sorting + arrow indicators
+document.addEventListener("DOMContentLoaded", () => {
+  const table = document.querySelector(".table-inventory");
+  if (!table) return;
+
+  const tbody = table.querySelector("tbody");
+  const originalRows = Array.from(tbody.querySelectorAll("tr"));
+  const headers = table.querySelectorAll("th.sortable");
+  const actionHeader = table.querySelector("th.right");
+
+  headers.forEach((th) => {
+    th.addEventListener("click", () => {
+      const index = parseInt(th.dataset.sortIndex, 10);
+      const type = th.dataset.sortType || "text";
+
+      // Toggle direction
+      const newDir = th.dataset.sortDir === "asc" ? "desc" : "asc";
+
+      // Clear sort arrows on all headers
+      headers.forEach(h => {
+        h.dataset.sortDir = "";
+        h.querySelector(".sort-arrow")?.remove();
+      });
+
+      // Apply arrow
+      th.dataset.sortDir = newDir;
+      const arrow = document.createElement("span");
+      arrow.className = "sort-arrow";
+      arrow.textContent = newDir === "asc" ? "▲" : "▼";
+      th.appendChild(arrow);
+
+      // Sort rows
+      const rows = Array.from(tbody.querySelectorAll("tr"));
+      rows.sort((a, b) => {
+        const aText = (a.children[index]?.innerText || "").trim();
+        const bText = (b.children[index]?.innerText || "").trim();
+
+        let cmp;
+        if (type === "number") {
+          cmp = (parseFloat(aText) || 0) - (parseFloat(bText) || 0);
+        } else {
+          cmp = aText.localeCompare(bText, undefined, {
+            numeric: true,
+            sensitivity: "base",
+          });
+        }
+
+        return newDir === "asc" ? cmp : -cmp;
+      });
+
+      rows.forEach((row) => tbody.appendChild(row));
+    });
+  });
+
+  // Hidden reset: click Actions header to restore default order and clear sort arrows
+  if (actionHeader) {
+    actionHeader.style.cursor = "pointer";
+    actionHeader.addEventListener("click", () => {
+      headers.forEach(h => {
+        h.dataset.sortDir = "";
+        h.querySelector(".sort-arrow")?.remove();
+      });
+      originalRows.forEach(row => tbody.appendChild(row));
+    });
+  }
+});
+
+// Column resize handles
+document.addEventListener("DOMContentLoaded", () => {
+  const table = document.querySelector(".table-inventory");
+  if (!table) return;
+
+  const headers = Array.from(table.querySelectorAll("thead th"));
+  const MIN_WIDTH = 80;
+
+  headers.forEach((th, idx) => {
+    // Skip the last header (Actions) to keep buttons tight
+    if (idx === headers.length - 1) return;
+    const handle = document.createElement("span");
+    handle.className = "col-resize-handle";
+    handle.title = "Drag to resize column";
+    th.appendChild(handle);
+
+    handle.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      e.stopPropagation(); // avoid triggering sort
+
+      const startX = e.pageX;
+      const startWidth = th.offsetWidth;
+      document.body.classList.add("is-resizing");
+
+      const onMove = (moveEvent) => {
+        const delta = moveEvent.pageX - startX;
+        const newWidth = Math.max(MIN_WIDTH, startWidth + delta);
+        th.style.width = `${newWidth}px`;
+        th.style.minWidth = `${newWidth}px`;
+
+        const colIndex = idx + 1;
+        table.querySelectorAll(`tbody tr td:nth-child(${colIndex})`).forEach((td) => {
+          td.style.width = `${newWidth}px`;
+          td.style.minWidth = `${newWidth}px`;
+        });
+      };
+
+      const onUp = () => {
+        document.body.classList.remove("is-resizing");
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup", onUp);
+      };
+
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
+    });
+  });
+});
+
+// Filter panel toggle
+document.addEventListener("DOMContentLoaded", () => {
+  const panel = document.getElementById("filter-panel");
+  const toggle = document.getElementById("toggle-filters");
+  if (!panel || !toggle) return;
+  let collapsed = true;
+  function sync() {
+    if (collapsed) {
+      panel.classList.add("collapsed");
+      toggle.textContent = "Show filters & search";
+    } else {
+      panel.classList.remove("collapsed");
+      toggle.textContent = "Hide filters & search";
+    }
+  }
+  toggle.addEventListener("click", () => {
+    collapsed = !collapsed;
+    sync();
+  });
+  sync();
+});
+</script>
+<script>
+  (function () {
+    // -------------------------------
+    // 1) Handle #serial=... → ?serial=...
+    // -------------------------------
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has("serial")) {
+      const hash = window.location.hash || "";
+      if (hash.startsWith("#serial=")) {
+        const serial = decodeURIComponent(hash.slice("#serial=".length));
+        if (serial) {
+          const path = window.location.pathname || "/";
+          const newUrl = path + "?serial=" + encodeURIComponent(serial);
+          // Drop the hash to avoid re-triggering
+          window.location.replace(newUrl);
+          return; // stop here; we’re navigating
+        }
+      }
+    }
+
+    // -------------------------------
+    // 2) Tiny debug panel for location info
+    //    - Only shows if ?debug=1 is present
+    // -------------------------------
+    const debugParams = new URLSearchParams(window.location.search);
+    if (!debugParams.has("debug")) {
+      return; // no debug requested, bail out
+    }
+
+    // Create a minimal debug box in the bottom-left
+    const panel = document.createElement("div");
+    panel.id = "debug-location-panel";
+    panel.style.position = "fixed";
+    panel.style.bottom = "10px";
+    panel.style.left = "10px";
+    panel.style.zIndex = "9999";
+    panel.style.background = "rgba(0,0,0,0.8)";
+    panel.style.color = "#fff";
+    panel.style.padding = "8px 10px";
+    panel.style.fontFamily = "monospace";
+    panel.style.fontSize = "11px";
+    panel.style.borderRadius = "6px";
+    panel.style.maxWidth = "360px";
+    panel.style.maxHeight = "40vh";
+    panel.style.overflow = "auto";
+    panel.style.boxShadow = "0 2px 6px rgba(0,0,0,0.4)";
+
+    const closeBtn = document.createElement("button");
+    closeBtn.textContent = "×";
+    closeBtn.style.float = "right";
+    closeBtn.style.marginLeft = "8px";
+    closeBtn.style.border = "none";
+    closeBtn.style.background = "transparent";
+    closeBtn.style.color = "#fff";
+    closeBtn.style.cursor = "pointer";
+    closeBtn.style.fontSize = "13px";
+    closeBtn.onclick = () => panel.remove();
+
+    const title = document.createElement("div");
+    title.textContent = "Location debug";
+    title.style.fontWeight = "bold";
+    title.style.marginBottom = "4px";
+
+    const pre = document.createElement("pre");
+    pre.style.whiteSpace = "pre-wrap";
+    pre.style.margin = "0";
+
+    const info = {
+      href: window.location.href,
+      origin: window.location.origin,
+      pathname: window.location.pathname,
+      search: window.location.search,
+      hash: window.location.hash,
+    };
+
+    pre.textContent = JSON.stringify(info, null, 2);
+
+    panel.appendChild(closeBtn);
+    panel.appendChild(title);
+    panel.appendChild(pre);
+    document.body.appendChild(panel);
+  })();
+</script>
+{% endblock %}
