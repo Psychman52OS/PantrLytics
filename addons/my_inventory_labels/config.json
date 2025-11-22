@@ -7,10 +7,12 @@
   "startup": "services",
   "boot": "auto",
   "options": {
-    "port": 5000
+    "port": 5000,
+    "workers": 2
   },
   "schema": {
-    "port": "int"
+    "port": "int",
+    "workers": "int"
   },
   "ingress": true,
   "host_network": false
