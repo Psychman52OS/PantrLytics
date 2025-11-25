@@ -39,7 +39,7 @@ except Exception as e:
 # Timezone / datetime formatting helper
 # -------------------------------------------------
 LOCAL_TZ = tzlocal.get_localzone()
-APP_VERSION = "0.6.34"
+APP_VERSION = "0.6.35"
 
 
 def format_datetime(value: str):
@@ -1542,31 +1542,28 @@ def recover_item(
 
 
 @app.post("/import/csv")
-async def import_csv(file: UploadFile = File(...)):
+async def import_csv(request: Request, file: UploadFile = File(...)):
     """Import items from a CSV whose columns match the export."""
     import csv
 
     if not file or not file.filename:
-        return RedirectResponse(
-            url=str(app.url_path_for("backup_page")) + "?err=No+file+uploaded",
-            status_code=303,
-        )
+        target = str(request.url_for("backup_page")) + "?err=No+file+uploaded"
+        print(f"[csv import] redirect -> {target}")
+        return RedirectResponse(url=target, status_code=303)
 
     raw = await file.read()
     try:
         text = raw.decode("utf-8-sig")
     except Exception:
-        return RedirectResponse(
-            url=str(app.url_path_for("backup_page")) + "?err=Invalid+file+encoding",
-            status_code=303,
-        )
+        target = str(request.url_for("backup_page")) + "?err=Invalid+file+encoding"
+        print(f"[csv import] redirect -> {target}")
+        return RedirectResponse(url=target, status_code=303)
 
     reader = csv.DictReader(io.StringIO(text))
     if not reader.fieldnames:
-        return RedirectResponse(
-            url=str(app.url_path_for("backup_page")) + "?err=Missing+CSV+headers",
-            status_code=303,
-        )
+        target = str(request.url_for("backup_page")) + "?err=Missing+CSV+headers"
+        print(f"[csv import] redirect -> {target}")
+        return RedirectResponse(url=target, status_code=303)
 
     created = 0
     skipped = 0
@@ -1637,19 +1634,17 @@ async def import_csv(file: UploadFile = File(...)):
     msg = f"Imported+{created}+items"
     if skipped:
         msg += f",+skipped+{skipped}"
-    return RedirectResponse(
-        url=str(app.url_path_for("backup_page")) + f"?msg={msg}",
-        status_code=303,
-    )
+    target = str(request.url_for("backup_page")) + f"?msg={msg}"
+    print(f"[csv import] redirect -> {target}")
+    return RedirectResponse(url=target, status_code=303)
 
 
 @app.post("/backup/restore")
-async def backup_restore(file: UploadFile = File(...)):
+async def backup_restore(request: Request, file: UploadFile = File(...)):
     if not file or not file.filename:
-        return RedirectResponse(
-            url=str(app.url_path_for("backup_page")) + "?err=No+file+uploaded",
-            status_code=303,
-        )
+        target = str(request.url_for("backup_page")) + "?err=No+file+uploaded"
+        print(f"[backup restore upload] redirect -> {target}")
+        return RedirectResponse(url=target, status_code=303)
     # Save uploaded file to temp and restore
     with tempfile.NamedTemporaryFile(delete=False, suffix=".zip") as tmp:
         tmp.write(await file.read())
@@ -1665,15 +1660,13 @@ async def backup_restore(file: UploadFile = File(...)):
         if summary.get("options"):
             msg_parts.append("Options")
         msg = "+".join(msg_parts) or "Restored"
-        return RedirectResponse(
-            url=str(app.url_path_for("backup_page")) + f"?msg=Restore+ok:+{msg}",
-            status_code=303,
-        )
+        target = str(request.url_for("backup_page")) + f"?msg=Restore+ok:+{msg}"
+        print(f"[backup restore upload] redirect -> {target}")
+        return RedirectResponse(url=target, status_code=303)
     except Exception as e:
-        return RedirectResponse(
-            url=str(app.url_path_for("backup_page")) + f"?err=Restore+failed",
-            status_code=303,
-        )
+        target = str(request.url_for("backup_page")) + f"?err=Restore+failed"
+        print(f"[backup restore upload] redirect -> {target} err={e}")
+        return RedirectResponse(url=target, status_code=303)
     finally:
         try:
             os.remove(tmp_path)
@@ -1690,13 +1683,12 @@ def backup_file(filename: str):
 
 
 @app.post("/backup/restore/file")
-def backup_restore_file(filename: str = Form(...)):
+def backup_restore_file(request: Request, filename: str = Form(...)):
     path = _safe_backup_path(filename)
     if not path:
-        return RedirectResponse(
-            url=str(app.url_path_for("backup_page")) + "?err=Backup+not+found",
-            status_code=303,
-        )
+        target = str(request.url_for("backup_page")) + "?err=Backup+not+found"
+        print(f"[backup restore file] redirect -> {target}")
+        return RedirectResponse(url=target, status_code=303)
     try:
         summary = restore_backup(path)
         msg_parts = []
@@ -1707,15 +1699,13 @@ def backup_restore_file(filename: str = Form(...)):
         if summary.get("options"):
             msg_parts.append("Options")
         msg = "+".join(msg_parts) or "Restored"
-        return RedirectResponse(
-            url=str(app.url_path_for("backup_page")) + f"?msg=Restore+ok:+{msg}",
-            status_code=303,
-        )
-    except Exception:
-        return RedirectResponse(
-            url=str(app.url_path_for("backup_page")) + "?err=Restore+failed",
-            status_code=303,
-        )
+        target = str(request.url_for("backup_page")) + f"?msg=Restore+ok:+{msg}"
+        print(f"[backup restore file] redirect -> {target}")
+        return RedirectResponse(url=target, status_code=303)
+    except Exception as e:
+        target = str(request.url_for("backup_page")) + "?err=Restore+failed"
+        print(f"[backup restore file] redirect -> {target} err={e}")
+        return RedirectResponse(url=target, status_code=303)
 
 
 # -----------------------------
