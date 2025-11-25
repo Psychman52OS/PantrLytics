@@ -1,6 +1,6 @@
 {
   "name": "PantrLytics",
-  "version": "0.6.40",
+  "version": "0.6.41",
   "image": "ghcr.io/Psychman52OS/pantrlytics:latest",
   "slug": "pantrlytics",
   "description": "PantrLytics inventory app with labels and printing — Supervisor add-on with Ingress",

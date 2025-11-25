@@ -1,5 +1,9 @@
 # PantrLytics Changelog
 
+## 0.6.41
+- Backup page now requires Admin auth; README notes to change the default password.
+- Version bumps for HA add-on.
+
 ## 0.6.40
 - Label presets restyled with switches; add explicit printer side (auto/left/right) for twin-roll printers.
 - Default can be switched from the preset cards; printer slot now honors preset override.

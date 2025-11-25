@@ -40,6 +40,7 @@ except Exception as e:
 # -------------------------------------------------
 LOCAL_TZ = tzlocal.get_localzone()
 APP_VERSION = "0.6.40"
+APP_VERSION = "0.6.41"
 APP_INTERNAL_PORT = 8099
 
 
@@ -1393,6 +1394,16 @@ def _get_item_or_404(session: Session, item_id: int) -> Item:
 # -----------------------------
 @app.get("/backup", name="backup_page", response_class=HTMLResponse)
 def backup_page(request: Request):
+    # Require admin auth cookie just like /admin
+    with Session(engine) as session:
+        stored_hash = get_admin_password_hash(session)
+        cookie_token = request.cookies.get("admin_auth", "")
+        if cookie_token != stored_hash:
+            return RedirectResponse(
+                url=str(request.url_for("admin")) + "?next=backup",
+                status_code=303,
+            )
+
     with Session(engine) as session:
         opts = get_backup_options(session)
         schedule = get_backup_schedule(session)

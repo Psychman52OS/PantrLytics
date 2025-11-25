@@ -12,6 +12,7 @@ Inventory tracker with on-demand label generation and IPP printing. Built for Ho
    - `workers` (optional): Gunicorn workers (defaults to 2).
 4) In Network, map the host port you want to container port 8099 (container always listens on 8099).  
 5) Start the add-on, then open via “Open Web UI” (ingress) or `http://<HA-host>:<host-port>/`.
+6) **Important:** Set a new Admin password (default is `password`). Go to Admin → “Admin password” and change it immediately after install.
 
 ## Using the app
 - **Items**: Create/edit items, track quantity, units, locations/bins, tags, cook/use-by dates, photos, depletion, and recovery.  
