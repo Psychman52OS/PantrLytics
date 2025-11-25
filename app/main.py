@@ -3460,6 +3460,15 @@ def health():
 
 @app.get("/whoami")
 def whoami(request: Request):
+    # Admin-only debug endpoint; require admin cookie
+    with Session(engine) as session:
+        stored_hash = get_admin_password_hash(session)
+        cookie_token = request.cookies.get("admin_auth", "")
+        if cookie_token != stored_hash:
+            return RedirectResponse(
+                url=str(request.url_for("admin")) + "?next=whoami",
+                status_code=303,
+            )
     return JSONResponse(
         {
             "path": request.url.path,
