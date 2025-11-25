@@ -39,7 +39,7 @@ except Exception as e:
 # Timezone / datetime formatting helper
 # -------------------------------------------------
 LOCAL_TZ = tzlocal.get_localzone()
-APP_VERSION = "0.6.38"
+APP_VERSION = "0.6.39"
 APP_INTERNAL_PORT = 8099
 
 
@@ -1715,6 +1715,38 @@ def backup_restore_file(request: Request, filename: str = Form(...)):
         target = str(request.url_for("backup_page")) + "?err=Restore+failed"
         print(f"[backup restore file] redirect -> {target} err={e}")
         return RedirectResponse(url=target, status_code=303)
+
+
+@app.post("/backup/delete_all")
+def delete_all_items(request: Request):
+    """
+    Danger: deletes every item (including depleted) and associated photos.
+    Leaves categories/bins/locations intact for convenience.
+    """
+    print("[delete_all] wiping items + item photos")
+    removed_photos = 0
+    with Session(engine) as session:
+        photos = session.exec(select(ItemPhoto)).all()
+        for p in photos:
+            if p.path:
+                try:
+                    # Stored paths are already safe/normalized when saved
+                    if os.path.isfile(p.path):
+                        os.remove(p.path)
+                        removed_photos += 1
+                except Exception as e:
+                    print(f"[delete_all] failed to remove photo {p.path}: {e}")
+            session.delete(p)
+        deleted_items = session.exec(select(Item)).all()
+        for it in deleted_items:
+            session.delete(it)
+        session.commit()
+    msg = f"Deleted+{len(deleted_items)}+items"
+    if removed_photos:
+        msg += f"+and+{removed_photos}+photos"
+    target = str(request.url_for("backup_page")) + f"?msg={msg}"
+    print(f"[delete_all] redirect -> {target}")
+    return RedirectResponse(url=target, status_code=303)
 
 
 # -----------------------------

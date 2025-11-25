@@ -1,5 +1,9 @@
 # PantrLytics Changelog
 
+## 0.6.39
+- Add “Delete all items” action (with warning) on Backup page to wipe all items/depleted entries and photos.
+- Version bumps for HA add-on.
+
 ## 0.6.38
 - Clarify startup logs about container vs host port mapping for HA users.
 

@@ -16,6 +16,12 @@
     <div class="alert alert-error">{{ err }}</div>
   {% endif %}
 
+  <div class="actions" style="margin:12px 0;">
+    <form method="post" action="{{ request.url_for('delete_all_items') }}" onsubmit="return confirm('This will permanently delete ALL items (including depleted) and associated photos. This cannot be undone. Do you want to continue?');">
+      <button class="btn btn-danger" type="submit">Delete all items</button>
+    </form>
+  </div>
+
   <form method="post" action="{{ request.url_for('backup_run') }}">
     <div class="admin-columns" style="margin-bottom:12px;">
       <div class="admin-section-header" style="margin-bottom:8px;">
