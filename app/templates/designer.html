@@ -101,63 +101,53 @@
   </header>
 
   {% if presets %}
-    <div class="table-wrap" style="margin-bottom:16px;">
-      <table class="table">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Media</th>
-            <th>Fields</th>
-            <th>Default</th>
-            <th class="right">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for p in presets %}
-            <tr>
-              <td>{{ p.name }}</td>
-              <td>{{ p.media }}</td>
-              <td>
-                {# very compact summary of included fields #}
-                {% set fields = [] %}
-                {% if p.include_name %}{% set _ = fields.append("Name") %}{% endif %}
-                {% if p.include_location %}{% set _ = fields.append("Location") %}{% endif %}
-                {% if p.include_bin %}{% set _ = fields.append("Bin") %}{% endif %}
-                {% if p.include_qty_unit %}{% set _ = fields.append("Qty+Unit") %}{% endif %}
-                {% if p.include_condition %}{% set _ = fields.append("Condition") %}{% endif %}
-                {% if p.include_cook_date %}{% set _ = fields.append("Cook") %}{% endif %}
-                {% if p.include_use_by %}{% set _ = fields.append("Use-by") %}{% endif %}
-                {% if p.include_use_within %}{% set _ = fields.append("Use Within") %}{% endif %}
-                {% if p.include_qr %}{% set _ = fields.append("QR") %}{% endif %}
-                {{ fields|join(", ") }}
-              </td>
-              <td>
-                {% if p.is_default %}
-                  <span class="muted">✅ Default</span>
-                {% else %}
-                  <form method="post" action="{{ url_for('label_preset_default') }}">
-                    <input type="hidden" name="preset_id" value="{{ p.id }}">
-                    <button class="btn btn-small btn-secondary" type="submit">
-                      Make default
-                    </button>
-                  </form>
-                {% endif %}
-              </td>
-              <td class="right">
-                <form method="post"
-                      action="{{ url_for('label_preset_delete') }}"
-                      onsubmit="return confirm('Delete this preset?');"
-                      style="display:inline">
+    <div class="card-grid" style="margin-bottom:12px; display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:12px;">
+      {% for p in presets %}
+        <div class="card" style="padding:12px;">
+          <div class="flex-between" style="align-items:flex-start;">
+            <div>
+              <div class="card-title" style="margin:0;">{{ p.name }}</div>
+              <div class="muted" style="font-size:12px;">Media: {{ p.media }}</div>
+              <div class="muted" style="font-size:12px;">Printer side: {{ (p.printer_side or 'auto')|capitalize }}</div>
+            </div>
+            <div>
+              {% if p.is_default %}
+                <span class="badge badge-success">Default</span>
+              {% else %}
+                <form method="post" action="{{ url_for('label_preset_default') }}">
                   <input type="hidden" name="preset_id" value="{{ p.id }}">
-                  <button class="btn btn-small btn-danger" type="submit">
-                    Delete
+                  <button class="btn btn-small btn-secondary" type="submit" title="Make default">
+                    Make default
                   </button>
                 </form>
-              </td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+              {% endif %}
+            </div>
+          </div>
+          <div class="muted" style="margin-top:6px; font-size:12px; line-height:1.4;">
+            {% set fields = [] %}
+            {% if p.include_name %}{% set _ = fields.append("Name") %}{% endif %}
+            {% if p.include_location %}{% set _ = fields.append("Location") %}{% endif %}
+            {% if p.include_bin %}{% set _ = fields.append("Bin") %}{% endif %}
+            {% if p.include_qty_unit %}{% set _ = fields.append("Qty+Unit") %}{% endif %}
+            {% if p.include_condition %}{% set _ = fields.append("Condition") %}{% endif %}
+            {% if p.include_cook_date %}{% set _ = fields.append("Cook") %}{% endif %}
+            {% if p.include_use_by %}{% set _ = fields.append("Use-by") %}{% endif %}
+            {% if p.include_use_within %}{% set _ = fields.append("Use Within") %}{% endif %}
+            {% if p.include_qr %}{% set _ = fields.append("QR") %}{% endif %}
+            <strong>Fields:</strong> {{ fields|join(", ") }}
+          </div>
+          <div class="actions" style="margin-top:8px; display:flex; gap:8px; justify-content:flex-end;">
+            <form method="post"
+                  action="{{ url_for('label_preset_delete') }}"
+                  onsubmit="return confirm('Delete this preset?');">
+              <input type="hidden" name="preset_id" value="{{ p.id }}">
+              <button class="btn btn-small btn-danger" type="submit">
+                Delete
+              </button>
+            </form>
+          </div>
+        </div>
+      {% endfor %}
     </div>
   {% else %}
     <p class="muted">
@@ -191,20 +181,33 @@
 
     <div class="field">
       <label class="kv-label">Fields</label>
-      <div class="muted" style="font-size:12px;">
-        Select what shows on the label. Quantity and Unit are combined.
+      <div class="muted" style="font-size:12px; margin-bottom:4px;">
+        Toggle what shows on the label. Quantity and Unit are combined.
       </div>
-      <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;font-size:12px;">
-        <label><input type="checkbox" name="include_name" checked> Name</label>
-        <label><input type="checkbox" name="include_location" checked> Location</label>
-        <label><input type="checkbox" name="include_bin" checked> Bin</label>
-        <label><input type="checkbox" name="include_qty_unit" checked> Qty+Unit</label>
-        <label><input type="checkbox" name="include_condition"> Condition</label>
-        <label><input type="checkbox" name="include_cook_date"> Cook date</label>
-        <label><input type="checkbox" name="include_use_by" checked> Use-by</label>
-        <label><input type="checkbox" name="include_use_within"> Use Within</label>
-        <label><input type="checkbox" name="include_qr" checked> QR code</label>
-      </div>
+      <ul class="admin-sortable-list admin-required-list" style="gap:6px; padding:6px 8px;">
+        {% set field_toggles = [
+          ('include_name','Name', True),
+          ('include_location','Location', True),
+          ('include_bin','Bin', True),
+          ('include_qty_unit','Qty + Unit', True),
+          ('include_condition','Condition', False),
+          ('include_cook_date','Cook date', False),
+          ('include_use_by','Use-by', True),
+          ('include_use_within','Use Within', False),
+          ('include_qr','QR code', True)
+        ] %}
+        {% for key,label,checked in field_toggles %}
+          <li class="admin-sortable-row" style="cursor:default;">
+            <div class="admin-column-label">
+              <div class="admin-column-title">{{ label }}</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" name="{{ key }}" {% if checked %}checked{% endif %}>
+              <span class="slider"></span>
+            </label>
+          </li>
+        {% endfor %}
+      </ul>
     </div>
 
     <div class="field">
@@ -226,10 +229,23 @@
 
     <div class="field">
       <label class="kv-label">Alignment</label>
-      <label style="font-size:12px;">
+      <label class="switch">
         <input type="checkbox" name="align_center">
-        Center text (advanced)
+        <span class="slider"></span>
       </label>
+      <div class="muted" style="font-size:12px;">Center text (advanced)</div>
+    </div>
+
+    <div class="field">
+      <label class="kv-label" for="printer_side">Printer side</label>
+      <select class="input" id="printer_side" name="printer_side">
+        <option value="auto" selected>Auto (based on label size)</option>
+        <option value="left">Left roll</option>
+        <option value="right">Right roll</option>
+      </select>
+      <div class="muted" style="font-size:12px; margin-top:4px;">
+        For twin-roll printers (e.g., DYMO Twin). Use “Auto” to infer from media size.
+      </div>
     </div>
 
     <div class="field">

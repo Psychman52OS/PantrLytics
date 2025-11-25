@@ -1,5 +1,9 @@
 # PantrLytics Changelog
 
+## 0.6.40
+- Label presets restyled with switches; add explicit printer side (auto/left/right) for twin-roll printers.
+- Default can be switched from the preset cards; printer slot now honors preset override.
+
 ## 0.6.39
 - Add “Delete all items” action (with warning) on Backup page to wipe all items/depleted entries and photos.
 - Version bumps for HA add-on.

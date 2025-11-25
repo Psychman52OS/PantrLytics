@@ -39,7 +39,7 @@ except Exception as e:
 # Timezone / datetime formatting helper
 # -------------------------------------------------
 LOCAL_TZ = tzlocal.get_localzone()
-APP_VERSION = "0.6.39"
+APP_VERSION = "0.6.40"
 APP_INTERNAL_PORT = 8099
 
 
@@ -244,6 +244,8 @@ class LabelPreset(SQLModel, table=True):
 
     # CUPS media string, e.g. "w79h252" (small address) or "w154h64" (bigger)
     media: str = Field(default="w79h252")
+    # Which roll to use on twin printers: auto (by size), left, or right
+    printer_side: str = Field(default="auto")
 
     # Field toggles
     include_name: bool = Field(default=True)
@@ -380,6 +382,8 @@ def init_db():
         # ensure created_at on supporting tables
         for tbl in ("category", "bin", "location", "usewithin"):
             ensure_column(conn, tbl, "created_at", "VARCHAR")
+        # label preset additions
+        ensure_column(conn, "labelpreset", "printer_side", "VARCHAR DEFAULT 'auto'")
 
     # Seed default UseWithin options if table is empty
     ensure_usewithin_defaults()
@@ -2457,14 +2461,20 @@ async def label_preset_save(
     align_center: bool = Form(False),
     font_scale: float = Form(1.0),
     make_default: bool = Form(False),
+    printer_side: str = Form("auto"),
 ):
     """
     Create a new global label preset.
     """
+    printer_side = (printer_side or "auto").lower()
+    if printer_side not in ("auto", "left", "right"):
+        printer_side = "auto"
+
     with Session(engine) as session:
         preset = LabelPreset(
             name=name.strip() or "Preset",
             media=media.strip() or "w79h252",
+            printer_side=printer_side,
             include_name=include_name,
             include_location=include_location,
             include_bin=include_bin,
@@ -2572,6 +2582,15 @@ def _roll_for_media(media: str) -> str | None:
     return None
 
 
+def _slot_for_preset(preset: LabelPreset | None, media: str) -> str | None:
+    """Decide input slot honoring preset.printer_side, else infer from media."""
+    if preset and getattr(preset, "printer_side", None):
+        side = (preset.printer_side or "").lower()
+        if side in ("left", "right"):
+            return side.capitalize()
+    return _roll_for_media(media)
+
+
 @app.get("/print/{item_id}", name="print_label_get")
 def print_label_get(request: Request, item_id: int):
     # Simple GET: print and then redirect back to the item
@@ -2631,7 +2650,7 @@ def _print_impl(
         tmp_path = tmp.name
 
     media_opt = media or DEFAULT_MEDIA
-    slot = _roll_for_media(media_opt)
+    slot = _slot_for_preset(preset, media_opt)
 
     cmd = [
         "lp",
