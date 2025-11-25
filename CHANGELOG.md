@@ -1,7 +1,7 @@
 # PantrLytics Changelog
 
-## 2025.11.4
-- Regenerated icons to HA-recommended sizes (icon 128x128, logo 250x100) in root and add-on folder; bump for HA refresh.
+## 2025.11.5
+- Regenerated icons/logos with rounded corners, darker leaf, barcodes spanning logo; sizes 128x128 and 250x100. Bump for HA refresh.
 
 ## 0.6.43
 - Enable SQLite WAL + sync tweak; add photo upload size limit; cache-control for CSS.
