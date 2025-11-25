@@ -39,6 +39,7 @@ except Exception as e:
 # Timezone / datetime formatting helper
 # -------------------------------------------------
 LOCAL_TZ = tzlocal.get_localzone()
+APP_VERSION = "0.6.34"
 
 
 def format_datetime(value: str):
@@ -869,6 +870,7 @@ templates = Jinja2Templates(directory=TEMPLATES_DIR)
 templates.env.globals["css_version"] = str(int(dt.datetime.utcnow().timestamp()))
 templates.env.globals["format_datetime"] = format_datetime  # <-- global for Jinja
 templates.env.globals["BASE_URL"] = BASE_URL
+templates.env.globals["app_version"] = APP_VERSION
 
 
 class PrefixFromHeaders(BaseHTTPMiddleware):
@@ -3363,7 +3365,7 @@ def serve_styles_css():
 # -------- Utilities --------
 @app.get("/health")
 def health():
-    return JSONResponse({"status": "ok"})
+    return JSONResponse({"status": "ok", "version": APP_VERSION})
 
 
 @app.get("/whoami")
@@ -3375,6 +3377,7 @@ def whoami(request: Request):
             "root_path": request.scope.get("root_path", ""),
             "x-ingress-path": request.headers.get("x-ingress-path"),
             "x-forwarded-prefix": request.headers.get("x-forwarded-prefix"),
+            "version": APP_VERSION,
         }
     )
 
