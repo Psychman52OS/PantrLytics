@@ -16,7 +16,7 @@
     <div class="alert alert-error">{{ err }}</div>
   {% endif %}
 
-  <form method="post" action="{{ url_for('backup_run') }}">
+  <form method="post" action="{{ request.url_for('backup_run') }}">
     <div class="admin-columns" style="margin-bottom:12px;">
       <div class="admin-section-header" style="margin-bottom:8px;">
         <h2>What to include</h2>
@@ -99,7 +99,7 @@
       <h2>Restore from backup</h2>
       <p class="admin-section-help">Upload a backup zip to restore DB, photos, and options.</p>
     </div>
-    <form method="post" action="{{ url_for('backup_restore') }}" enctype="multipart/form-data" class="admin-inline-form" style="gap:10px; flex-wrap:wrap;">
+    <form method="post" action="{{ request.url_for('backup_restore') }}" enctype="multipart/form-data" class="admin-inline-form" style="gap:10px; flex-wrap:wrap;">
       <label class="file-input">
         <span class="file-btn">Choose backup zip</span>
         <input type="file" name="file" accept=".zip" required>
@@ -114,7 +114,7 @@
       <h2>CSV export</h2>
       <p class="admin-section-help">Select which fields to include, then download.</p>
     </div>
-    <form method="post" action="{{ url_for('export_custom') }}" class="admin-display-form" id="export-form">
+    <form method="post" action="{{ request.url_for('export_custom') }}" class="admin-display-form" id="export-form">
       <ul class="admin-sortable-list admin-required-list">
         {% for f in export_fields %}
           <li class="admin-sortable-row">
@@ -143,7 +143,7 @@
         Missing serials will be generated automatically.
       </p>
     </div>
-    <form method="post" action="{{ url_for('import_csv') }}" enctype="multipart/form-data" class="admin-inline-form" style="gap:10px; flex-wrap:wrap;">
+    <form method="post" action="{{ request.url_for('import_csv') }}" enctype="multipart/form-data" class="admin-inline-form" style="gap:10px; flex-wrap:wrap;">
       <label class="file-input">
         <span class="file-btn">Choose CSV</span>
         <input type="file" name="file" accept=".csv,text/csv" required>
