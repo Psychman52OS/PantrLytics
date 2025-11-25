@@ -26,6 +26,9 @@ jobs:
       - name: Login to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
+      - name: Lowercase owner for GHCR
+        run: echo "GH_OWNER=${GITHUB_REPOSITORY_OWNER,,}" >> $GITHUB_ENV
+
       - name: Build and push image
         uses: docker/build-push-action@v5
         with:
@@ -33,5 +36,5 @@ jobs:
           push: true
           platforms: linux/amd64,linux/arm64
           tags: |
-            ghcr.io/${{ github.repository_owner }}/my_inventory_labels:latest
-            ghcr.io/${{ github.repository_owner }}/my_inventory_labels:${{ github.sha }}
+            ghcr.io/${{ env.GH_OWNER }}/pantrlytics:latest
+            ghcr.io/${{ env.GH_OWNER }}/pantrlytics:${{ github.sha }}
