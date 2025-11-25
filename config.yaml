@@ -15,16 +15,20 @@ hassio_api: true
 homeassistant: "2024.1.0"
 
 ports:
-  "8099/tcp": 8099 
+  "8099/tcp": null
+ports_description:
+  "8099/tcp": "HTTP port (set in add-on config)"
 
 options:
   base_url: ""
   ipp_host: ""
   ipp_printer: ""
   serial_prefix: "USERconfigurable-"
+  port: 8099
 
 schema:
   base_url: str?
   ipp_host: str?
   ipp_printer: str?
   serial_prefix: str?
+  port: int?
