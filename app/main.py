@@ -40,7 +40,7 @@ except Exception as e:
 # Timezone / datetime formatting helper
 # -------------------------------------------------
 LOCAL_TZ = tzlocal.get_localzone()
-APP_VERSION = "2025.11.1"
+APP_VERSION = "2025.11.2"
 APP_INTERNAL_PORT = 8099
 
 
