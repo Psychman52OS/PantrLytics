@@ -40,7 +40,7 @@ except Exception as e:
 # Timezone / datetime formatting helper
 # -------------------------------------------------
 LOCAL_TZ = tzlocal.get_localzone()
-APP_VERSION = "2025.11.0"
+APP_VERSION = "2025.11.1"
 APP_INTERNAL_PORT = 8099
 
 
@@ -3491,6 +3491,16 @@ def serve_icon_png():
     return resp
 
 
+@app.get("/assets/icon.svg", include_in_schema=False)
+def serve_icon_svg():
+    icon_path = os.path.join(STATIC_DIR, "icon.svg")
+    if not os.path.isfile(icon_path):
+        return Response(status_code=404)
+    resp = FileResponse(icon_path, media_type="image/svg+xml")
+    resp.headers["Cache-Control"] = "public, max-age=86400"
+    return resp
+
+
 # -------- Utilities --------
 @app.get("/health")
 def health():
@@ -3525,7 +3535,7 @@ def catchall(_catch: str, request: Request):
     print(f"DEBUG catchall hit: _catch={_catch}")
 
     if _catch.startswith(
-        ("static/", "label/", "photo/", "health", "whoami", "item/")
+        ("static/", "assets/", "label/", "photo/", "health", "whoami", "item/")
     ):
         return Response(status_code=404)
 

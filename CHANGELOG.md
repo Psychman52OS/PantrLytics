@@ -1,7 +1,7 @@
 # PantrLytics Changelog
 
-## 2025.11.0
-- Version bump for HA refresh (icon fixes included).
+## 2025.11.1
+- Serve icon.png/svg explicitly, allow /assets through catchall, and bump versions for HA.
 
 ## 0.6.43
 - Enable SQLite WAL + sync tweak; add photo upload size limit; cache-control for CSS.
