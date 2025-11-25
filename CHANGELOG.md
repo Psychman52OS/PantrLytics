@@ -1,5 +1,8 @@
 # PantrLytics Changelog
 
+## 0.6.38
+- Clarify startup logs about container vs host port mapping for HA users.
+
 ## 0.6.37
 - Fix pagination links to use ingress-safe query params (prevents 500s after redirects).
 

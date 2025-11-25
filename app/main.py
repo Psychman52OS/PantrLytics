@@ -39,7 +39,8 @@ except Exception as e:
 # Timezone / datetime formatting helper
 # -------------------------------------------------
 LOCAL_TZ = tzlocal.get_localzone()
-APP_VERSION = "0.6.37"
+APP_VERSION = "0.6.38"
+APP_INTERNAL_PORT = 8099
 
 
 def format_datetime(value: str):
@@ -898,6 +899,14 @@ class LoggerMW(BaseHTTPMiddleware):
 app.add_middleware(PrefixFromHeaders)
 app.add_middleware(LoggerMW)
 
+@app.on_event("startup")
+def _log_port_notice():
+    host_port = os.environ.get("PORT", APP_INTERNAL_PORT)
+    print(
+        f"[startup] Container listening on :{APP_INTERNAL_PORT}; "
+        "the HA Network tab controls the host port mapping. "
+        f"(env PORT={host_port})"
+    )
 
 def _norm(s: str | None) -> str | None:
     if s is None:

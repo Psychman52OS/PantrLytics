@@ -25,6 +25,7 @@ export PORT
 export GUNICORN_WORKERS="$WORKERS"
 
 BIND_ARGS="--bind 0.0.0.0:${PORT}"
-echo "[startup] Using PORT=${PORT} (bind args: ${BIND_ARGS}), GUNICORN_WORKERS=${GUNICORN_WORKERS}"
+echo "[startup] Using container PORT=${PORT} (bind args: ${BIND_ARGS}), GUNICORN_WORKERS=${GUNICORN_WORKERS}"
+echo "[startup] Reminder: configure the host port in the HA add-on Network tab (container always listens on 8099 internally)."
 
 exec gunicorn -k uvicorn.workers.UvicornWorker app.main:app ${BIND_ARGS} --workers ${GUNICORN_WORKERS} --threads 4
