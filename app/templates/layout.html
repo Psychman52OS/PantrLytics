@@ -21,9 +21,10 @@
     .container{max-width:1100px;margin:0 auto;padding:16px}
   </style>
 
+  {% set rootp = request.scope.get('root_path','') %}
   <link rel="stylesheet"
-      href="{{ (request.scope.get('root_path','') ~ '/assets/styles.css?v=' ~ css_version) | replace('//','/') }}">
-  <link rel="icon" type="image/png" href="{{ (request.scope.get('root_path','') ~ '/assets/icon.png') | replace('//','/') }}">
+      href="{{ (rootp ~ '/assets/styles.css?v=' ~ css_version) | replace('//','/') }}">
+  <link rel="icon" type="image/png" href="{{ (rootp ~ '/assets/icon.png') | replace('//','/') }}">
 </head>
 <body>
   <script>
