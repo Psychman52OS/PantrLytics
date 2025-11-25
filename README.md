@@ -2,6 +2,8 @@
 
 Inventory tracker with on-demand label generation and IPP printing. Built for Home Assistant ingress.
 
+License: MIT
+
 ## Add-on install (Home Assistant)
 1) Add this repository in Supervisor → Add-on Store (`https://github.com/Psychman52OS/PantrLytics`).  
 2) Install the “PantrLytics” add-on.  
