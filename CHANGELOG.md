@@ -1,11 +1,7 @@
 # PantrLytics Changelog
 
-## 0.6.45
-- Added new icon (orange background, black barcode, green leaf) and wired as favicon; version bumps for HA.
-
-## 0.6.44
-- Fix quick filters boolean parsing; surface Who am I link inside Admin → Health.
-- Version bumps for HA add-on.
+## 0.6.46
+- Add navbar icon; bump add-on metadata. (Favicon already present.)
 
 ## 0.6.43
 - Enable SQLite WAL + sync tweak; add photo upload size limit; cache-control for CSS.

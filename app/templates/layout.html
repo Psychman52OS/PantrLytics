@@ -36,7 +36,10 @@
   <header class="app-header">
     <div class="container">
       <h1 class="app-title">
-        <a href="{{ url_for('index') }}">Pantrlytics</a>
+        <a href="{{ url_for('index') }}" style="display:flex; align-items:center; gap:8px;">
+          <img src="{{ (request.scope.get('root_path','') ~ '/assets/icon.svg') | replace('//','/') }}" alt="PantrLytics icon" width="20" height="20" style="display:block;">
+          Pantrlytics
+        </a>
       </h1>
       <nav class="nav">
         <a href="{{ url_for('index') }}">All Items</a>
