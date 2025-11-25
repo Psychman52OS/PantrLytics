@@ -1,7 +1,7 @@
 # PantrLytics Changelog
 
-## 0.6.48
-- Serve PNG icon for navbar/favicon and ensure HA metadata uses icon/logo.
+## 2025.11.0
+- Version bump for HA refresh (icon fixes included).
 
 ## 0.6.43
 - Enable SQLite WAL + sync tweak; add photo upload size limit; cache-control for CSS.
