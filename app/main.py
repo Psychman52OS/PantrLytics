@@ -40,8 +40,7 @@ except Exception as e:
 # Timezone / datetime formatting helper
 # -------------------------------------------------
 LOCAL_TZ = tzlocal.get_localzone()
-APP_VERSION = "0.6.40"
-APP_VERSION = "0.6.42"
+APP_VERSION = "0.6.44"
 APP_INTERNAL_PORT = 8099
 
 
@@ -1811,7 +1810,7 @@ def index(
     use_by_date: Optional[str] = None,
     tags: Optional[str] = None,
     page: int = 1,
-    include_depleted: bool = False,
+    include_depleted: bool | str = False,
     depleted_reason: str = "",
 ):
     # Handle deep-link ?serial=... from HA app and jump straight to item
@@ -1868,7 +1867,9 @@ def index(
             stmt = stmt.where(Item.depleted_reason == depleted_reason)
 
         stmt_ordered = stmt.order_by(Item.created_at.desc())
-        page = max(1, int(page or 1))
+    page = max(1, int(page or 1))
+    if isinstance(include_depleted, str):
+        include_depleted = include_depleted in ("1", "true", "True", "yes", "on")
         per_page = 50
         total_count = session.exec(select(func.count()).select_from(stmt.subquery())).one()
         items = session.exec(

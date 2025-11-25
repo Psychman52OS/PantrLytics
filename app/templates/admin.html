@@ -42,6 +42,10 @@
         <span class="admin-list-name">Total items</span>
         <span class="admin-section-help">{{ health.item_count }}</span>
       </div>
+      <div class="admin-list-row" style="border-radius:12px; border:1px solid var(--border); padding:8px 10px; background: var(--card);">
+        <span class="admin-list-name">Debug</span>
+        <span class="admin-section-help"><a class="link" href="{{ url_for('whoami') }}">Who am I</a></span>
+      </div>
     </div>
   </section>
 
