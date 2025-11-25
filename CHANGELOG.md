@@ -1,5 +1,9 @@
 # PantrLytics Changelog
 
+## 0.6.43
+- Enable SQLite WAL + sync tweak; add photo upload size limit; cache-control for CSS.
+- Version bumps for HA add-on.
+
 ## 0.6.42
 - GZip middleware and SQLite indexes to speed responses; image publishing workflow fixed for GHCR.
 

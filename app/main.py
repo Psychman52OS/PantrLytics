@@ -67,6 +67,7 @@ def format_datetime(value: str):
 # -----------------------------
 DATA_DIR = os.environ.get("DATA_DIR", "/data")
 PHOTOS_DIR = os.path.join(DATA_DIR, "photos")
+MAX_PHOTO_BYTES = 5 * 1024 * 1024  # 5MB safety limit
 BACKUP_DIR = os.path.join(DATA_DIR, "backups")
 ADDON_OPTIONS_PATH = os.environ.get(
     "ADDON_OPTIONS_PATH", os.path.join(DATA_DIR, "options.json")
@@ -914,8 +915,15 @@ def _log_port_notice():
         "the HA Network tab controls the host port mapping. "
         f"(env PORT={host_port})"
     )
-    # Ensure common indexes exist for faster filters/search
+    # Enable WAL + sync tweak, and ensure common indexes exist for faster filters/search
     with engine.connect() as conn:
+        try:
+            conn.exec_driver_sql("PRAGMA journal_mode=WAL;")
+            conn.exec_driver_sql("PRAGMA synchronous=NORMAL;")
+            print("[startup] Enabled SQLite WAL mode")
+        except Exception as e:
+            print(f"[startup] Could not enable WAL: {e}")
+
         def ensure_index(name: str, ddl: str):
             try:
                 exists = conn.exec_driver_sql(
@@ -976,6 +984,9 @@ def process_photo_upload(upload: UploadFile) -> str | None:
     except Exception:
         pass
     data = upload.file.read()
+    if len(data or b"") > MAX_PHOTO_BYTES:
+        print(f"[PHOTO] upload rejected: {len(data)} bytes exceeds {MAX_PHOTO_BYTES}")
+        return None
     original_ext = os.path.splitext(upload.filename)[1].lower()
 
     def _unique_name(ext: str) -> str:
@@ -3449,7 +3460,10 @@ def serve_styles_css():
             media_type="text/plain",
         )
 
-    return FileResponse(css_path, media_type="text/css")
+    resp = FileResponse(css_path, media_type="text/css")
+    # Encourage caching but allow busting via version param in link
+    resp.headers["Cache-Control"] = "public, max-age=86400"
+    return resp
 
 
 # -------- Utilities --------
