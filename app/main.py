@@ -22,6 +22,7 @@ from PIL import Image, ImageDraw, ImageFont
 import qrcode, qrcode.image.pil, json
 
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.gzip import GZipMiddleware
 
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -40,7 +41,7 @@ except Exception as e:
 # -------------------------------------------------
 LOCAL_TZ = tzlocal.get_localzone()
 APP_VERSION = "0.6.40"
-APP_VERSION = "0.6.41"
+APP_VERSION = "0.6.42"
 APP_INTERNAL_PORT = 8099
 
 
@@ -903,6 +904,7 @@ class LoggerMW(BaseHTTPMiddleware):
 
 app.add_middleware(PrefixFromHeaders)
 app.add_middleware(LoggerMW)
+app.add_middleware(GZipMiddleware, minimum_size=512)
 
 @app.on_event("startup")
 def _log_port_notice():
@@ -912,6 +914,26 @@ def _log_port_notice():
         "the HA Network tab controls the host port mapping. "
         f"(env PORT={host_port})"
     )
+    # Ensure common indexes exist for faster filters/search
+    with engine.connect() as conn:
+        def ensure_index(name: str, ddl: str):
+            try:
+                exists = conn.exec_driver_sql(
+                    "SELECT name FROM sqlite_master WHERE type='index' AND name=?",
+                    (name,),
+                ).fetchone()
+                if not exists:
+                    conn.exec_driver_sql(ddl)
+                    print(f"[MIGRATION] Created index {name}")
+            except Exception as e:
+                print(f"[MIGRATION] Could not create index {name}: {e}")
+
+        ensure_index("idx_item_location", "CREATE INDEX idx_item_location ON item(location)")
+        ensure_index("idx_item_bin", "CREATE INDEX idx_item_bin ON item(bin_number)")
+        ensure_index("idx_item_category", "CREATE INDEX idx_item_category ON item(category)")
+        ensure_index("idx_item_use_by", "CREATE INDEX idx_item_use_by ON item(use_by_date)")
+        ensure_index("idx_item_depleted_at", "CREATE INDEX idx_item_depleted_at ON item(depleted_at)")
+        ensure_index("idx_item_created_at", "CREATE INDEX idx_item_created_at ON item(created_at)")
 
 def _norm(s: str | None) -> str | None:
     if s is None:
