@@ -324,7 +324,7 @@ button.btn { -webkit-appearance: none; appearance: none; }
 }
 .table th {
   position: relative;
-  text-align: left;
+  text-align: center;
   color: var(--muted);
   font-weight: 600;
   font-size: 11px;
@@ -373,6 +373,52 @@ button.btn { -webkit-appearance: none; appearance: none; }
   width: 1%;
   white-space: nowrap;
 }
+.table-inventory td.col-quantity,
+.table-inventory th[data-sort-index="3"] {
+  text-align: center;
+}
+.qty-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.qty-inline form {
+  display: inline;
+  margin: 0;
+}
+.qty-inline .qty-value {
+  min-width: 26px;
+  text-align: center;
+  font-weight: 600;
+}
+.qty-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid var(--btn-border);
+  background: color-mix(in oklab, var(--card), var(--bg) 8%);
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.1s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.qty-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 12px rgba(0,0,0,0.08); }
+.qty-btn:active { transform: translateY(0); box-shadow: none; }
+.qty-btn.inc {
+  border-color: #51cf66;
+  background: color-mix(in oklab, #37b24d 28%, var(--card) 72%);
+  color: #0f2917;
+}
+.qty-btn.inc:hover { border-color: #2f9e44; background: color-mix(in oklab, #2f9e44 36%, var(--card) 64%); }
+.qty-btn.dec {
+  border-color: #ff6b6b;
+  background: color-mix(in oklab, #fa5252 30%, var(--card) 70%);
+  color: #2d0b0b;
+}
+.qty-btn.dec:hover { border-color: #f03e3e; background: color-mix(in oklab, #f03e3e 36%, var(--card) 64%); }
 
 /* -------------------------
    Detail layout
@@ -535,7 +581,7 @@ button.btn { -webkit-appearance: none; appearance: none; }
 }
 .pill-overdue, .pill.overdue, .pill.critical, .pill-danger { background: #3a1317; color: #ffb4b8; border-color: #ff6b6b; }
 .pill-critical, .pill.hot, .pill.hot { background: #3a2013; color: #ffc9a1; border-color: #ffa94d; }
-.pill-soon, .pill.soon { background: #332a16; color: #ffe8a3; border-color: #ffd43b; }
+.pill-soon, .pill.soon { background: #332011; color: #ffd8a8; border-color: #ffa94d; }
 .pill-watch, .pill.watch { background: #1f2f26; color: #b8f2d5; border-color: #63e6be; }
 .pill-ok, .pill.ok { background: #1f2633; color: #c4d7ff; border-color: #74c0fc; }
 .pill-reset {
@@ -977,6 +1023,20 @@ dialog#app-modal::backdrop {
   border-color: color-mix(in oklab, var(--accent), #fff 10%);
 }
 
+.qty-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.qty-inline form {
+  display: inline;
+}
+.qty-inline .qty-value {
+  min-width: 24px;
+  text-align: center;
+  display: inline-block;
+}
+
 .required-badge {
   display: inline-block;
   margin-left: 6px;
@@ -1037,6 +1097,71 @@ th.sortable {
 
 th.sortable:hover {
   background-color: rgba(0, 0, 0, 0.04);
+}
+
+/* Generic dialog fallback (for browsers without native <dialog>) */
+dialog.modal-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--text);
+  box-shadow: 0 18px 40px rgba(0,0,0,0.18);
+  max-width: 400px;
+  width: clamp(280px, 80vw, 400px);
+  padding: 16px;
+}
+dialog.modal-card[open] {
+  display: block;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1000;
+}
+dialog.modal-card::backdrop {
+  background: rgba(0, 0, 0, 0.4);
+}
+
+#deplete-dialog {
+  margin: 0;
+  padding: 16px;
+  max-width: 420px;
+  width: clamp(280px, 80vw, 420px);
+}
+#deplete-dialog[open] {
+  display: block;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* Reports bucket overlay */
+.bucket-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(6px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 1000;
+}
+.bucket-overlay.open {
+  display: flex;
+}
+.bucket-dialog {
+  margin: 0;
+  padding: 18px;
+  width: 95vw;
+  max-width: 1400px;
+  max-height: 85vh;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--card), rgba(0,0,0,0.35) 30%);
+  border: 1px solid color-mix(in oklab, var(--border), #ffffff 6%);
+  box-shadow: 0 24px 70px rgba(0,0,0,0.45);
+  border-radius: 14px;
 }
 
 th.sortable {
@@ -1289,10 +1414,19 @@ form.search-and-filters .btn-clear-filters:hover {
   padding: 12px 14px;
   border-radius: 12px;
   border: 1px solid var(--btn-border);
-  background: color-mix(in oklab, var(--card), #ff8a5c 10%);
   display: flex;
   align-items: center;
   gap: 10px;
 }
-.alert-expiry.danger { border-color: #ff6b6b; }
-.alert-expiry.warn { border-color: #ffa94d; }
+.alert-expiry.ok {
+  border-color: #63e6be;
+  background: color-mix(in oklab, #2f9e44 28%, var(--card) 72%);
+}
+.alert-expiry.warn {
+  border-color: #ffa94d;
+  background: color-mix(in oklab, #f08c00 26%, var(--card) 74%);
+}
+.alert-expiry.danger {
+  border-color: #ff6b6b;
+  background: color-mix(in oklab, #fa5252 28%, var(--card) 72%);
+}

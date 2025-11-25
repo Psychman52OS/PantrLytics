@@ -46,27 +46,27 @@
   </header>
 
   <div class="kpi-grid">
-    <div class="kpi-card danger">
+    <div class="kpi-card danger js-bucket" data-bucket="overdue">
       <div class="kpi-label">Expired</div>
       <div class="kpi-value">{{ summary.overdue }}</div>
     </div>
-    <div class="kpi-card hot">
+    <div class="kpi-card hot js-bucket" data-bucket="d7">
       <div class="kpi-label">Expires ≤7d</div>
       <div class="kpi-value">{{ summary.d7 }}</div>
     </div>
-    <div class="kpi-card warn">
+    <div class="kpi-card warn js-bucket" data-bucket="d14">
       <div class="kpi-label">Expires ≤14d</div>
       <div class="kpi-value">{{ summary.d14 }}</div>
     </div>
-    <div class="kpi-card soon">
+    <div class="kpi-card soon js-bucket" data-bucket="d30">
       <div class="kpi-label">Expires ≤30d</div>
       <div class="kpi-value">{{ summary.d30 }}</div>
     </div>
-    <div class="kpi-card calm">
+    <div class="kpi-card calm js-bucket" data-bucket="d60">
       <div class="kpi-label">Expires ≤60d</div>
       <div class="kpi-value">{{ summary.d60 }}</div>
     </div>
-    <div class="kpi-card neutral">
+    <div class="kpi-card neutral js-bucket" data-bucket="total">
       <div class="kpi-label">Total in view</div>
       <div class="kpi-value">{{ summary.total }}</div>
     </div>
@@ -126,6 +126,48 @@
         {% endfor %}
       </div>
     </section>
+
+    <section class="report-card">
+      <div class="report-head">
+        <h3>Depletions</h3>
+        <p class="muted">Items marked as depleted within this horizon.</p>
+      </div>
+      <div class="kpi-grid" style="margin-top:0;">
+        <div class="kpi-card calm">
+          <div class="kpi-label">Depleted items</div>
+          <div class="kpi-value">{{ depleted_count }}</div>
+        </div>
+        <div class="kpi-card neutral">
+          <div class="kpi-label">Avg days on hand</div>
+          <div class="kpi-value">{{ depleted_avg_doh if depleted_avg_doh is not none else "—" }}</div>
+        </div>
+      </div>
+      <div class="report-list" style="margin-top:12px;">
+        {% if depleted_recent %}
+          {% for rec in depleted_recent %}
+            {% set it = rec.item %}
+            <div class="report-row">
+              <div>
+                <div class="report-title">
+                  <a href="{{ url_for('show_item', item_id=it.id) }}">{{ it.name }}</a>
+                  <span class="pill pill-danger">Depleted</span>
+                </div>
+                <div class="report-sub">
+                  {{ it.category or "No category" }} · {{ it.location or "No location" }}
+                </div>
+              </div>
+              <div class="report-meta" style="text-align:right;">
+                <div class="muted">Depleted on</div>
+                <div>{{ rec.depleted_date }}</div>
+                <div class="muted">Days on hand: {{ rec.days_on_hand if rec.days_on_hand is not none else "—" }}</div>
+              </div>
+            </div>
+          {% endfor %}
+        {% else %}
+          <div class="muted">No depleted items in this horizon.</div>
+        {% endif %}
+      </div>
+    </section>
   </div>
 
   <section class="report-card" style="margin-top:14px;">
@@ -158,4 +200,121 @@
     </div>
   </section>
 </section>
+
+{% set bucket_defs = [
+  ('overdue', 'Expired', bucket_items.get('overdue', [])),
+  ('d7', 'Expires ≤7d', bucket_items.get('d7', [])),
+  ('d14', 'Expires ≤14d', bucket_items.get('d14', [])),
+  ('d30', 'Expires ≤30d', bucket_items.get('d30', [])),
+  ('d60', 'Expires ≤60d', bucket_items.get('d60', [])),
+  ('total', 'All in view', total_items),
+] %}
+
+<div id="bucket-overlay" class="bucket-overlay" hidden>
+  <div class="modal-card bucket-dialog">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:10px;">
+      <h3 style="margin:0;" data-bucket-title>Items</h3>
+      <button class="btn btn-secondary" type="button" id="bucket-close">Close</button>
+    </div>
+    <div class="bucket-panels" style="min-width:320px; width:100%; max-height:78vh; overflow:auto;">
+      {% for key,label,items_list in bucket_defs %}
+        <div class="bucket-panel" data-bucket-panel="{{ key }}" style="display:none;">
+          {% if items_list %}
+            <div class="table-wrap" style="overflow-x: visible;">
+              <table class="table table-inventory" style="table-layout:auto; width:100%;">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    {% for col in display_fields %}
+                      <th>{{ col.label }}</th>
+                    {% endfor %}
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for item in items_list %}
+                    <tr>
+                      <td class="col-name">
+                        <a class="link name-link" href="{{ url_for('show_item', item_id=item.id) }}">
+                          {{ item.name }}
+                        </a>
+                        {% if item.expiry_info %}
+                          <span class="pill {{ item.expiry_info.severity }}"> {{ item.expiry_info.badge }} </span>
+                        {% endif %}
+                      </td>
+                      {% for col in display_fields %}
+                        {% set val = item|attr(col.key) %}
+                        <td class="col-{{ col.key }}">
+                          {% if col.key == "quantity" %}
+                            {{ val }}
+                          {% elif col.key in ["cook_date", "use_by_date", "last_audit_date"] %}
+                            {{ val or "—" }}
+                          {% elif col.key == "notes" %}
+                            <span class="wrap">{{ val or "—" }}</span>
+                          {% else %}
+                            {{ val or "—" }}
+                          {% endif %}
+                        </td>
+                      {% endfor %}
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <p class="muted">No items in this bucket.</p>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const overlay = document.getElementById('bucket-overlay');
+    if (!overlay) return;
+    const dlg = overlay.querySelector('.bucket-dialog');
+    const titleEl = overlay.querySelector('[data-bucket-title]');
+    const panels = Array.from(overlay.querySelectorAll('[data-bucket-panel]'));
+    const closeBtn = overlay.querySelector('#bucket-close');
+    const labels = {
+      overdue: 'Expired',
+      d7: 'Expires ≤7d',
+      d14: 'Expires ≤14d',
+      d30: 'Expires ≤30d',
+      d60: 'Expires ≤60d',
+      total: 'All in view',
+    };
+
+    function closeDlg() {
+      overlay.classList.remove('open');
+      overlay.setAttribute('hidden', 'hidden');
+      overlay.style.display = 'none';
+    }
+
+    function showBucket(bucket) {
+      panels.forEach(p => {
+        p.style.display = (p.dataset.bucketPanel === bucket) ? 'block' : 'none';
+      });
+      if (titleEl) titleEl.textContent = labels[bucket] || 'Items';
+      overlay.removeAttribute('hidden');
+      overlay.classList.add('open');
+      overlay.style.display = 'flex';
+    }
+
+    closeBtn?.addEventListener('click', closeDlg);
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) closeDlg();
+    });
+
+    // Attach handlers after functions are defined
+    document.querySelectorAll('.js-bucket[data-bucket]').forEach(card => {
+      card.style.cursor = 'pointer';
+      card.addEventListener('click', () => {
+        const bucket = card.dataset.bucket;
+        if (bucket) showBucket(bucket);
+      });
+    });
+  });
+</script>
 {% endblock %}

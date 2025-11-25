@@ -15,9 +15,17 @@
     </div>
   </header>
 
-  {% if expiry_info %}
+  {% if item.depleted_at %}
+    <div class="alert-expiry danger">
+      <strong>Depleted on {{ item.depleted_at.split('T')[0] }}</strong>
+      {% if item.depleted_reason %}
+        <span class="muted">Reason: {{ item.depleted_reason }}</span>
+      {% endif %}
+    </div>
+  {% elif expiry_info and expiry_info.days <= 30 %}
     {% set sev = expiry_info.severity %}
-    <div class="alert-expiry {% if sev in ['overdue','critical'] %}danger{% elif sev in ['soon','watch'] %}warn{% endif %}">
+    {% set alert_class = 'danger' if sev in ['overdue', 'critical'] else 'warn' if sev == 'soon' else 'ok' %}
+    <div class="alert-expiry {{ alert_class }}">
       <strong>
         {% if expiry_info.days < 0 %}
           Past due by {{ expiry_info.days | abs }} day{% if expiry_info.days|abs != 1 %}s{% endif %}
@@ -64,6 +72,16 @@
       <div>
         <span class="kv-label">Use Within</span>
         <span class="kv-value">{{ item.use_within or "—" }}</span>
+      </div>
+      <div>
+        <span class="kv-label">Depleted</span>
+        <span class="kv-value">
+          {% if item.depleted_at %}
+            Yes — {{ item.depleted_at.split('T')[0] }}{% if item.depleted_reason %} ({{ item.depleted_reason }}){% endif %}
+          {% else %}
+            No
+          {% endif %}
+        </span>
       </div>
       <div>
         <span class="kv-label">Tags</span>
@@ -119,8 +137,8 @@
     <form method="post"
           action="{{ url_for('duplicate_item', item_id=item.id) }}"
           style="display:inline">
-      <button class="btn btn-primary" type="submit">
-        Duplicate
+      <button class="btn btn-primary" type="submit" title="Duplicate and reset cook/use-by/use-within">
+        Duplicate From
       </button>
     </form>
 
@@ -134,6 +152,27 @@
           style="display:inline">
       <button class="btn" type="submit">Print Label</button>
     </form>
+
+    {% if not item.depleted_at %}
+      <form method="post"
+            action="{{ url_for('deplete_item', item_id=item.id) }}"
+            style="display:inline"
+            class="js-deplete-form">
+        <input type="hidden" name="reason" value="">
+        <button class="btn btn-danger" type="submit" title="Mark item as depleted (sets qty to 0)">
+          Mark Depleted
+        </button>
+      </form>
+    {% else %}
+      <form method="post"
+            action="{{ url_for('recover_item', item_id=item.id) }}"
+            style="display:inline">
+        <button class="btn btn-accent" type="submit" title="Recover this item (restore qty)">
+          Recover
+        </button>
+      </form>
+      <span class="pill pill-danger">Depleted</span>
+    {% endif %}
 
     <a
       class="btn btn-secondary"
@@ -153,8 +192,8 @@
     <form method="post"
           action="{{ url_for('delete_item', item_id=item.id) }}"
           style="display:inline"
-          onsubmit="return confirm('Delete this item?');">
-      <button class="btn btn-danger" type="submit">Delete</button>
+          onsubmit="return confirm('Delete this item permanently?');">
+      <button class="btn btn-danger" type="submit">{{ 'Delete Permanently' if item.depleted_at else 'Delete' }}</button>
     </form>
 
     <a class="btn btn-secondary" href="{{ url_for('index') }}">Back</a>
@@ -248,7 +287,96 @@
     if (window.openModal) {
       window.openModal(editUrl);
     }
+    });
+  </script>
+{% endif %}
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const dlg = document.getElementById('deplete-dialog');
+    if (!dlg) return;
+    let pendingForm = null;
+    const select = dlg.querySelector('#deplete-reason');
+    const otherWrap = dlg.querySelector('[data-other-wrap]');
+    const otherInput = dlg.querySelector('#deplete-reason-other');
+    const confirmBtn = dlg.querySelector('#deplete-confirm');
+    const cancelBtn = dlg.querySelector('#deplete-cancel');
+
+    function toggleOther() {
+      if (!select || !otherWrap || !otherInput) return;
+      if (select.value === 'Other') {
+        otherWrap.style.display = 'block';
+        otherInput.focus();
+      } else {
+        otherWrap.style.display = 'none';
+        otherInput.value = '';
+      }
+    }
+    select?.addEventListener('change', toggleOther);
+    toggleOther();
+
+    document.addEventListener('click', (e) => {
+      const form = e.target.closest('.js-deplete-form');
+      if (!form) return;
+      e.preventDefault();
+      pendingForm = form;
+      if (typeof dlg.showModal === 'function') {
+        dlg.showModal();
+      } else {
+        dlg.setAttribute('open', 'open');
+        dlg.style.display = 'block';
+      }
+    });
+
+    confirmBtn?.addEventListener('click', () => {
+      if (!pendingForm) return;
+      const reason = select?.value || '';
+      const other = otherInput?.value || '';
+      const finalReason = reason === 'Other' ? other : reason;
+      pendingForm.querySelector('input[name=\"reason\"]').value = finalReason;
+      if (typeof dlg.close === 'function') dlg.close();
+      dlg.removeAttribute('open');
+      dlg.style.display = 'none';
+      pendingForm.submit();
+    });
+    cancelBtn?.addEventListener('click', () => {
+      if (typeof dlg.close === 'function') dlg.close();
+      dlg.removeAttribute('open');
+      dlg.style.display = 'none';
+      pendingForm = null;
+    });
   });
 </script>
-{% endif %}
+{% set reasons_list = DEPLETION_REASONS if DEPLETION_REASONS is defined else [
+  "Consumed/Used",
+  "Discarded (expired/spoiled)",
+  "Discarded (damaged)",
+  "Donated/Returned",
+  "Lost/Missing",
+  "Restocked/Replaced (new batch)",
+  "Other"
+] %}
+
+<dialog id="deplete-dialog" class="modal-card">
+  <h3 style="margin:0 0 12px 0;">Mark as depleted</h3>
+  <p class="muted" style="margin:0 0 10px 0;">Select a reason (optional).</p>
+  <div class="field" style="margin-bottom:10px;">
+    <label class="kv-label" for="deplete-reason">Reason</label>
+    <select id="deplete-reason" class="input" style="width:100%;">
+      <option value="">(None)</option>
+      {% for r in reasons_list %}
+        <option value="{{ r }}">{{ r }}</option>
+      {% endfor %}
+      <option value="Other">Other</option>
+    </select>
+  </div>
+  <div class="field" data-other-wrap style="display:none; margin-bottom:10px;">
+    <label class="kv-label" for="deplete-reason-other">Other reason</label>
+    <input id="deplete-reason-other" class="input" type="text" placeholder="Enter reason">
+  </div>
+  <div style="display:flex; gap:8px; justify-content:flex-end;">
+    <button class="btn btn-secondary" type="button" id="deplete-cancel">Cancel</button>
+    <button class="btn btn-danger" type="button" id="deplete-confirm">Mark Depleted</button>
+  </div>
+</dialog>
 {% endblock %}

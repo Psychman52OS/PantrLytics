@@ -2,23 +2,26 @@
 {% block title %}{{ app_heading }}{% endblock %}
 
 {% block content %}
-<div class="page-header">
-  <div class="page-header-text">
-    <h1 class="page-title">{{ app_heading }}</h1>
-    <p class="page-subtitle">
-      Search, review, and print labels for everything in the bunker.
-    </p>
+  <div class="page-header">
+    <div class="page-header-text">
+      <h1 class="page-title">{{ app_heading }}</h1>
+      <p class="page-subtitle">
+        Search, review, and print labels for everything in the bunker.
+      </p>
+    </div>
+    <div class="page-header-actions">
+        <a class="btn btn-primary" href="{{ url_for('new_item') }}">
+          <span class="btn-icon-left">＋</span>
+          <span>New Item</span>
+        </a>
+      <a class="btn btn-secondary" href="{{ url_for('admin') }}">
+        Manage Categories &amp; Bins
+      </a>
+      <a class="btn btn-secondary" href="{{ url_for('depleted_items') }}">
+        View Depleted
+      </a>
+    </div>
   </div>
-  <div class="page-header-actions">
-    <a class="btn btn-primary" href="{{ url_for('new_item') }}">
-      <span class="btn-icon-left">＋</span>
-      <span>New Item</span>
-    </a>
-    <a class="btn btn-secondary" href="{{ url_for('admin') }}">
-      Manage Categories &amp; Bins
-    </a>
-  </div>
-</div>
 
 <div class="filter-toggle-row">
   <button type="button" class="btn btn-secondary" id="toggle-filters">Show filters &amp; search</button>
@@ -94,6 +97,22 @@
                    placeholder="e.g. beef, freezer"
                    value="{{ tags }}">
         </div>
+        <div class="filter-group">
+          <label>Depletion reason</label>
+          <select name="depleted_reason" class="filter-input">
+            <option value="">(Any)</option>
+            {% for r in DEPLETION_REASONS %}
+              <option value="{{ r }}" {% if request.query_params.get('depleted_reason') == r %}selected{% endif %}>{{ r }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="filter-group">
+          <label>&nbsp;</label>
+          <label style="display:flex; align-items:center; gap:6px; font-size:13px;">
+            <input type="checkbox" name="include_depleted" value="1" {% if include_depleted %}checked{% endif %}>
+            Include depleted
+          </label>
+        </div>
 
     </div>
 
@@ -110,7 +129,7 @@
     {% for c in categories %}
       {% set is_active = category == c %}
       <a class="chip {% if is_active %}chip-active{% endif %}"
-         href="?category={{ '' if is_active else c | urlencode }}&location={{ location | urlencode }}&bin={{ bin | urlencode }}&cook_date={{ cook_date | urlencode }}&use_by_date={{ use_by_date | urlencode }}&tags={{ tags | urlencode }}&q={{ q | urlencode }}">
+         href="?category={{ '' if is_active else c | urlencode }}&location={{ location | urlencode }}&bin={{ bin | urlencode }}&cook_date={{ cook_date | urlencode }}&use_by_date={{ use_by_date | urlencode }}&tags={{ tags | urlencode }}&q={{ q | urlencode }}&include_depleted={{ 1 if include_depleted else '' }}">
         {{ c }} <span class="chip-count">{{ cat_counts.get(c, 0) }}</span>
       </a>
     {% else %}
@@ -122,7 +141,7 @@
     {% for l in locations %}
       {% set is_active = location == l %}
       <a class="chip {% if is_active %}chip-active{% endif %}"
-         href="?category={{ category | urlencode }}&location={{ '' if is_active else l | urlencode }}&bin={{ bin | urlencode }}&cook_date={{ cook_date | urlencode }}&use_by_date={{ use_by_date | urlencode }}&tags={{ tags | urlencode }}&q={{ q | urlencode }}">
+         href="?category={{ category | urlencode }}&location={{ '' if is_active else l | urlencode }}&bin={{ bin | urlencode }}&cook_date={{ cook_date | urlencode }}&use_by_date={{ use_by_date | urlencode }}&tags={{ tags | urlencode }}&q={{ q | urlencode }}&include_depleted={{ 1 if include_depleted else '' }}">
         {{ l }} <span class="chip-count">{{ loc_counts.get(l, 0) }}</span>
       </a>
     {% else %}
@@ -158,8 +177,14 @@
             <a class="link name-link" href="{{ url_for('show_item', item_id=item.id) }}">
               {{ item.name }}
             </a>
-            {% if item.expiry_info %}
+            {% if item.depleted_at %}
+              <span class="pill pill-danger">Depleted</span>
+            {% endif %}
+            {% if item.expiry_info and item.expiry_info.days <= 30 %}
               <span class="pill {{ item.expiry_info.severity }}"> {{ item.expiry_info.badge }} </span>
+            {% endif %}
+            {% if item.depleted_reason %}
+              <span class="pill pill-neutral"> {{ item.depleted_reason }} </span>
             {% endif %}
           </td>
 
@@ -167,7 +192,32 @@
             {% set val = item|attr(col.key) %}
             <td class="col-{{ col.key }}">
               {% if col.key == "quantity" %}
-                {{ val }}
+                {% if item.depleted_at %}
+                  <span class="muted">0</span>
+                  {% if item.depleted_qty is not none %}
+                    <span class="muted" style="font-size:11px;">(was {{ item.depleted_qty }})</span>
+                  {% endif %}
+                {% else %}
+                  {% set unit_lower = (item.unit or '')|lower %}
+                  {% set qty_clickable = unit_lower in ['each','bag','bags','unit','units','serving','servings'] %}
+                  {% if qty_clickable %}
+                    <div class="qty-inline">
+                      <form method="post" action="{{ url_for('adjust_qty', item_id=item.id) }}">
+                        <input type="hidden" name="delta" value="-1">
+                        <input type="hidden" name="redirect_to" value="{{ request.url }}">
+                        <button class="qty-btn dec" type="submit" title="Decrease">−</button>
+                      </form>
+                      <span class="qty-value">{{ val }}</span>
+                      <form method="post" action="{{ url_for('adjust_qty', item_id=item.id) }}">
+                        <input type="hidden" name="delta" value="1">
+                        <input type="hidden" name="redirect_to" value="{{ request.url }}">
+                        <button class="qty-btn inc" type="submit" title="Increase">+</button>
+                      </form>
+                    </div>
+                  {% else %}
+                    {{ val }}
+                  {% endif %}
+                {% endif %}
               {% elif col.key in ["cook_date", "use_by_date", "last_audit_date"] %}
                 {{ val or "—" }}
               {% elif col.key == "notes" %}
@@ -220,10 +270,10 @@
                 method="post"
                 action="{{ url_for('delete_item', item_id=item.id) }}"
                 style="display:inline"
-                onsubmit="return confirm('Delete this item?');"
+                onsubmit="return confirm('Delete this item permanently?');"
               >
                 <button type="submit" class="btn btn-small btn-danger" title="Delete item">
-                  Delete
+                  {{ 'Delete Permanently' if item.depleted_at else 'Delete' }}
                 </button>
               </form>
             </div>
@@ -238,10 +288,10 @@
     <div class="pagination-info">Page {{ page }} of {{ total_pages }} ({{ total_count }} items)</div>
     <div class="pagination-controls">
       {% if page > 1 %}
-        <a class="btn" href="{{ url_for('index', page=page-1, q=q, category=category, location=location, bin=bin, cook_date=cook_date, use_by_date=use_by_date, tags=tags) }}">← Prev</a>
+        <a class="btn" href="{{ url_for('index', page=page-1, q=q, category=category, location=location, bin=bin, cook_date=cook_date, use_by_date=use_by_date, tags=tags, include_depleted=1 if include_depleted else 0) }}">← Prev</a>
       {% endif %}
       {% if page < total_pages %}
-        <a class="btn" href="{{ url_for('index', page=page+1, q=q, category=category, location=location, bin=bin, cook_date=cook_date, use_by_date=use_by_date, tags=tags) }}">Next →</a>
+        <a class="btn" href="{{ url_for('index', page=page+1, q=q, category=category, location=location, bin=bin, cook_date=cook_date, use_by_date=use_by_date, tags=tags, include_depleted=1 if include_depleted else 0) }}">Next →</a>
       {% endif %}
     </div>
   </div>
@@ -331,6 +381,30 @@ document.addEventListener("DOMContentLoaded", () => {
       originalRows.forEach(row => tbody.appendChild(row));
     });
   }
+});
+
+// Inline quantity adjust without page reload
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest(".qty-btn");
+  if (!btn) return;
+  const form = btn.closest("form");
+  if (!form) return;
+  e.preventDefault();
+  const wrap = form.closest(".qty-inline");
+  const valueEl = wrap?.querySelector(".qty-value");
+  const fd = new FormData(form);
+  fetch(form.action, {
+    method: "POST",
+    body: fd,
+    headers: { "X-Requested-With": "XMLHttpRequest" }
+  })
+    .then((res) => res.json())
+    .then((data) => {
+      if (data && data.ok && valueEl) {
+        valueEl.textContent = data.quantity;
+      }
+    })
+    .catch((err) => console.error("qty update failed", err));
 });
 
 // Column resize handles

@@ -134,5 +134,23 @@
       </div>
     </form>
   </div>
+
+  <div class="admin-columns" style="margin-top:16px;">
+    <div class="admin-section-header" style="margin-bottom:8px;">
+      <h2>Import from CSV</h2>
+      <p class="admin-section-help">
+        Upload a CSV with columns matching the export (name, category, location, bin_number, quantity, unit, use_by_date, etc.).
+        Missing serials will be generated automatically.
+      </p>
+    </div>
+    <form method="post" action="{{ url_for('import_csv') }}" enctype="multipart/form-data" class="admin-inline-form" style="gap:10px; flex-wrap:wrap;">
+      <label class="file-input">
+        <span class="file-btn">Choose CSV</span>
+        <input type="file" name="file" accept=".csv,text/csv" required>
+        <span class="file-name">No file chosen</span>
+      </label>
+      <button class="btn btn-secondary" type="submit">Import items</button>
+    </form>
+  </div>
 </section>
 {% endblock %}

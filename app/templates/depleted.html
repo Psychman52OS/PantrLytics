@@ -1,0 +1,66 @@
+{% extends "layout.html" %}
+{% block title %}Depleted Items · Pantrlytics{% endblock %}
+
+{% block content %}
+<section class="card">
+  <header class="page-header">
+    <div class="page-header-text">
+      <h1 class="page-title">Depleted Items</h1>
+      <p class="page-subtitle">History of items marked as depleted.</p>
+    </div>
+    <div class="page-header-actions">
+      <a class="btn" href="{{ url_for('index') }}">Back to inventory</a>
+    </div>
+  </header>
+
+  {% if items %}
+    <div class="table-wrap">
+      <table class="table table-inventory">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Category</th>
+            <th>Location</th>
+            <th>Bin</th>
+            <th>Depleted on</th>
+            <th>Days on hand</th>
+            <th>Reason</th>
+            <th class="right">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in items %}
+            <tr>
+              <td>
+                <a class="link" href="{{ url_for('show_item', item_id=item.id) }}">{{ item.name }}</a>
+              </td>
+              <td>{{ item.category or "—" }}</td>
+              <td>{{ item.location or "—" }}</td>
+              <td>{{ item.bin_number or "—" }}</td>
+              <td>{{ item.depleted_at.split('T')[0] if item.depleted_at else "—" }}</td>
+              <td>{{ item.days_on_hand if item.days_on_hand is not none else "—" }}</td>
+              <td>{{ item.depleted_reason or "—" }}</td>
+              <td class="right">
+                <a class="btn btn-small btn-ghost" href="{{ url_for('show_item', item_id=item.id) }}">Open</a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="pagination">
+      <div class="pagination-info">Page {{ page }} of {{ total_pages }} ({{ total_count }} items)</div>
+      <div class="pagination-controls">
+        {% if page > 1 %}
+          <a class="btn" href="{{ url_for('depleted_items', page=page-1) }}">← Prev</a>
+        {% endif %}
+        {% if page < total_pages %}
+          <a class="btn" href="{{ url_for('depleted_items', page=page+1) }}">Next →</a>
+        {% endif %}
+      </div>
+    </div>
+  {% else %}
+    <p class="muted">No depleted items yet.</p>
+  {% endif %}
+</section>
+{% endblock %}

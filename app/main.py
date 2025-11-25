@@ -103,6 +103,16 @@ BASE_URL = config["base_url"].rstrip("/")  # used for QR/links
 IPP_HOST = config["ipp_host"]
 IPP_PRINTER = config["ipp_printer"]
 SERIAL_PREFIX = config["serial_prefix"]
+ADJUSTABLE_UNITS = {"each", "unit", "units", "bag", "bags", "serving", "servings"}
+DEPLETION_REASONS = [
+    "Consumed/Used",
+    "Discarded (expired/spoiled)",
+    "Discarded (damaged)",
+    "Donated/Returned",
+    "Lost/Missing",
+    "Restocked/Replaced (new batch)",
+    "Other",
+]
 
 # -----------------------------
 # DB
@@ -111,12 +121,21 @@ DB_PATH = os.path.join(DATA_DIR, "inventory.db")
 engine = create_engine(f"sqlite:///{DB_PATH}", echo=False)
 
 def _parse_date(date_str: Optional[str]) -> Optional[dt.date]:
+    """Parse a date or datetime-ish value into a date, or None on failure."""
     if not date_str:
         return None
+    if isinstance(date_str, dt.datetime):
+        return date_str.date()
+    if isinstance(date_str, dt.date):
+        return date_str
+    text = str(date_str)
     try:
-        return dt.date.fromisoformat(date_str.split("T")[0])
+        return dt.date.fromisoformat(text.split("T")[0])
     except Exception:
-        return None
+        try:
+            return dt.datetime.fromisoformat(text.replace("Z", "+00:00")).date()
+        except Exception:
+            return None
 
 def _days_until(date_str: Optional[str]) -> Optional[int]:
     d = _parse_date(date_str)
@@ -132,10 +151,10 @@ def _expiry_info(item: "Item") -> Optional[dict]:
         return {"days": days, "severity": "overdue", "label": "Overdue", "badge": "Expired"}
     if days <= 7:
         return {"days": days, "severity": "critical", "label": f"{days}d", "badge": "Expires ≤7d"}
+    if days <= 14:
+        return {"days": days, "severity": "soon", "label": f"{days}d", "badge": "Expires ≤14d"}
     if days <= 30:
-        return {"days": days, "severity": "soon", "label": f"{days}d", "badge": "Expires ≤30d"}
-    if days <= 60:
-        return {"days": days, "severity": "watch", "label": f"{days}d", "badge": "Expires ≤60d"}
+        return {"days": days, "severity": "watch", "label": f"{days}d", "badge": "Expires ≤30d"}
     return {"days": days, "severity": "ok", "label": f"{days}d", "badge": "Fresh"}
 
 
@@ -160,6 +179,10 @@ class Item(SQLModel, table=True):
     notes: Optional[str] = None
     photo_path: Optional[str] = None
     last_audit_date: Optional[str] = None
+
+    depleted_at: Optional[str] = None  # ISO timestamp when item was marked depleted
+    depleted_reason: Optional[str] = None
+    depleted_qty: Optional[int] = None
 
     created_at: str = Field(
         default_factory=lambda: dt.datetime.utcnow().isoformat()
@@ -319,6 +342,9 @@ EXPORTABLE_FIELDS = [
     {"key": "notes", "label": "Notes"},
     {"key": "photo_path", "label": "Photo path"},
     {"key": "last_audit_date", "label": "Last audit date"},
+    {"key": "depleted_at", "label": "Depleted at"},
+    {"key": "depleted_reason", "label": "Depletion reason"},
+    {"key": "depleted_qty", "label": "Depleted qty"},
     {"key": "created_at", "label": "Created at"},
 ]
 EXPORTABLE_FIELD_KEYS = [f["key"] for f in EXPORTABLE_FIELDS]
@@ -345,6 +371,9 @@ def init_db():
     with engine.connect() as conn:
         # ensure Item.use_within exists (if DB pre-dates the field)
         ensure_column(conn, "item", "use_within", "VARCHAR")
+        ensure_column(conn, "item", "depleted_at", "VARCHAR")
+        ensure_column(conn, "item", "depleted_reason", "VARCHAR")
+        ensure_column(conn, "item", "depleted_qty", "INTEGER")
 
         # ensure created_at on supporting tables
         for tbl in ("category", "bin", "location", "usewithin"):
@@ -1412,6 +1441,206 @@ def export_custom(fields: list[str] = Form(None)):
     )
 
 
+@app.post("/item/{item_id}/adjust-qty")
+def adjust_qty(
+    request: Request,
+    item_id: int,
+    delta: int = Form(...),
+    redirect_to: str = Form(""),
+):
+    with Session(engine) as session:
+        item = session.get(Item, item_id)
+        if not item:
+            return RedirectResponse(
+                url=str(app.url_path_for("index")),
+                status_code=303,
+            )
+        if item.depleted_at:
+            if request.headers.get("x-requested-with", "").lower() == "xmlhttprequest":
+                return JSONResponse({"ok": False, "reason": "depleted"}, status_code=400)
+            target = redirect_to or str(app.url_path_for("index"))
+            return RedirectResponse(url=target, status_code=303)
+
+        unit_norm = (item.unit or "").strip().lower()
+        if unit_norm not in ADJUSTABLE_UNITS:
+            if request.headers.get("x-requested-with", "").lower() == "xmlhttprequest":
+                return JSONResponse({"ok": False, "reason": "unit_not_adjustable"}, status_code=400)
+            target = redirect_to or str(app.url_path_for("index"))
+            return RedirectResponse(url=target, status_code=303)
+        try:
+            new_qty = max(0, item.quantity + int(delta))
+        except Exception:
+            new_qty = item.quantity
+        item.quantity = new_qty
+        session.add(item)
+        session.commit()
+    # If this was an AJAX/fetch request, return JSON so the UI can update in-place
+    if request.headers.get("x-requested-with", "").lower() == "xmlhttprequest":
+        return JSONResponse({"ok": True, "quantity": new_qty})
+    target = redirect_to or str(app.url_path_for("index"))
+    return RedirectResponse(url=target, status_code=303)
+
+
+@app.post("/item/{item_id}/deplete")
+def deplete_item(
+    request: Request,
+    item_id: int,
+    reason: str = Form(""),
+):
+    reason_clean = _norm(reason) or ""
+    if reason_clean and reason_clean not in DEPLETION_REASONS:
+        reason_clean = "Other"
+    with Session(engine) as session:
+        item = session.get(Item, item_id)
+        if not item:
+            return RedirectResponse(url=str(app.url_path_for("index")), status_code=303)
+        if item.depleted_at:
+            return RedirectResponse(
+                url=str(app.url_path_for("show_item", item_id=item_id)),
+                status_code=303,
+            )
+        now_iso = dt.datetime.utcnow().isoformat()
+        item.depleted_at = now_iso
+        item.depleted_reason = reason_clean
+        item.depleted_qty = item.quantity
+        item.quantity = 0
+        session.add(item)
+        session.commit()
+    return RedirectResponse(
+        url=str(app.url_path_for("show_item", item_id=item_id)),
+        status_code=303,
+    )
+
+
+@app.post("/item/{item_id}/recover")
+def recover_item(
+    request: Request,
+    item_id: int,
+):
+    with Session(engine) as session:
+        item = session.get(Item, item_id)
+        if not item:
+            return RedirectResponse(url=str(app.url_path_for("index")), status_code=303)
+        if not item.depleted_at:
+            return RedirectResponse(
+                url=str(app.url_path_for("show_item", item_id=item_id)),
+                status_code=303,
+            )
+        restore_qty = item.depleted_qty if item.depleted_qty is not None else (item.quantity or 1)
+        item.depleted_at = None
+        item.depleted_reason = None
+        item.depleted_qty = None
+        item.quantity = restore_qty
+        session.add(item)
+        session.commit()
+    return RedirectResponse(
+        url=str(app.url_path_for("show_item", item_id=item_id)),
+        status_code=303,
+    )
+
+
+@app.post("/import/csv")
+async def import_csv(file: UploadFile = File(...)):
+    """Import items from a CSV whose columns match the export."""
+    import csv
+
+    if not file or not file.filename:
+        return RedirectResponse(
+            url=str(app.url_path_for("backup_page")) + "?err=No+file+uploaded",
+            status_code=303,
+        )
+
+    raw = await file.read()
+    try:
+        text = raw.decode("utf-8-sig")
+    except Exception:
+        return RedirectResponse(
+            url=str(app.url_path_for("backup_page")) + "?err=Invalid+file+encoding",
+            status_code=303,
+        )
+
+    reader = csv.DictReader(io.StringIO(text))
+    if not reader.fieldnames:
+        return RedirectResponse(
+            url=str(app.url_path_for("backup_page")) + "?err=Missing+CSV+headers",
+            status_code=303,
+        )
+
+    created = 0
+    skipped = 0
+
+    def _clean(v):
+        return _norm(v) or None
+
+    with Session(engine) as session:
+        for row in reader:
+            if not row:
+                continue
+            name = _clean(row.get("name"))
+            if not name:
+                skipped += 1
+                continue
+
+            qty_raw = _clean(row.get("quantity"))
+            try:
+                qty = int(qty_raw) if qty_raw is not None else 1
+            except Exception:
+                qty = 1
+            depleted_qty_raw = _clean(row.get("depleted_qty"))
+            try:
+                depleted_qty = int(depleted_qty_raw) if depleted_qty_raw is not None else None
+            except Exception:
+                depleted_qty = None
+
+            serial = _clean(row.get("serial_number"))
+            if serial:
+                existing = session.exec(
+                    select(Item).where(Item.serial_number == serial)
+                ).first()
+                if existing:
+                    serial = None
+            serial = serial or next_serial(session)
+
+            item = Item(
+                serial_number=serial,
+                name=name,
+                category=_clean(row.get("category")),
+                tags=_clean(row.get("tags")),
+                location=_clean(row.get("location")),
+                bin_number=_clean(row.get("bin_number")),
+            quantity=qty,
+            unit=_clean(row.get("unit")) or "each",
+            barcode=_clean(row.get("barcode")),
+            second_serial_number=_clean(row.get("second_serial_number")),
+            condition=_clean(row.get("condition")),
+                cook_date=_clean(row.get("cook_date")),
+                use_by_date=_clean(row.get("use_by_date")),
+                use_within=_clean(row.get("use_within")),
+                notes=_clean(row.get("notes")),
+                photo_path=_clean(row.get("photo_path")),
+                last_audit_date=_clean(row.get("last_audit_date")),
+                depleted_at=_clean(row.get("depleted_at")),
+                depleted_reason=_clean(row.get("depleted_reason")),
+                depleted_qty=depleted_qty,
+                created_at=_clean(row.get("created_at")) or dt.datetime.utcnow().isoformat(),
+            )
+            session.add(item)
+            created += 1
+            # ensure related lookups exist for filters/quick lists
+            _upsert_name(session, Category, item.category or "")
+            _upsert_name(session, Bin, item.bin_number or "")
+            _upsert_name(session, Location, item.location or "")
+        session.commit()
+
+    msg = f"Imported+{created}+items"
+    if skipped:
+        msg += f",+skipped+{skipped}"
+    return RedirectResponse(
+        url=str(app.url_path_for("backup_page")) + f"?msg={msg}",
+        status_code=303,
+    )
+
+
 @app.post("/backup/restore")
 async def backup_restore(file: UploadFile = File(...)):
     if not file or not file.filename:
@@ -1501,6 +1730,8 @@ def index(
     use_by_date: Optional[str] = None,
     tags: Optional[str] = None,
     page: int = 1,
+    include_depleted: bool = False,
+    depleted_reason: str = "",
 ):
     # Handle deep-link ?serial=... from HA app and jump straight to item
     serial = request.query_params.get("serial")
@@ -1550,6 +1781,10 @@ def index(
             stmt = stmt.where(Item.use_by_date == use_by_date)
         if tags:
             stmt = stmt.where(Item.tags.like(f"%{tags}%"))
+        if not include_depleted:
+            stmt = stmt.where(Item.depleted_at.is_(None))
+        if depleted_reason:
+            stmt = stmt.where(Item.depleted_reason == depleted_reason)
 
         stmt_ordered = stmt.order_by(Item.created_at.desc())
         page = max(1, int(page or 1))
@@ -1568,19 +1803,28 @@ def index(
         cat_counts = {
             k: v
             for k, v in session.exec(
-                select(Item.category, func.count()).where(Item.category.is_not(None)).group_by(Item.category)
+                select(Item.category, func.count())
+                .where(Item.category.is_not(None))
+                .where(Item.depleted_at.is_(None))
+                .group_by(Item.category)
             )
         }
         loc_counts = {
             k: v
             for k, v in session.exec(
-                select(Item.location, func.count()).where(Item.location.is_not(None)).group_by(Item.location)
+                select(Item.location, func.count())
+                .where(Item.location.is_not(None))
+                .where(Item.depleted_at.is_(None))
+                .group_by(Item.location)
             )
         }
         bin_counts = {
             k: v
             for k, v in session.exec(
-                select(Item.bin_number, func.count()).where(Item.bin_number.is_not(None)).group_by(Item.bin_number)
+                select(Item.bin_number, func.count())
+                .where(Item.bin_number.is_not(None))
+                .where(Item.depleted_at.is_(None))
+                .group_by(Item.bin_number)
             )
         }
         tag_suggestions = set()
@@ -1606,10 +1850,13 @@ def index(
             "cook_date": cook_date or "",
             "use_by_date": use_by_date or "",
             "tags": tags or "",
+            "depleted_reason": depleted_reason or "",
             "categories": cats,
             "cats": cats,
             "bins": bins,
             "locations": locations,
+            "include_depleted": include_depleted,
+            "DEPLETION_REASONS": DEPLETION_REASONS,
             "display_fields": display_fields,
             "page": page,
             "per_page": per_page,
@@ -1621,6 +1868,42 @@ def index(
             "app_heading": app_heading,
         },
 )
+
+
+@app.get("/depleted", response_class=HTMLResponse)
+def depleted_items(
+    request: Request,
+    page: int = 1,
+):
+    with Session(engine) as session:
+        stmt = select(Item).where(Item.depleted_at.is_not(None))
+        stmt_ordered = stmt.order_by(Item.depleted_at.desc())
+        per_page = 50
+        page = max(1, int(page or 1))
+        total_count = session.exec(select(func.count()).select_from(stmt.subquery())).one()
+        items = session.exec(
+            stmt_ordered.offset((page - 1) * per_page).limit(per_page)
+        ).all()
+        for it in items:
+            created = _parse_date(it.created_at)
+            depleted = _parse_date(it.depleted_at)
+            days_on_hand = None
+            if created and depleted:
+                days_on_hand = (depleted - created).days
+            object.__setattr__(it, "days_on_hand", days_on_hand)
+
+    total_pages = max(1, (total_count + per_page - 1) // per_page)
+    return templates.TemplateResponse(
+        "depleted.html",
+        {
+            "request": request,
+            "items": items,
+            "page": page,
+            "per_page": per_page,
+            "total_pages": total_pages,
+            "total_count": total_count,
+        },
+    )
 
 
 @app.api_route("/new", methods=["GET", "POST"], response_class=HTMLResponse)
@@ -1812,6 +2095,7 @@ def show_by_serial(request: Request, serial: str):
             "photos": photos,
             "qr_link": link,
             "expiry_info": _expiry_info(item),
+            "DEPLETION_REASONS": DEPLETION_REASONS,
         },
     )
 
@@ -1832,6 +2116,15 @@ def reports(
     heatmap: dict[str, dict[str, int]] = {}
     category_counts: dict[str, int] = {}
     location_counts: dict[str, int] = {}
+    depleted_records: list[dict] = []
+    bucket_items: dict[str, list[Item]] = {
+        "overdue": [],
+        "d7": [],
+        "d14": [],
+        "d30": [],
+        "d60": [],
+    }
+    total_items: list[Item] = []
 
     def parse_use_within(v: Optional[str]) -> Optional[int]:
         if not v:
@@ -1844,7 +2137,7 @@ def reports(
 
     noncompliant = 0
     compliant_total = 0
-    aging_buckets = {"0-7": 0, "8-14": 0, "15-30": 0, "31-60": 0, "61+": 0}
+    aging_buckets = {"expired": 0, "1-7": 0, "8-14": 0, "15-30": 0, "31-60": 0, "61+": 0}
 
     with Session(engine) as session:
         items = session.exec(select(Item)).all()
@@ -1857,6 +2150,26 @@ def reports(
             if location and (it.location or "") != location:
                 continue
 
+            if it.depleted_at:
+                created = _parse_date(it.created_at)
+                depleted_date = _parse_date(it.depleted_at)
+                if depleted_date:
+                    lookback_ok = True
+                    if horizon_days is not None:
+                        lookback_ok = (today - depleted_date).days <= horizon_days
+                    if lookback_ok:
+                        doh = None
+                        if created:
+                            doh = (depleted_date - created).days
+                        depleted_records.append(
+                            {
+                                "item": it,
+                                "depleted_date": depleted_date,
+                                "days_on_hand": doh,
+                            }
+                        )
+                continue
+
             if it.category:
                 category_counts[it.category] = category_counts.get(it.category, 0) + 1
             if it.location:
@@ -1867,23 +2180,25 @@ def reports(
                 continue
 
             summary["total"] += 1
+            days_until_expiry = info["days"] if info else None
+            compliant_total += 1
+            total_items.append(it)
             if info:
                 if info["days"] < 0:
                     summary["overdue"] += 1
+                    bucket_items["overdue"].append(it)
                 elif info["days"] <= 7:
                     summary["d7"] += 1
-                    summary["d14"] += 1
-                    summary["d30"] += 1
-                    summary["d60"] += 1
+                    bucket_items["d7"].append(it)
                 elif info["days"] <= 14:
                     summary["d14"] += 1
-                    summary["d30"] += 1
-                    summary["d60"] += 1
+                    bucket_items["d14"].append(it)
                 elif info["days"] <= 30:
                     summary["d30"] += 1
-                    summary["d60"] += 1
+                    bucket_items["d30"].append(it)
                 elif info["days"] <= 60:
                     summary["d60"] += 1
+                    bucket_items["d60"].append(it)
 
             if info:
                 expiring.append(it)
@@ -1898,20 +2213,30 @@ def reports(
             # Aging waterfall + use-within compliance
             created = _parse_date(it.created_at)
             days_on_hand = (today - created).days if created else None
-            use_within_days = parse_use_within(it.use_within)
-            if days_on_hand is not None:
-                if days_on_hand <= 7:
-                    aging_buckets["0-7"] += 1
-                elif days_on_hand <= 14:
+            aging_basis = days_until_expiry if days_until_expiry is not None else days_on_hand
+            if aging_basis is not None:
+                # Group by days-until-expiry when available, otherwise by days on hand
+                if aging_basis <= 0:
+                    aging_buckets["expired"] += 1
+                elif aging_basis <= 7:
+                    aging_buckets["1-7"] += 1
+                elif aging_basis <= 14:
                     aging_buckets["8-14"] += 1
-                elif days_on_hand <= 30:
+                elif aging_basis <= 30:
                     aging_buckets["15-30"] += 1
-                elif days_on_hand <= 60:
+                elif aging_basis <= 60:
                     aging_buckets["31-60"] += 1
                 else:
                     aging_buckets["61+"] += 1
+            use_within_days = parse_use_within(it.use_within)
+            # Expired items (days_until_expiry <= 0) are noncompliant regardless of use_within.
+            if days_until_expiry is not None and days_until_expiry <= 0:
+                noncompliant += 1
+                continue
+            # Treat far-future expirations (61+ days out) or very old on-hand items as compliant.
+            if (days_until_expiry is not None and days_until_expiry > 60) or (days_on_hand is not None and days_on_hand > 60):
+                continue
             if use_within_days is not None and days_on_hand is not None:
-                compliant_total += 1
                 if days_on_hand > use_within_days:
                     noncompliant += 1
 
@@ -1927,6 +2252,21 @@ def reports(
     if compliant_total:
         compliance_rate = round(100 * (1 - (noncompliant / compliant_total)))
 
+    with Session(engine) as session:
+        display_fields = get_display_field_defs(session)
+
+    depleted_sorted = sorted(
+        depleted_records,
+        key=lambda r: r["depleted_date"],
+        reverse=True,
+    )
+    depleted_count = len(depleted_sorted)
+    depleted_avg_doh = None
+    doh_vals = [r["days_on_hand"] for r in depleted_sorted if r["days_on_hand"] is not None]
+    if doh_vals:
+        depleted_avg_doh = round(sum(doh_vals) / len(doh_vals))
+    depleted_recent = depleted_sorted[:25]
+
     return templates.TemplateResponse(
         "reports.html",
         {
@@ -1941,6 +2281,12 @@ def reports(
             "location": location,
             "categories": sorted(category_counts.keys()),
             "locations": sorted(location_counts.keys()),
+            "depleted_count": depleted_count,
+            "depleted_avg_doh": depleted_avg_doh,
+            "depleted_recent": depleted_recent,
+            "bucket_items": bucket_items,
+            "total_items": total_items,
+            "display_fields": display_fields,
         },
     )
 
@@ -2664,12 +3010,15 @@ def duplicate_item(request: Request, item_id: int):
             barcode=new_serial,
             second_serial_number=None,
             condition=original.condition,
-            cook_date=original.cook_date,
-            use_by_date=original.use_by_date,
-            use_within=original.use_within,
+            cook_date=None,
+            use_by_date=None,
+            use_within=None,
             notes=original.notes,
             photo_path=None,
             last_audit_date=None,
+            depleted_at=None,
+            depleted_reason=None,
+            depleted_qty=None,
         )
 
         session.add(new_item)
