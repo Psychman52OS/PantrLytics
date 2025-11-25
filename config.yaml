@@ -1,5 +1,5 @@
 name: PantrLytics
-version: 0.6.29
+version: 0.6.30
 slug: pantrlytics
 description: Inventory database with on-demand label generation and IPP printing
 arch:

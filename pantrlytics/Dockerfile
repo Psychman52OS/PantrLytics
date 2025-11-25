@@ -10,7 +10,7 @@ WORKDIR /usr/src/app
 # Copy application code
 COPY app/ ./app
 COPY app/requirements.txt ./requirements.txt
-COPY run.sh /run.sh
+COPY pantrlytics/run.sh /run.sh
 
 # Install Python dependencies and gunicorn
 RUN pip install --no-cache-dir -r requirements.txt gunicorn
