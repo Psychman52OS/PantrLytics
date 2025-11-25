@@ -3481,6 +3481,16 @@ def serve_styles_css():
     return resp
 
 
+@app.get("/assets/icon.png", include_in_schema=False)
+def serve_icon_png():
+    icon_path = os.path.join(STATIC_DIR, "icon.png")
+    if not os.path.isfile(icon_path):
+        return Response(status_code=404)
+    resp = FileResponse(icon_path, media_type="image/png")
+    resp.headers["Cache-Control"] = "public, max-age=86400"
+    return resp
+
+
 # -------- Utilities --------
 @app.get("/health")
 def health():

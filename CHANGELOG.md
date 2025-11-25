@@ -1,7 +1,7 @@
 # PantrLytics Changelog
 
-## 0.6.47
-- Fix home page unbound locals; add HA icon/logo pngs and metadata.
+## 0.6.48
+- Serve PNG icon for navbar/favicon and ensure HA metadata uses icon/logo.
 
 ## 0.6.43
 - Enable SQLite WAL + sync tweak; add photo upload size limit; cache-control for CSS.
