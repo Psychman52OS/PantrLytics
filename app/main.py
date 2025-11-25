@@ -39,7 +39,7 @@ except Exception as e:
 # Timezone / datetime formatting helper
 # -------------------------------------------------
 LOCAL_TZ = tzlocal.get_localzone()
-APP_VERSION = "0.6.36"
+APP_VERSION = "0.6.37"
 
 
 def format_datetime(value: str):

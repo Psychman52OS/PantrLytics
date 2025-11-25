@@ -288,10 +288,10 @@
     <div class="pagination-info">Page {{ page }} of {{ total_pages }} ({{ total_count }} items)</div>
     <div class="pagination-controls">
       {% if page > 1 %}
-        <a class="btn" href="{{ url_for('index', page=page-1, q=q, category=category, location=location, bin=bin, cook_date=cook_date, use_by_date=use_by_date, tags=tags, include_depleted=1 if include_depleted else 0) }}">← Prev</a>
+        <a class="btn" href="{{ request.url_for('index').include_query_params(page=page-1, q=q, category=category, location=location, bin=bin, cook_date=cook_date, use_by_date=use_by_date, tags=tags, include_depleted=1 if include_depleted else 0) }}">← Prev</a>
       {% endif %}
       {% if page < total_pages %}
-        <a class="btn" href="{{ url_for('index', page=page+1, q=q, category=category, location=location, bin=bin, cook_date=cook_date, use_by_date=use_by_date, tags=tags, include_depleted=1 if include_depleted else 0) }}">Next →</a>
+        <a class="btn" href="{{ request.url_for('index').include_query_params(page=page+1, q=q, category=category, location=location, bin=bin, cook_date=cook_date, use_by_date=use_by_date, tags=tags, include_depleted=1 if include_depleted else 0) }}">Next →</a>
       {% endif %}
     </div>
   </div>

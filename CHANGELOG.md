@@ -1,5 +1,8 @@
 # PantrLytics Changelog
 
+## 0.6.37
+- Fix pagination links to use ingress-safe query params (prevents 500s after redirects).
+
 ## 0.6.36
 - Show clear CSV import success text (items added/skipped) on Backup page.
 - Add add-on metadata links (url + changelog) for HA Store.
