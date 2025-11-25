@@ -1868,8 +1868,9 @@ def index(
 
         stmt_ordered = stmt.order_by(Item.created_at.desc())
     page = max(1, int(page or 1))
+    # Normalize include_depleted query param
     if isinstance(include_depleted, str):
-        include_depleted = include_depleted in ("1", "true", "True", "yes", "on")
+        include_depleted = include_depleted.lower() in ("1", "true", "yes", "on")
         per_page = 50
         total_count = session.exec(select(func.count()).select_from(stmt.subquery())).one()
         items = session.exec(
@@ -1924,7 +1925,7 @@ def index(
         "index.html",
         {
             "request": request,
-            "items": items,
+            "items": items if 'items' in locals() else [],
             "q": q or "",
             "category": category or "",
             "location": location or "",
