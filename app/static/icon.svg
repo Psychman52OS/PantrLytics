@@ -1,0 +1,12 @@
+<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="200" height="200" rx="24" fill="#f97316"/>
+  <!-- Barcode bars -->
+  <rect x="42" y="40" width="10" height="120" rx="3" fill="#0b0b0d"/>
+  <rect x="60" y="35" width="8" height="130" rx="3" fill="#0b0b0d"/>
+  <rect x="76" y="45" width="14" height="110" rx="3" fill="#0b0b0d"/>
+  <rect x="98" y="38" width="6" height="124" rx="3" fill="#0b0b0d"/>
+  <rect x="112" y="50" width="12" height="102" rx="3" fill="#0b0b0d"/>
+  <rect x="132" y="42" width="9" height="118" rx="3" fill="#0b0b0d"/>
+  <!-- Leaf accent -->
+  <path d="M140 140c18 0 30-10 32-24-12 0-22 4-28 12-4-6-11-9-18-10 1 12 7 22 14 22z" fill="#22c55e"/>
+</svg>
