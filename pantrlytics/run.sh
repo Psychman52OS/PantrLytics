@@ -37,6 +37,12 @@ fi
 export PORT
 export GUNICORN_WORKERS="$WORKERS"
 
-echo "[startup] Using PORT=${PORT}, GUNICORN_WORKERS=${GUNICORN_WORKERS}"
+BIND_ARGS="--bind 0.0.0.0:${PORT}"
+if [ "$PORT" != "8099" ]; then
+  # Also listen on 8099 so the fixed container port mapping continues to work
+  BIND_ARGS="$BIND_ARGS --bind 0.0.0.0:8099"
+fi
 
-exec gunicorn -k uvicorn.workers.UvicornWorker app.main:app --bind 0.0.0.0:${PORT} --workers ${GUNICORN_WORKERS} --threads 4
+echo "[startup] Using PORT=${PORT} (bind args: ${BIND_ARGS}), GUNICORN_WORKERS=${GUNICORN_WORKERS}"
+
+exec gunicorn -k uvicorn.workers.UvicornWorker app.main:app ${BIND_ARGS} --workers ${GUNICORN_WORKERS} --threads 4

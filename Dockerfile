@@ -28,7 +28,8 @@ RUN pip install --no-cache-dir --no-index --find-links=/wheels -r requirements.t
  && rm -rf /wheels
 
 ENV PYTHONUNBUFFERED=1
+ENV PORT=8099
 VOLUME ["/data"]
-EXPOSE 8099
+EXPOSE ${PORT}
 
-CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8099", "--proxy-headers", "--forwarded-allow-ips", "*"]
+CMD ["sh", "-c", "python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8099} --proxy-headers --forwarded-allow-ips '*'"]

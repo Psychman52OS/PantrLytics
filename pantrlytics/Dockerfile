@@ -17,7 +17,7 @@ RUN pip install --no-cache-dir -r requirements.txt gunicorn
 RUN chmod +x /run.sh
 
 # Default port and worker configuration (can be overridden by env)
-ENV PORT=5000
+ENV PORT=8099
 ENV GUNICORN_WORKERS=2
 
 EXPOSE ${PORT}
