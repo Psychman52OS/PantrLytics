@@ -1,9 +1,9 @@
 {
-  "name": "My Inventory Labels",
+  "name": "PantrLytics",
   "version": "1.0.0",
-  "image": "ghcr.io/Psychman52OS/my_inventory_labels:latest",
-  "slug": "my_inventory_labels",
-  "description": "Inventory label web app (Flask) — runs as a Supervisor add-on with Ingress",
+  "image": "ghcr.io/Psychman52OS/pantrlytics:latest",
+  "slug": "pantrlytics",
+  "description": "PantrLytics inventory app with labels and printing — Supervisor add-on with Ingress",
   "arch": ["aarch64", "amd64", "armv7", "armhf"],
   "startup": "services",
   "boot": "auto",

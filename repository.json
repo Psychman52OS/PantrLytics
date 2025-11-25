@@ -1,6 +1,6 @@
 {
-  "name": "My Inventory Labels",
+  "name": "PantrLytics",
   "url": "https://github.com/Psychman52OS/my_inventory_labels",
   "maintainer": "Psychman52OS",
-  "addons": ["my_inventory_labels"]
+  "addons": ["pantrlytics"]
 }

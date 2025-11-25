@@ -1,6 +1,6 @@
-name: Inventory & Labels
+name: PantrLytics
 version: 0.6.29
-slug: my_inventory_labels
+slug: pantrlytics
 description: Inventory database with on-demand label generation and IPP printing
 arch:
   - aarch64
