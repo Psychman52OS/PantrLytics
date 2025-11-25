@@ -1,5 +1,7 @@
 name: PantrLytics
-version: 0.6.35
+version: 0.6.36
+url: https://github.com/Psychman52OS/PantrLytics
+changelog: https://github.com/Psychman52OS/PantrLytics/blob/main/CHANGELOG.md
 slug: pantrlytics
 description: Inventory database with on-demand label generation and IPP printing
 arch:

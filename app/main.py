@@ -39,7 +39,7 @@ except Exception as e:
 # Timezone / datetime formatting helper
 # -------------------------------------------------
 LOCAL_TZ = tzlocal.get_localzone()
-APP_VERSION = "0.6.35"
+APP_VERSION = "0.6.36"
 
 
 def format_datetime(value: str):
@@ -1631,9 +1631,9 @@ async def import_csv(request: Request, file: UploadFile = File(...)):
             _upsert_name(session, Location, item.location or "")
         session.commit()
 
-    msg = f"Imported+{created}+items"
+    msg = f"CSV+import+ok:+{created}+added"
     if skipped:
-        msg += f",+skipped+{skipped}"
+        msg += f",+{skipped}+skipped"
     target = str(request.url_for("backup_page")) + f"?msg={msg}"
     print(f"[csv import] redirect -> {target}")
     return RedirectResponse(url=target, status_code=303)
