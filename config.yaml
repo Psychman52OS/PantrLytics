@@ -1,5 +1,5 @@
 name: PantrLytics
-version: 0.6.32
+version: 0.6.33
 slug: pantrlytics
 description: Inventory database with on-demand label generation and IPP printing
 arch:
@@ -24,11 +24,9 @@ options:
   ipp_host: ""
   ipp_printer: ""
   serial_prefix: "USERconfigurable-"
-  port: 8099
 
 schema:
   base_url: str?
   ipp_host: str?
   ipp_printer: str?
   serial_prefix: str?
-  port: int?

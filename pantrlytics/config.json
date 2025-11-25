@@ -1,6 +1,6 @@
 {
   "name": "PantrLytics",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "image": "ghcr.io/Psychman52OS/pantrlytics:latest",
   "slug": "pantrlytics",
   "description": "PantrLytics inventory app with labels and printing — Supervisor add-on with Ingress",
@@ -8,11 +8,9 @@
   "startup": "services",
   "boot": "auto",
   "options": {
-    "port": 8099,
     "workers": 2
   },
   "schema": {
-    "port": "int",
     "workers": "int"
   },
   "ingress": true,
