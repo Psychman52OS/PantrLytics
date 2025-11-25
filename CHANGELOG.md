@@ -1,5 +1,8 @@
 # PantrLytics Changelog
 
+## 0.6.42
+- GZip middleware and SQLite indexes to speed responses; image publishing workflow fixed for GHCR.
+
 ## 0.6.41
 - Backup page now requires Admin auth; README notes to change the default password.
 - Version bumps for HA add-on.
