@@ -1813,6 +1813,22 @@ def index(
     include_depleted: bool | str = False,
     depleted_reason: str = "",
 ):
+    # Defaults to avoid unbound locals if something goes wrong
+    items = []
+    cats = []
+    bins = []
+    locations = []
+    search_suggestions = []
+    cat_counts = {}
+    loc_counts = {}
+    bin_counts = {}
+    total_count = 0
+    per_page = 50
+
+    # Normalize include_depleted query param
+    if isinstance(include_depleted, str):
+        include_depleted = include_depleted.lower() in ("1", "true", "yes", "on")
+
     # Handle deep-link ?serial=... from HA app and jump straight to item
     serial = request.query_params.get("serial")
     if serial:
@@ -1825,6 +1841,8 @@ def index(
                     url=str(request.url_for("show_item", item_id=item.id)),
                     status_code=303,
                 )
+
+    page = max(1, int(page or 1))
 
     with Session(engine) as session:
         stmt = select(Item)
@@ -1867,11 +1885,6 @@ def index(
             stmt = stmt.where(Item.depleted_reason == depleted_reason)
 
         stmt_ordered = stmt.order_by(Item.created_at.desc())
-    page = max(1, int(page or 1))
-    # Normalize include_depleted query param
-    if isinstance(include_depleted, str):
-        include_depleted = include_depleted.lower() in ("1", "true", "yes", "on")
-        per_page = 50
         total_count = session.exec(select(func.count()).select_from(stmt.subquery())).one()
         items = session.exec(
             stmt_ordered.offset((page - 1) * per_page).limit(per_page)
