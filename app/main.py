@@ -3148,9 +3148,10 @@ async def admin(request: Request, response: Response):
 
         if not authed:
             # If not authed, render login form only
+            next_dest = request.query_params.get("next", "")
             return templates.TemplateResponse(
                 "admin_login.html",
-                {"request": request, "error": login_error},
+                {"request": request, "error": login_error, "next": next_dest},
                 status_code=401 if login_error else 200,
             )
 
@@ -3425,6 +3426,12 @@ async def admin(request: Request, response: Response):
     )
     if authed:
         resp.set_cookie("admin_auth", stored_hash, path="/", httponly=True)
+        next_dest = request.query_params.get("next", "")
+        if next_dest:
+            return RedirectResponse(
+                url=str(request.url_for(next_dest)),
+                status_code=303,
+            )
     return resp
 
 
