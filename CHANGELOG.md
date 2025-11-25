@@ -1,7 +1,7 @@
 # PantrLytics Changelog
 
-## 2025.11.3
-- Header layout with 100px icon spanning title/nav; bump for HA refresh. Added root icon.png for repo tile.
+## 2025.11.4
+- Regenerated icons to HA-recommended sizes (icon 128x128, logo 250x100) in root and add-on folder; bump for HA refresh.
 
 ## 0.6.43
 - Enable SQLite WAL + sync tweak; add photo upload size limit; cache-control for CSS.
