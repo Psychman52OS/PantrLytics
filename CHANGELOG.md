@@ -1,7 +1,7 @@
 # PantrLytics Changelog
 
-## 2025.11.7
-- Added text in black to icons/logos (orange matches app, rounded corners, darker leaf); regenerated PNGs for app/HA.
+## 2025.11.8
+- Version bump for header layout/icon updates.
 
 ## 0.6.43
 - Enable SQLite WAL + sync tweak; add photo upload size limit; cache-control for CSS.
