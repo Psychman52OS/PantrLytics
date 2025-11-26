@@ -1,7 +1,7 @@
 # PantrLytics Changelog
 
-## 2025.11.5
-- Regenerated icons/logos with rounded corners, darker leaf, barcodes spanning logo; sizes 128x128 and 250x100. Bump for HA refresh.
+## 2025.11.6
+- Updated icons/logos to new design (orange matches app, rounded corners, darker leaf); regenerated PNGs for app/HA.
 
 ## 0.6.43
 - Enable SQLite WAL + sync tweak; add photo upload size limit; cache-control for CSS.
