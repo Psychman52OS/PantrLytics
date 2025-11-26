@@ -1,7 +1,7 @@
 # PantrLytics Changelog
 
-## 2025.11.8
-- Version bump for header layout/icon updates.
+## 2025.11.9
+- Header grid layout (icon spans two rows; title + nav in right column; larger nav text). Version bump.
 
 ## 0.6.43
 - Enable SQLite WAL + sync tweak; add photo upload size limit; cache-control for CSS.
