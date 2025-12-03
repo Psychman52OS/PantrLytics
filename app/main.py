@@ -1524,20 +1524,20 @@ def adjust_qty(
         item = session.get(Item, item_id)
         if not item:
             return RedirectResponse(
-                url=str(app.url_path_for("index")),
+                url=str(request.url_for("index")),
                 status_code=303,
             )
         if item.depleted_at:
             if request.headers.get("x-requested-with", "").lower() == "xmlhttprequest":
                 return JSONResponse({"ok": False, "reason": "depleted"}, status_code=400)
-            target = redirect_to or str(app.url_path_for("index"))
+            target = redirect_to or str(request.url_for("index"))
             return RedirectResponse(url=target, status_code=303)
 
         unit_norm = (item.unit or "").strip().lower()
         if unit_norm not in ADJUSTABLE_UNITS:
             if request.headers.get("x-requested-with", "").lower() == "xmlhttprequest":
                 return JSONResponse({"ok": False, "reason": "unit_not_adjustable"}, status_code=400)
-            target = redirect_to or str(app.url_path_for("index"))
+            target = redirect_to or str(request.url_for("index"))
             return RedirectResponse(url=target, status_code=303)
         try:
             new_qty = max(0, item.quantity + int(delta))
@@ -1549,7 +1549,7 @@ def adjust_qty(
     # If this was an AJAX/fetch request, return JSON so the UI can update in-place
     if request.headers.get("x-requested-with", "").lower() == "xmlhttprequest":
         return JSONResponse({"ok": True, "quantity": new_qty})
-    target = redirect_to or str(app.url_path_for("index"))
+    target = redirect_to or str(request.url_for("index"))
     return RedirectResponse(url=target, status_code=303)
 
 
@@ -1565,10 +1565,10 @@ def deplete_item(
     with Session(engine) as session:
         item = session.get(Item, item_id)
         if not item:
-            return RedirectResponse(url=str(app.url_path_for("index")), status_code=303)
+            return RedirectResponse(url=str(request.url_for("index")), status_code=303)
         if item.depleted_at:
             return RedirectResponse(
-                url=str(app.url_path_for("show_item", item_id=item_id)),
+                url=str(request.url_for("show_item", item_id=item_id)),
                 status_code=303,
             )
         now_iso = dt.datetime.utcnow().isoformat()
@@ -1579,7 +1579,7 @@ def deplete_item(
         session.add(item)
         session.commit()
     return RedirectResponse(
-        url=str(app.url_path_for("show_item", item_id=item_id)),
+        url=str(request.url_for("show_item", item_id=item_id)),
         status_code=303,
     )
 
@@ -1593,11 +1593,11 @@ def recover_item(
         item = session.get(Item, item_id)
         if not item:
             print(f"[recover] item {item_id} not found")
-            return RedirectResponse(url=str(app.url_path_for("index")), status_code=303)
+            return RedirectResponse(url=str(request.url_for("index")), status_code=303)
         if not item.depleted_at:
             print(f"[recover] item {item_id} not depleted; redirecting to show")
             return RedirectResponse(
-                url=str(app.url_path_for("show_item", item_id=item_id)),
+                url=str(request.url_for("show_item", item_id=item_id)),
                 status_code=303,
             )
         restore_qty = item.depleted_qty if item.depleted_qty is not None else (item.quantity or 1)
@@ -1611,7 +1611,7 @@ def recover_item(
             f"[recover] restored item {item_id}: qty={restore_qty} "
             f"photo_path={item.photo_path} photos={len(get_item_photos(session, item_id))}"
         )
-    target = str(app.url_path_for("show_item", item_id=item_id))
+    target = str(request.url_for("show_item", item_id=item_id))
     print(f"[recover] redirect -> {target}")
     return RedirectResponse(url=target, status_code=303)
 
