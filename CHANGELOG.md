@@ -1,5 +1,9 @@
 # PantrLytics Changelog
 
+## 2025.12.5
+- Add debugging logs for recover/show flows to trace post-deplete recover 404s.
+- Version bump.
+
 ## 2025.12.4
 - Avoid rendering missing photo thumbs on depleted items to prevent 404s when viewing after deplete/recover.
 - Version bump.
