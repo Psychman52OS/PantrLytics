@@ -2155,7 +2155,7 @@ def show_item(request: Request, item_id: int):
         item = session.get(Item, item_id)
         if not item:
             return Response(status_code=404)
-        photos = get_item_photos(session, item_id, include_missing=True)
+        photos = get_item_photos(session, item_id)
         object.__setattr__(item, "expiry_info", _expiry_info(item))
 
     link = build_item_link(item)
