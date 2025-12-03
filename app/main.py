@@ -1582,8 +1582,10 @@ def recover_item(
     with Session(engine) as session:
         item = session.get(Item, item_id)
         if not item:
+            print(f"[recover] item {item_id} not found")
             return RedirectResponse(url=str(app.url_path_for("index")), status_code=303)
         if not item.depleted_at:
+            print(f"[recover] item {item_id} not depleted; redirecting to show")
             return RedirectResponse(
                 url=str(app.url_path_for("show_item", item_id=item_id)),
                 status_code=303,
@@ -1595,10 +1597,13 @@ def recover_item(
         item.quantity = restore_qty
         session.add(item)
         session.commit()
-    return RedirectResponse(
-        url=str(app.url_path_for("show_item", item_id=item_id)),
-        status_code=303,
-    )
+        print(
+            f"[recover] restored item {item_id}: qty={restore_qty} "
+            f"photo_path={item.photo_path} photos={len(get_item_photos(session, item_id))}"
+        )
+    target = str(app.url_path_for("show_item", item_id=item_id))
+    print(f"[recover] redirect -> {target}")
+    return RedirectResponse(url=target, status_code=303)
 
 
 @app.post("/import/csv")
@@ -2154,9 +2159,14 @@ def show_item(request: Request, item_id: int):
     with Session(engine) as session:
         item = session.get(Item, item_id)
         if not item:
+            print(f"[show_item] item {item_id} not found")
             return Response(status_code=404)
         photos = get_item_photos(session, item_id)
         object.__setattr__(item, "expiry_info", _expiry_info(item))
+        print(
+            f"[show_item] item {item_id} depleted={bool(item.depleted_at)} "
+            f"photos={len(photos)}"
+        )
 
     link = build_item_link(item)
 
