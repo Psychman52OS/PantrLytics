@@ -893,12 +893,22 @@ class PrefixFromHeaders(BaseHTTPMiddleware):
 
 class LoggerMW(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
+        root_path = request.scope.get("root_path", "")
         print(
             f">>> {request.method} {request.url.path} "
-            f"q={request.url.query} root={request.scope.get('root_path','')}"
+            f"q={request.url.query} root={root_path}"
         )
         resp = await call_next(request)
-        print(f"<<< {resp.status_code} {request.method} {request.url.path}")
+        if resp.status_code >= 300:
+            print(
+                f"<<< {resp.status_code} {request.method} {request.url.path} "
+                f"root={root_path} referer={request.headers.get('referer','')} "
+                f"xfp={request.headers.get('x-forwarded-prefix','')} "
+                f"xip={request.headers.get('x-ingress-path','')} "
+                f"loc={resp.headers.get('location','')}"
+            )
+        else:
+            print(f"<<< {resp.status_code} {request.method} {request.url.path}")
         return resp
 
 
