@@ -1,5 +1,9 @@
 # PantrLytics Changelog
 
+## 2025.12.4
+- Avoid rendering missing photo thumbs on depleted items to prevent 404s when viewing after deplete/recover.
+- Version bump.
+
 ## 2025.12.3
 - Skip missing photo files when showing depleted items to avoid 404s; prefer newest existing photo.
 - Version bump.
