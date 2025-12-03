@@ -40,7 +40,7 @@ except Exception as e:
 # Timezone / datetime formatting helper
 # -------------------------------------------------
 LOCAL_TZ = tzlocal.get_localzone()
-APP_VERSION = "2025.11.11"
+APP_VERSION = "2025.12.3"
 APP_INTERNAL_PORT = 8099
 
 
@@ -1340,12 +1340,16 @@ def _choices(session: Session):
     return cats, bins, locations, use_withins
 
 
-def get_item_photos(session: Session, item_id: int) -> list[ItemPhoto]:
-    return session.exec(
+def get_item_photos(session: Session, item_id: int, include_missing: bool = False) -> list[ItemPhoto]:
+    """Fetch photos for an item. Optionally filter out rows whose files are gone."""
+    photos = session.exec(
         select(ItemPhoto)
         .where(ItemPhoto.item_id == item_id)
         .order_by(ItemPhoto.created_at)
     ).all()
+    if include_missing:
+        return photos
+    return [p for p in photos if os.path.isfile(p.path)]
 
 
 def _delete_photo_file(path: str):
@@ -2151,7 +2155,7 @@ def show_item(request: Request, item_id: int):
         item = session.get(Item, item_id)
         if not item:
             return Response(status_code=404)
-        photos = get_item_photos(session, item_id)
+        photos = get_item_photos(session, item_id, include_missing=True)
         object.__setattr__(item, "expiry_info", _expiry_info(item))
 
     link = build_item_link(item)
@@ -2388,16 +2392,26 @@ def reports(
 
 
 def _resolve_photo_path(session: Session, item_id: int, prefer_photo_id: int | None = None):
-    """Return (path, photo_id) for an item's photo."""
+    """Return (path, photo_id) for an item's photo.
+
+    Prioritizes an explicitly requested photo id, otherwise returns the most
+    recent photo file that still exists on disk before falling back to legacy
+    `photo_path`.
+    """
     photos = get_item_photos(session, item_id)
+
     if prefer_photo_id:
         for p in photos:
-            if p.id == prefer_photo_id:
+            if p.id == prefer_photo_id and os.path.isfile(p.path):
                 return p.path, p.id
-    if photos:
-        return photos[0].path, photos[0].id
+
+    # Prefer newest-to-oldest so we skip stale DB rows pointing at deleted files.
+    for p in reversed(photos):
+        if os.path.isfile(p.path):
+            return p.path, p.id
+
     item = session.get(Item, item_id)
-    if item and item.photo_path:
+    if item and item.photo_path and os.path.isfile(item.photo_path):
         return item.photo_path, None
     return None, None
 
@@ -2866,7 +2880,7 @@ def edit_item_form(request: Request, item_id: int, partial: int = 0):
         item = _get_item_or_404(session, item_id)
         cats, bins, locations, use_withins = _choices(session)
         required_fields = get_required_field_keys(session)
-        photos = get_item_photos(session, item_id)
+        photos = get_item_photos(session, item_id, include_missing=True)
     ctx = {
         "request": request,
         "item": item,

@@ -1,5 +1,9 @@
 # PantrLytics Changelog
 
+## 2025.12.3
+- Skip missing photo files when showing depleted items to avoid 404s; prefer newest existing photo.
+- Version bump.
+
 ## 2025.11.11
 - Header grid tweaks: align title and nav horizontally, larger nav text, slogan remains italic next to title. Version bump.
 
