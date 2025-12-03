@@ -1,5 +1,9 @@
 # PantrLytics Changelog
 
+## 2025.12.7
+- Fix ingress redirects by using request-aware URLs for item actions; better logging for redirects.
+- Version bump.
+
 ## 2025.12.6
 - Expand request logging (root path, referer, forwarded headers, redirect target) to debug recover redirect/404s.
 - Version bump.
