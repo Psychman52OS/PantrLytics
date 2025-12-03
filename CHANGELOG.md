@@ -1,5 +1,9 @@
 # PantrLytics Changelog
 
+## 2025.12.6
+- Expand request logging (root path, referer, forwarded headers, redirect target) to debug recover redirect/404s.
+- Version bump.
+
 ## 2025.12.5
 - Add debugging logs for recover/show flows to trace post-deplete recover 404s.
 - Version bump.
