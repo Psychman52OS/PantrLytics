@@ -40,7 +40,7 @@ except Exception as e:
 # Timezone / datetime formatting helper
 # -------------------------------------------------
 LOCAL_TZ = tzlocal.get_localzone()
-APP_VERSION = "2025.12.7"
+APP_VERSION = "2025.12.8"
 APP_INTERNAL_PORT = 8099
 
 
@@ -2157,10 +2157,12 @@ async def new_item(
         session.commit()
         session.refresh(item)
 
+        item_id = item.id
+
         _save_item_photos(session, item, photos)
 
     return RedirectResponse(
-        url=str(request.url_for("show_item", item_id=item.id)), status_code=303
+        url=str(request.url_for("show_item", item_id=item_id)), status_code=303
     )
 
 

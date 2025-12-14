@@ -1,5 +1,9 @@
 # PantrLytics Changelog
 
+## 2025.12.8
+- Fix new item creation redirect by storing the item ID before closing the session (prevents DetachedInstanceError).
+- Version bump.
+
 ## 2025.12.7
 - Fix ingress redirects by using request-aware URLs for item actions; better logging for redirects.
 - Version bump.
