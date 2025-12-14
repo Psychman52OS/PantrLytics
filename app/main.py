@@ -40,7 +40,7 @@ except Exception as e:
 # Timezone / datetime formatting helper
 # -------------------------------------------------
 LOCAL_TZ = tzlocal.get_localzone()
-APP_VERSION = "2025.12.8"
+APP_VERSION = "2025.12.9"
 APP_INTERNAL_PORT = 8099
 
 
@@ -123,6 +123,15 @@ DEPLETION_REASONS = [
 # -----------------------------
 DB_PATH = os.path.join(DATA_DIR, "inventory.db")
 engine = create_engine(f"sqlite:///{DB_PATH}", echo=False)
+
+
+def _inventory_update_token() -> str:
+    """Return a string token that changes whenever the inventory DB is written."""
+    try:
+        return str(os.path.getmtime(DB_PATH))
+    except OSError:
+        # Fall back to current time so clients still get a monotonic token.
+        return str(time.time())
 
 def _parse_date(date_str: Optional[str]) -> Optional[dt.date]:
     """Parse a date or datetime-ish value into a date, or None on failure."""
@@ -1953,6 +1962,8 @@ def index(
         search_suggestions = list({*cats, *bins, *locations, *tag_suggestions})
         app_heading = get_app_heading(session)
 
+    db_updated_at = _inventory_update_token()
+
     return templates.TemplateResponse(
         "index.html",
         {
@@ -1981,6 +1992,7 @@ def index(
             "loc_counts": loc_counts,
             "bin_counts": bin_counts,
             "app_heading": app_heading,
+            "db_updated_at": db_updated_at,
         },
 )
 
@@ -2019,6 +2031,12 @@ def depleted_items(
             "total_count": total_count,
         },
     )
+
+
+@app.get("/api/items/updated-at")
+def items_updated_at():
+    """Expose a polling-friendly token so clients can auto-refresh when data changes."""
+    return {"updated_at": _inventory_update_token()}
 
 
 @app.api_route("/new", methods=["GET", "POST"], response_class=HTMLResponse)

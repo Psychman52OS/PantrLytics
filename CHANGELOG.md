@@ -1,5 +1,9 @@
 # PantrLytics Changelog
 
+## 2025.12.9
+- Add lightweight polling endpoint plus front-end script so the inventory list auto-refreshes after adds/edits.
+- Version bump.
+
 ## 2025.12.8
 - Fix new item creation redirect by storing the item ID before closing the session (prevents DetachedInstanceError).
 - Version bump.

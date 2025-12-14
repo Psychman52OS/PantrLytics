@@ -561,4 +561,31 @@ document.addEventListener("DOMContentLoaded", () => {
     document.body.appendChild(panel);
   })();
 </script>
+
+<script>
+  (function () {
+    const POLL_INTERVAL = 7000;
+    const endpoint = "{{ url_for('items_updated_at') }}";
+    let lastToken = "{{ db_updated_at }}";
+
+    async function poll() {
+      try {
+        const res = await fetch(endpoint, { cache: "no-store" });
+        if (res.ok) {
+          const data = await res.json();
+          const nextToken = String(data.updated_at || "");
+          if (nextToken && nextToken !== lastToken) {
+            window.location.reload();
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn("Auto-refresh poll failed", err);
+      }
+      setTimeout(poll, POLL_INTERVAL);
+    }
+
+    setTimeout(poll, POLL_INTERVAL);
+  })();
+</script>
 {% endblock %}
