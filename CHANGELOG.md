@@ -1,5 +1,8 @@
 # PantrLytics Changelog
 
+## 2025.12.13
+- Fix server startup regression by defining `MAX_LABEL_COPIES` before templates import it.
+
 ## 2025.12.12
 - Allow selecting the number of labels to print per item and clamp jobs to a safe copy limit.
 

@@ -40,7 +40,7 @@ except Exception as e:
 # Timezone / datetime formatting helper
 # -------------------------------------------------
 LOCAL_TZ = tzlocal.get_localzone()
-APP_VERSION = "2025.12.12"
+APP_VERSION = "2025.12.13"
 APP_INTERNAL_PORT = 8099
 
 
@@ -118,6 +118,7 @@ ADJUSTABLE_UNITS = {
     "can",
     "cans",
 }
+MAX_LABEL_COPIES = 25  # Safety limit for print jobs triggered via UI
 DEPLETION_REASONS = [
     "Consumed/Used",
     "Discarded (expired/spoiled)",
@@ -2701,8 +2702,6 @@ async def label_preset_delete(
 
 # Default label size used today (based on lpoptions: *w79h252)
 DEFAULT_MEDIA = "w79h252"
-# Safety limit for a single print job triggered from the UI
-MAX_LABEL_COPIES = 25
 
 
 def _roll_for_media(media: str) -> str | None:
