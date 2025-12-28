@@ -1,5 +1,9 @@
 # PantrLytics Changelog
 
+## 2025.12.10
+- Enable +/- quantity buttons for canned items by treating "can"/"cans" as adjustable units.
+- Version bump.
+
 ## 2025.12.9
 - Add lightweight polling endpoint plus front-end script so the inventory list auto-refreshes after adds/edits.
 - Version bump.

@@ -40,7 +40,7 @@ except Exception as e:
 # Timezone / datetime formatting helper
 # -------------------------------------------------
 LOCAL_TZ = tzlocal.get_localzone()
-APP_VERSION = "2025.12.9"
+APP_VERSION = "2025.12.10"
 APP_INTERNAL_PORT = 8099
 
 
@@ -107,7 +107,17 @@ BASE_URL = config["base_url"].rstrip("/")  # used for QR/links
 IPP_HOST = config["ipp_host"]
 IPP_PRINTER = config["ipp_printer"]
 SERIAL_PREFIX = config["serial_prefix"]
-ADJUSTABLE_UNITS = {"each", "unit", "units", "bag", "bags", "serving", "servings"}
+ADJUSTABLE_UNITS = {
+    "each",
+    "unit",
+    "units",
+    "bag",
+    "bags",
+    "serving",
+    "servings",
+    "can",
+    "cans",
+}
 DEPLETION_REASONS = [
     "Consumed/Used",
     "Discarded (expired/spoiled)",
@@ -2407,6 +2417,17 @@ def reports(
         depleted_avg_doh = round(sum(doh_vals) / len(doh_vals))
     depleted_recent = depleted_sorted[:25]
 
+    depletion_reason_map: dict[str, list[dict]] = {}
+    for rec in depleted_sorted:
+        reason = rec["item"].depleted_reason or "Unspecified"
+        depletion_reason_map.setdefault(reason, []).append(rec)
+    depletion_reasons = sorted(
+        depletion_reason_map.items(),
+        key=lambda kv: len(kv[1]),
+        reverse=True,
+    )
+    depletion_reason_max = max((len(v) for v in depletion_reason_map.values()), default=0)
+
     return templates.TemplateResponse(
         "reports.html",
         {
@@ -2424,6 +2445,9 @@ def reports(
             "depleted_count": depleted_count,
             "depleted_avg_doh": depleted_avg_doh,
             "depleted_recent": depleted_recent,
+            "depletion_reasons": depletion_reasons,
+            "depletion_reason_max": depletion_reason_max,
+            "depletion_reason_items": depletion_reason_map,
             "bucket_items": bucket_items,
             "total_items": total_items,
             "display_fields": display_fields,
