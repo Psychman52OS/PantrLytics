@@ -149,8 +149,19 @@
 
     <form method="post"
           action="{{ url_for('print_label_post', item_id=item.id) }}"
-          style="display:inline">
-      <button class="btn" type="submit">Print Label</button>
+          style="display:inline-flex; align-items:center; gap:6px;">
+      <label for="print-copies-{{ item.id }}" class="muted" style="font-size:12px;">Copies</label>
+      <input
+        id="print-copies-{{ item.id }}"
+        name="copies"
+        type="number"
+        min="1"
+        max="{{ max_label_copies }}"
+        value="1"
+        class="input input-small"
+        style="width:70px;"
+        aria-label="Number of labels" />
+      <button class="btn" type="submit">Print Label(s)</button>
     </form>
 
     {% if not item.depleted_at %}

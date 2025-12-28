@@ -40,7 +40,7 @@ except Exception as e:
 # Timezone / datetime formatting helper
 # -------------------------------------------------
 LOCAL_TZ = tzlocal.get_localzone()
-APP_VERSION = "2025.12.11"
+APP_VERSION = "2025.12.12"
 APP_INTERNAL_PORT = 8099
 
 
@@ -898,6 +898,7 @@ templates.env.globals["format_datetime"] = format_datetime  # <-- global for Jin
 templates.env.globals["BASE_URL"] = BASE_URL
 templates.env.globals["app_version"] = APP_VERSION
 templates.env.globals["adjustable_units"] = sorted(ADJUSTABLE_UNITS)
+templates.env.globals["max_label_copies"] = MAX_LABEL_COPIES
 
 
 class PrefixFromHeaders(BaseHTTPMiddleware):
@@ -2700,6 +2701,8 @@ async def label_preset_delete(
 
 # Default label size used today (based on lpoptions: *w79h252)
 DEFAULT_MEDIA = "w79h252"
+# Safety limit for a single print job triggered from the UI
+MAX_LABEL_COPIES = 25
 
 
 def _roll_for_media(media: str) -> str | None:
@@ -2729,16 +2732,39 @@ def _slot_for_preset(preset: LabelPreset | None, media: str) -> str | None:
     return _roll_for_media(media)
 
 
+def _normalize_copy_count(value) -> int:
+    """Clamp requested copy count to a safe, positive range."""
+    try:
+        count = int(value)
+    except (TypeError, ValueError):
+        return 1
+    return max(1, min(MAX_LABEL_COPIES, count))
+
+
 @app.get("/print/{item_id}", name="print_label_get")
-def print_label_get(request: Request, item_id: int):
+def print_label_get(request: Request, item_id: int, copies: int = 1):
     # Simple GET: print and then redirect back to the item
-    return _print_impl(request, item_id, prefer_redirect=True)
+    return _print_impl(
+        request,
+        item_id,
+        prefer_redirect=True,
+        copies=_normalize_copy_count(copies),
+    )
 
 
 @app.post("/print/{item_id}", name="print_label_post")
-def print_label_post(request: Request, item_id: int):
+def print_label_post(
+    request: Request,
+    item_id: int,
+    copies: int = Form(1),
+):
     # POST (used from UI): print and then redirect back to the item
-    return _print_impl(request, item_id, prefer_redirect=True)
+    return _print_impl(
+        request,
+        item_id,
+        prefer_redirect=True,
+        copies=_normalize_copy_count(copies),
+    )
 
 
 def _print_impl(
@@ -2746,6 +2772,7 @@ def _print_impl(
     item_id: int,
     prefer_redirect: bool = False,
     media: str | None = None,
+    copies: int = 1,
 ):
     """
     Core print implementation.
@@ -2789,6 +2816,7 @@ def _print_impl(
 
     media_opt = media or DEFAULT_MEDIA
     slot = _slot_for_preset(preset, media_opt)
+    copies = _normalize_copy_count(copies)
 
     cmd = [
         "lp",
@@ -2811,6 +2839,8 @@ def _print_impl(
     ]
     if slot:
         cmd.extend(["-o", f"InputSlot={slot}"])
+    if copies > 1:
+        cmd.extend(["-n", str(copies)])
     cmd.append(tmp_path)
 
     try:

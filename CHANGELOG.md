@@ -1,5 +1,8 @@
 # PantrLytics Changelog
 
+## 2025.12.12
+- Allow selecting the number of labels to print per item and clamp jobs to a safe copy limit.
+
 ## 2025.12.11
 - Keep quantity buttons available regardless of item unit casing by sharing the adjustable unit list with the template.
 - Version bump.
