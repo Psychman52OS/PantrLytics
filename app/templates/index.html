@@ -199,7 +199,7 @@
                   {% endif %}
                 {% else %}
                   {% set unit_lower = (item.unit or '')|lower %}
-                  {% set qty_clickable = unit_lower in ['each','bag','bags','unit','units','serving','servings'] %}
+                  {% set qty_clickable = unit_lower in adjustable_units %}
                   {% if qty_clickable %}
                     <div class="qty-inline">
                       <form method="post" action="{{ url_for('adjust_qty', item_id=item.id) }}">

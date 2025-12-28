@@ -1,5 +1,9 @@
 # PantrLytics Changelog
 
+## 2025.12.11
+- Keep quantity buttons available regardless of item unit casing by sharing the adjustable unit list with the template.
+- Version bump.
+
 ## 2025.12.10
 - Enable +/- quantity buttons for canned items by treating "can"/"cans" as adjustable units.
 - Version bump.

@@ -40,7 +40,7 @@ except Exception as e:
 # Timezone / datetime formatting helper
 # -------------------------------------------------
 LOCAL_TZ = tzlocal.get_localzone()
-APP_VERSION = "2025.12.10"
+APP_VERSION = "2025.12.11"
 APP_INTERNAL_PORT = 8099
 
 
@@ -897,6 +897,7 @@ templates.env.globals["css_version"] = str(int(dt.datetime.utcnow().timestamp())
 templates.env.globals["format_datetime"] = format_datetime  # <-- global for Jinja
 templates.env.globals["BASE_URL"] = BASE_URL
 templates.env.globals["app_version"] = APP_VERSION
+templates.env.globals["adjustable_units"] = sorted(ADJUSTABLE_UNITS)
 
 
 class PrefixFromHeaders(BaseHTTPMiddleware):
