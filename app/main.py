@@ -40,7 +40,7 @@ except Exception as e:
 # Timezone / datetime formatting helper
 # -------------------------------------------------
 LOCAL_TZ = tzlocal.get_localzone()
-APP_VERSION = "2025.12.28"
+APP_VERSION = "2025.12.29"
 APP_INTERNAL_PORT = 8099
 
 
@@ -628,8 +628,20 @@ def normalize_units(session: Session):
         seen[key] = u
     if to_delete:
         for u in to_delete:
-            session.delete(u)
+        session.delete(u)
     session.commit()
+
+
+def _log_unit_snapshot(session: Session, label: str = "units"):
+    """Debug helper to print unit state and item unit usage."""
+    units = session.exec(select(UnitOption)).all()
+    item_units = session.exec(
+        select(Item.unit).where(Item.unit.is_not(None)).group_by(Item.unit)
+    ).all()
+    unit_names = [f"{u.name} ({'adj' if u.adjustable else 'locked'})" for u in units]
+    print(f"[UNIT] Snapshot [{label}] stored={len(units)} items={len(item_units)}")
+    print(f"[UNIT] Stored: {unit_names}")
+    print(f"[UNIT] Item units: {[ (row[0] or '').strip() for row in item_units ]}")
 
 
 def ensure_units_from_items(session: Session):
@@ -1154,6 +1166,7 @@ def _log_port_notice():
     # Unit hygiene at startup: seed defaults, prune noise, and backfill from items
     with Session(engine, expire_on_commit=False) as session:
         ensure_units_from_items(session)
+        _log_unit_snapshot(session, label="startup")
 
 def _norm(s: str | None) -> str | None:
     if s is None:

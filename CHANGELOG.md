@@ -12,6 +12,9 @@
 ## 2025.12.28
 - Normalize unit names (trim/merge duplicates) and prune single-character entries before backfilling, so admin shows only real units and toggles map cleanly to +/- buttons.
 
+## 2025.12.29
+- Add detailed unit snapshot logging at startup and normalize/prune before backfill so only real units appear; version bump.
+
 ## 2025.12.24
 - Keep admin query objects attached (no expire-on-commit) to prevent DetachedInstanceError when loading /admin.
 
