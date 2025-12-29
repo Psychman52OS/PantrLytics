@@ -1,5 +1,8 @@
 # PantrLytics Changelog
 
+## 2025.12.17
+- Submit multi-copy print jobs as a single CUPS job by repeating the label image per page, keeping the queue tidy.
+
 ## 2025.12.16
 - Derive QR code URLs from ingress/proxy headers so scans resolve correctly through Home Assistant ingress without configuring `BASE_URL`.
 
