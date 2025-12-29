@@ -40,7 +40,7 @@ except Exception as e:
 # Timezone / datetime formatting helper
 # -------------------------------------------------
 LOCAL_TZ = tzlocal.get_localzone()
-APP_VERSION = "2025.12.13"
+APP_VERSION = "2025.12.14"
 APP_INTERNAL_PORT = 8099
 
 
@@ -2817,7 +2817,7 @@ def _print_impl(
     slot = _slot_for_preset(preset, media_opt)
     copies = _normalize_copy_count(copies)
 
-    cmd = [
+    base_cmd = [
         "lp",
         "-h",
         IPP_HOST,
@@ -2837,25 +2837,28 @@ def _print_impl(
         "page-bottom=0",
     ]
     if slot:
-        cmd.extend(["-o", f"InputSlot={slot}"])
-    if copies > 1:
-        cmd.extend(["-n", str(copies)])
-    cmd.append(tmp_path)
+        base_cmd.extend(["-o", f"InputSlot={slot}"])
+
+    last_proc = None
+    ok = True
 
     try:
-        proc = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        for _ in range(copies):
+            cmd = [*base_cmd, tmp_path]
+            last_proc = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if last_proc.returncode != 0:
+                ok = False
+                break
     finally:
         try:
             os.remove(tmp_path)
         except OSError:
             pass
-
-    ok = proc.returncode == 0
 
     if prefer_redirect:
         base_url = request.url_for("show_item", item_id=item_id)
@@ -2867,9 +2870,9 @@ def _print_impl(
     return JSONResponse(
         {
             "ok": ok,
-            "cmd": " ".join(cmd),
-            "stdout": proc.stdout,
-            "stderr": proc.stderr,
+            "cmd": " ".join(base_cmd + ["<tmp_png>"]),
+            "stdout": (last_proc.stdout if last_proc else ""),
+            "stderr": (last_proc.stderr if last_proc else ""),
         },
         status_code=200 if ok else 500,
     )

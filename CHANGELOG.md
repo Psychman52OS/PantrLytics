@@ -1,5 +1,8 @@
 # PantrLytics Changelog
 
+## 2025.12.14
+- Ensure multi-copy printing works with CUPS/IPP by submitting one job per requested label.
+
 ## 2025.12.13
 - Fix server startup regression by defining `MAX_LABEL_COPIES` before templates import it.
 
