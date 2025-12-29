@@ -6,6 +6,9 @@
 ## 2025.12.26
 - Prune existing 1-character/empty unit rows and backfill without noise; +/- buttons remain driven by the unit toggle.
 
+## 2025.12.27
+- Run unit hygiene on startup (seed defaults, prune noise, backfill all units from items) so the admin list shows every real unit and toggles continue to hide/show +/- buttons.
+
 ## 2025.12.24
 - Keep admin query objects attached (no expire-on-commit) to prevent DetachedInstanceError when loading /admin.
 

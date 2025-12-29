@@ -40,7 +40,7 @@ except Exception as e:
 # Timezone / datetime formatting helper
 # -------------------------------------------------
 LOCAL_TZ = tzlocal.get_localzone()
-APP_VERSION = "2025.12.26"
+APP_VERSION = "2025.12.27"
 APP_INTERNAL_PORT = 8099
 
 
@@ -1122,6 +1122,9 @@ def _log_port_notice():
         ensure_index("idx_item_use_by", "CREATE INDEX idx_item_use_by ON item(use_by_date)")
         ensure_index("idx_item_depleted_at", "CREATE INDEX idx_item_depleted_at ON item(depleted_at)")
         ensure_index("idx_item_created_at", "CREATE INDEX idx_item_created_at ON item(created_at)")
+    # Unit hygiene at startup: seed defaults, prune noise, and backfill from items
+    with Session(engine, expire_on_commit=False) as session:
+        ensure_units_from_items(session)
 
 def _norm(s: str | None) -> str | None:
     if s is None:
