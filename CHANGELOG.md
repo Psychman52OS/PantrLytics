@@ -1,5 +1,8 @@
 # PantrLytics Changelog
 
+## 2025.12.23
+- Keep items attached during home page rendering to prevent DetachedInstanceError on the inventory list.
+
 ## 2025.12.22
 - Prevent session expiration during unit backfill to avoid DetachedInstanceError when rendering the home page.
 

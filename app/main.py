@@ -40,7 +40,7 @@ except Exception as e:
 # Timezone / datetime formatting helper
 # -------------------------------------------------
 LOCAL_TZ = tzlocal.get_localzone()
-APP_VERSION = "2025.12.22"
+APP_VERSION = "2025.12.23"
 APP_INTERNAL_PORT = 8099
 
 
@@ -2028,7 +2028,7 @@ def index(
 
     page = max(1, int(page or 1))
 
-    with Session(engine) as session:
+    with Session(engine, expire_on_commit=False) as session:
         stmt = select(Item)
 
         # Global search: hit pretty much every useful field
