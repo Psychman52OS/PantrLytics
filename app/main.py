@@ -40,7 +40,7 @@ except Exception as e:
 # Timezone / datetime formatting helper
 # -------------------------------------------------
 LOCAL_TZ = tzlocal.get_localzone()
-APP_VERSION = "2025.12.19"
+APP_VERSION = "2025.12.20"
 APP_INTERNAL_PORT = 8099
 
 
@@ -588,12 +588,36 @@ def ensure_default_units(session: Session):
         )
     session.commit()
     session.expire_on_commit = orig_expire
+
+
+def ensure_units_from_items(session: Session):
+    """Backfill UnitOption entries for any units already used on items."""
+    ensure_default_units(session)
+    existing = {
+        (u.name or "").strip().lower()
+        for u in session.exec(select(UnitOption)).all()
+    }
+    units_in_items = session.exec(
+        select(Item.unit).where(Item.unit.is_not(None)).group_by(Item.unit)
+    ).all()
+    added = False
+    for row in units_in_items:
+        name = (row[0] or "").strip()
+        if not name:
+            continue
+        if name.lower() in existing:
+            continue
+        session.add(UnitOption(name=name, adjustable=False))
+        added = True
+    if added:
+        session.commit()
     ordered = session.exec(select(UnitOption).order_by(UnitOption.created_at)).all()
     save_unit_order(session, [u.id for u in ordered])
 
 
 def get_units_ordered(session: Session) -> list[UnitOption]:
     ensure_default_units(session)
+    ensure_units_from_items(session)
     return _ordered_generic(session, UnitOption, "unit_order")
 
 
@@ -607,6 +631,7 @@ def get_unit_names(session: Session) -> list[str]:
 
 def get_adjustable_unit_names(session: Session) -> set[str]:
     ensure_default_units(session)
+    ensure_units_from_items(session)
     units = session.exec(
         select(UnitOption).where(UnitOption.adjustable == True)  # noqa: E712
     ).all()

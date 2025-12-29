@@ -1,5 +1,8 @@
 # PantrLytics Changelog
 
+## 2025.12.20
+- Backfill units from existing items into the admin list and keep +/- toggles in sync so any unit can be made adjustable (or not).
+
 ## 2025.12.19
 - Fix startup/render crash by seeding default units without expiring existing session objects.
 
