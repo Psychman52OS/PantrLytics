@@ -3,6 +3,9 @@
 ## 2025.12.25
 - Ignore 1-character/empty units when backfilling into the admin list; adjustable toggles still control +/- visibility per unit.
 
+## 2025.12.26
+- Prune existing 1-character/empty unit rows and backfill without noise; +/- buttons remain driven by the unit toggle.
+
 ## 2025.12.24
 - Keep admin query objects attached (no expire-on-commit) to prevent DetachedInstanceError when loading /admin.
 

@@ -40,7 +40,7 @@ except Exception as e:
 # Timezone / datetime formatting helper
 # -------------------------------------------------
 LOCAL_TZ = tzlocal.get_localzone()
-APP_VERSION = "2025.12.25"
+APP_VERSION = "2025.12.26"
 APP_INTERNAL_PORT = 8099
 
 
@@ -590,9 +590,24 @@ def ensure_default_units(session: Session):
     session.expire_on_commit = orig_expire
 
 
+def prune_noise_units(session: Session):
+    """Remove stray unit rows that are empty or single-character noise."""
+    bad_units = session.exec(
+        select(UnitOption).where(
+            (func.length(UnitOption.name) < 2) | (UnitOption.name.is_(None))
+        )
+    ).all()
+    if not bad_units:
+        return
+    for u in bad_units:
+        session.delete(u)
+    session.commit()
+
+
 def ensure_units_from_items(session: Session):
     """Backfill UnitOption entries for any units already used on items."""
     ensure_default_units(session)
+    prune_noise_units(session)
     existing = {
         (u.name or "").strip().lower()
         for u in session.exec(select(UnitOption)).all()
