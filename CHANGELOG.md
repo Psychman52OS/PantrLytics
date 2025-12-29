@@ -9,6 +9,9 @@
 ## 2025.12.27
 - Run unit hygiene on startup (seed defaults, prune noise, backfill all units from items) so the admin list shows every real unit and toggles continue to hide/show +/- buttons.
 
+## 2025.12.28
+- Normalize unit names (trim/merge duplicates) and prune single-character entries before backfilling, so admin shows only real units and toggles map cleanly to +/- buttons.
+
 ## 2025.12.24
 - Keep admin query objects attached (no expire-on-commit) to prevent DetachedInstanceError when loading /admin.
 

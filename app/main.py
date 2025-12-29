@@ -40,7 +40,7 @@ except Exception as e:
 # Timezone / datetime formatting helper
 # -------------------------------------------------
 LOCAL_TZ = tzlocal.get_localzone()
-APP_VERSION = "2025.12.27"
+APP_VERSION = "2025.12.28"
 APP_INTERNAL_PORT = 8099
 
 
@@ -594,7 +594,8 @@ def prune_noise_units(session: Session):
     """Remove stray unit rows that are empty or single-character noise."""
     bad_units = session.exec(
         select(UnitOption).where(
-            (func.length(UnitOption.name) < 2) | (UnitOption.name.is_(None))
+            (func.length(func.trim(UnitOption.name)) < 2)
+            | (UnitOption.name.is_(None))
         )
     ).all()
     if not bad_units:
@@ -604,9 +605,37 @@ def prune_noise_units(session: Session):
     session.commit()
 
 
+def normalize_units(session: Session):
+    """Trim names and merge duplicate units (case-insensitive)."""
+    units = session.exec(select(UnitOption)).all()
+    if not units:
+        return
+    seen: dict[str, UnitOption] = {}
+    to_delete: list[UnitOption] = []
+    for u in units:
+        raw = (u.name or "").strip()
+        if not raw:
+            to_delete.append(u)
+            continue
+        key = raw.lower()
+        if key in seen:
+            # Merge adjustable flag; drop duplicate row
+            seen[key].adjustable = seen[key].adjustable or u.adjustable
+            to_delete.append(u)
+            continue
+        if u.name != raw:
+            u.name = raw
+        seen[key] = u
+    if to_delete:
+        for u in to_delete:
+            session.delete(u)
+    session.commit()
+
+
 def ensure_units_from_items(session: Session):
     """Backfill UnitOption entries for any units already used on items."""
     ensure_default_units(session)
+    normalize_units(session)
     prune_noise_units(session)
     existing = {
         (u.name or "").strip().lower()
