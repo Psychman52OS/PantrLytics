@@ -75,8 +75,8 @@
   <div class="reports-grid">
     <section class="report-card">
       <div class="report-head">
-        <h3>Use-within compliance</h3>
-        <p class="muted">Items exceeding their intended window.</p>
+        <h3>Use-by compliance</h3>
+        <p class="muted">Items past their use-by date that are not depleted.</p>
       </div>
       {% if compliance_rate is not none %}
         <div class="kpi-large">
@@ -142,6 +142,26 @@
           <div class="kpi-value">{{ depleted_avg_doh if depleted_avg_doh is not none else "—" }}</div>
         </div>
       </div>
+      <div class="report-head" style="margin-top:12px;">
+        <h3>By reason</h3>
+        <p class="muted">Click a reason to drill into the items.</p>
+      </div>
+      {% if depletion_reasons %}
+        <div class="bar-chart reason-chart">
+          {% for reason,recs in depletion_reasons %}
+            {% set pct = ((recs|length) * 100) // (depletion_reason_max or 1) %}
+            <div class="bar js-reason-bar" data-reason="{{ reason }}">
+              <div class="bar-label">{{ reason }}</div>
+              <div class="bar-track">
+                <span class="bar-fill" style="width: {{ pct }}%;"></span>
+              </div>
+              <div class="bar-value">{{ recs|length }}</div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="muted">No depleted items in this horizon.</div>
+      {% endif %}
       <div class="report-list" style="margin-top:12px;">
         {% if depleted_recent %}
           {% for rec in depleted_recent %}
@@ -269,52 +289,134 @@
   </div>
 </div>
 
+<div id="reason-overlay" class="bucket-overlay" hidden>
+  <div class="modal-card bucket-dialog">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:10px;">
+      <h3 style="margin:0;" data-reason-title>Depletion reason</h3>
+      <button class="btn btn-secondary" type="button" id="reason-close">Close</button>
+    </div>
+    <div class="bucket-panels" style="min-width:320px; width:100%; max-height:78vh; overflow:auto;">
+      {% for reason,recs in depletion_reasons %}
+        <div class="bucket-panel" data-reason-panel="{{ reason }}" style="display:none;">
+          {% if recs %}
+            <div class="table-wrap" style="overflow-x: visible;">
+              <table class="table table-inventory" style="table-layout:auto; width:100%;">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Reason</th>
+                    <th>Depleted on</th>
+                    <th>Days on hand</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for rec in recs %}
+                    {% set it = rec.item %}
+                    <tr>
+                      <td class="col-name">
+                        <a class="link name-link" href="{{ url_for('show_item', item_id=it.id) }}">
+                          {{ it.name }}
+                        </a>
+                      </td>
+                      <td>{{ it.depleted_reason or "Unspecified" }}</td>
+                      <td>{{ rec.depleted_date }}</td>
+                      <td>{{ rec.days_on_hand if rec.days_on_hand is not none else "—" }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <p class="muted">No items for this reason.</p>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
 <script>
   document.addEventListener('DOMContentLoaded', () => {
-    const overlay = document.getElementById('bucket-overlay');
-    if (!overlay) return;
-    const dlg = overlay.querySelector('.bucket-dialog');
-    const titleEl = overlay.querySelector('[data-bucket-title]');
-    const panels = Array.from(overlay.querySelectorAll('[data-bucket-panel]'));
-    const closeBtn = overlay.querySelector('#bucket-close');
-    const labels = {
-      overdue: 'Expired',
-      d7: 'Expires ≤7d',
-      d14: 'Expires ≤14d',
-      d30: 'Expires ≤30d',
-      d60: 'Expires ≤60d',
-      total: 'All in view',
-    };
+    const bucketOverlay = document.getElementById('bucket-overlay');
+    if (bucketOverlay) {
+      const dlg = bucketOverlay.querySelector('.bucket-dialog');
+      const titleEl = bucketOverlay.querySelector('[data-bucket-title]');
+      const panels = Array.from(bucketOverlay.querySelectorAll('[data-bucket-panel]'));
+      const closeBtn = bucketOverlay.querySelector('#bucket-close');
+      const labels = {
+        overdue: 'Expired',
+        d7: 'Expires ≤7d',
+        d14: 'Expires ≤14d',
+        d30: 'Expires ≤30d',
+        d60: 'Expires ≤60d',
+        total: 'All in view',
+      };
 
-    function closeDlg() {
-      overlay.classList.remove('open');
-      overlay.setAttribute('hidden', 'hidden');
-      overlay.style.display = 'none';
+      function closeDlg() {
+        bucketOverlay.classList.remove('open');
+        bucketOverlay.setAttribute('hidden', 'hidden');
+        bucketOverlay.style.display = 'none';
+      }
+
+      function showBucket(bucket) {
+        panels.forEach(p => {
+          p.style.display = (p.dataset.bucketPanel === bucket) ? 'block' : 'none';
+        });
+        if (titleEl) titleEl.textContent = labels[bucket] || 'Items';
+        bucketOverlay.removeAttribute('hidden');
+        bucketOverlay.classList.add('open');
+        bucketOverlay.style.display = 'flex';
+      }
+
+      closeBtn?.addEventListener('click', closeDlg);
+      bucketOverlay.addEventListener('click', (e) => {
+        if (e.target === bucketOverlay) closeDlg();
+      });
+
+      document.querySelectorAll('.js-bucket[data-bucket]').forEach(card => {
+        card.style.cursor = 'pointer';
+        card.addEventListener('click', () => {
+          const bucket = card.dataset.bucket;
+          if (bucket) showBucket(bucket);
+        });
+      });
     }
 
-    function showBucket(bucket) {
-      panels.forEach(p => {
-        p.style.display = (p.dataset.bucketPanel === bucket) ? 'block' : 'none';
+    const reasonOverlay = document.getElementById('reason-overlay');
+    if (reasonOverlay) {
+      const reasonPanels = Array.from(reasonOverlay.querySelectorAll('[data-reason-panel]'));
+      const reasonTitle = reasonOverlay.querySelector('[data-reason-title]');
+      const reasonClose = reasonOverlay.querySelector('#reason-close');
+
+      function closeReason() {
+        reasonOverlay.classList.remove('open');
+        reasonOverlay.setAttribute('hidden', 'hidden');
+        reasonOverlay.style.display = 'none';
+      }
+
+      function showReason(reason) {
+        reasonPanels.forEach(p => {
+          p.style.display = (p.dataset.reasonPanel === reason) ? 'block' : 'none';
+        });
+        if (reasonTitle) reasonTitle.textContent = reason || 'Reason';
+        reasonOverlay.removeAttribute('hidden');
+        reasonOverlay.classList.add('open');
+        reasonOverlay.style.display = 'flex';
+      }
+
+      reasonClose?.addEventListener('click', closeReason);
+      reasonOverlay.addEventListener('click', (e) => {
+        if (e.target === reasonOverlay) closeReason();
       });
-      if (titleEl) titleEl.textContent = labels[bucket] || 'Items';
-      overlay.removeAttribute('hidden');
-      overlay.classList.add('open');
-      overlay.style.display = 'flex';
+
+      document.querySelectorAll('.js-reason-bar[data-reason]').forEach(bar => {
+        bar.style.cursor = 'pointer';
+        bar.addEventListener('click', () => {
+          const reason = bar.dataset.reason;
+          if (reason) showReason(reason);
+        });
+      });
     }
-
-    closeBtn?.addEventListener('click', closeDlg);
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) closeDlg();
-    });
-
-    // Attach handlers after functions are defined
-    document.querySelectorAll('.js-bucket[data-bucket]').forEach(card => {
-      card.style.cursor = 'pointer';
-      card.addEventListener('click', () => {
-        const bucket = card.dataset.bucket;
-        if (bucket) showBucket(bucket);
-      });
-    });
   });
 </script>
 {% endblock %}

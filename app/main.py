@@ -40,7 +40,7 @@ except Exception as e:
 # Timezone / datetime formatting helper
 # -------------------------------------------------
 LOCAL_TZ = tzlocal.get_localzone()
-APP_VERSION = "2025.12.31"
+APP_VERSION = "2025.12.32"
 APP_INTERNAL_PORT = 8099
 
 
@@ -2635,17 +2635,9 @@ def reports(
                     aging_buckets["31-60"] += 1
                 else:
                     aging_buckets["61+"] += 1
-            use_within_days = parse_use_within(it.use_within)
-            # Expired items (days_until_expiry <= 0) are noncompliant regardless of use_within.
+            # Use-by compliance: only flag items that are expired but not depleted.
             if days_until_expiry is not None and days_until_expiry <= 0:
                 noncompliant += 1
-                continue
-            # Treat far-future expirations (61+ days out) or very old on-hand items as compliant.
-            if (days_until_expiry is not None and days_until_expiry > 60) or (days_on_hand is not None and days_on_hand > 60):
-                continue
-            if use_within_days is not None and days_on_hand is not None:
-                if days_on_hand > use_within_days:
-                    noncompliant += 1
 
     expiring_sorted = sorted(
         expiring,

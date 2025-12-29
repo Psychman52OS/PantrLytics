@@ -3,6 +3,9 @@
 ## 2025.12.31
 - Ensure default units (ounces, bottles, jugs, grams, etc.) are backfilled into existing databases so the admin unit list shows all standard units by default.
 
+## 2025.12.32
+- Reframe report compliance to track items past their use-by date (not depleted) and update the Reports label to “Use-by compliance”.
+
 ## 2025.12.30
 - Fix unit normalization cleanup so duplicate/empty units are removed on startup and the admin list only shows real units; add local pytest env.
 
