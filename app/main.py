@@ -628,7 +628,7 @@ def normalize_units(session: Session):
         seen[key] = u
     if to_delete:
         for u in to_delete:
-        session.delete(u)
+            session.delete(u)
     session.commit()
 
 
