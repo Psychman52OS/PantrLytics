@@ -40,7 +40,7 @@ except Exception as e:
 # Timezone / datetime formatting helper
 # -------------------------------------------------
 LOCAL_TZ = tzlocal.get_localzone()
-APP_VERSION = "2025.12.30"
+APP_VERSION = "2025.12.31"
 APP_INTERNAL_PORT = 8099
 
 
@@ -117,6 +117,41 @@ DEFAULT_UNIT_ENTRIES = [
     {"name": "servings", "adjustable": True},
     {"name": "can", "adjustable": True},
     {"name": "cans", "adjustable": True},
+    {"name": "ounce", "adjustable": False},
+    {"name": "ounces", "adjustable": False},
+    {"name": "oz", "adjustable": False},
+    {"name": "pound", "adjustable": False},
+    {"name": "pounds", "adjustable": False},
+    {"name": "lb", "adjustable": False},
+    {"name": "lbs", "adjustable": False},
+    {"name": "gram", "adjustable": False},
+    {"name": "grams", "adjustable": False},
+    {"name": "kilogram", "adjustable": False},
+    {"name": "kilograms", "adjustable": False},
+    {"name": "liter", "adjustable": False},
+    {"name": "liters", "adjustable": False},
+    {"name": "milliliter", "adjustable": False},
+    {"name": "milliliters", "adjustable": False},
+    {"name": "gallon", "adjustable": False},
+    {"name": "gallons", "adjustable": False},
+    {"name": "quart", "adjustable": False},
+    {"name": "quarts", "adjustable": False},
+    {"name": "pint", "adjustable": False},
+    {"name": "pints", "adjustable": False},
+    {"name": "cup", "adjustable": False},
+    {"name": "cups", "adjustable": False},
+    {"name": "bottle", "adjustable": False},
+    {"name": "bottles", "adjustable": False},
+    {"name": "jug", "adjustable": False},
+    {"name": "jugs", "adjustable": False},
+    {"name": "jar", "adjustable": False},
+    {"name": "jars", "adjustable": False},
+    {"name": "box", "adjustable": False},
+    {"name": "boxes", "adjustable": False},
+    {"name": "pack", "adjustable": False},
+    {"name": "packs", "adjustable": False},
+    {"name": "package", "adjustable": False},
+    {"name": "packages", "adjustable": False},
 ]
 MAX_LABEL_COPIES = 25  # Safety limit for print jobs triggered via UI
 DEPLETION_REASONS = [
@@ -572,21 +607,29 @@ def save_location_order(session: Session, ids: list[int]):
 
 
 def ensure_default_units(session: Session):
-    """Seed default units if none exist yet."""
-    existing = session.exec(select(UnitOption.id)).first()
-    if existing:
-        return
+    """Ensure the default unit set exists, backfilling any missing rows."""
+    existing = {
+        (u.name or "").strip().lower()
+        for u in session.exec(select(UnitOption)).all()
+    }
+    added = False
     # Avoid expiring other objects when we commit seeds
     orig_expire = session.expire_on_commit
     session.expire_on_commit = False
     for entry in DEFAULT_UNIT_ENTRIES:
+        name = entry["name"]
+        if name.lower() in existing:
+            continue
         session.add(
             UnitOption(
-                name=entry["name"],
+                name=name,
                 adjustable=bool(entry.get("adjustable", False)),
             )
         )
-    session.commit()
+        existing.add(name.lower())
+        added = True
+    if added:
+        session.commit()
     session.expire_on_commit = orig_expire
 
 
