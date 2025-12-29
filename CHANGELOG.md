@@ -1,5 +1,8 @@
 # PantrLytics Changelog
 
+## 2025.12.19
+- Fix startup/render crash by seeding default units without expiring existing session objects.
+
 ## 2025.12.18
 - Add Admin controls to manage units (add/edit/delete, reorder) with a toggle for quantity buttons, and wire those units into item forms and adjustments.
 

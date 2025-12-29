@@ -40,7 +40,7 @@ except Exception as e:
 # Timezone / datetime formatting helper
 # -------------------------------------------------
 LOCAL_TZ = tzlocal.get_localzone()
-APP_VERSION = "2025.12.18"
+APP_VERSION = "2025.12.19"
 APP_INTERNAL_PORT = 8099
 
 
@@ -576,6 +576,9 @@ def ensure_default_units(session: Session):
     existing = session.exec(select(UnitOption.id)).first()
     if existing:
         return
+    # Avoid expiring other objects when we commit seeds
+    orig_expire = session.expire_on_commit
+    session.expire_on_commit = False
     for entry in DEFAULT_UNIT_ENTRIES:
         session.add(
             UnitOption(
@@ -584,6 +587,7 @@ def ensure_default_units(session: Session):
             )
         )
     session.commit()
+    session.expire_on_commit = orig_expire
     ordered = session.exec(select(UnitOption).order_by(UnitOption.created_at)).all()
     save_unit_order(session, [u.id for u in ordered])
 
