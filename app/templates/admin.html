@@ -341,6 +341,55 @@
       </form>
     </section>
 
+    <!-- Units -->
+    <section class="admin-section" id="units">
+      <div class="admin-section-header">
+        <h2>Units</h2>
+        <p class="admin-section-help">
+          Manage units available when creating items. Toggle controls whether +/- quantity buttons appear.
+        </p>
+      </div>
+
+      <form method="post" class="admin-inline-form" style="gap:8px; flex-wrap:wrap;">
+        <input type="text" name="new_unit" class="input" placeholder="New unit…">
+        <label class="switch" title="Enable +/- buttons by default">
+          <input type="checkbox" name="new_unit_adjustable" value="1" checked>
+          <span class="slider"></span>
+        </label>
+        <span class="admin-section-help" style="margin-left:-4px;">Enable +/-</span>
+        <button class="btn btn-primary btn-small" type="submit">Add</button>
+      </form>
+
+      <form method="post" id="unit-order-form" class="admin-display-form admin-columns">
+        <input type="hidden" name="unit_order_action" value="save">
+        <input type="hidden" name="unit_order" id="unit_order" value="">
+        <div id="unit-status" class="admin-save-status" aria-live="polite"></div>
+        <ul class="admin-sortable-list" id="unit-list">
+          {% for unit in units %}
+            <li class="admin-sortable-row" data-id="{{ unit.id }}" draggable="true">
+              <button type="button" class="drag-handle" aria-label="Drag to reorder">☰</button>
+              <div class="admin-column-label">
+                <div class="admin-column-title">{{ unit.name }}</div>
+                <div class="admin-column-sub">
+                  {{ "Adjustable" if unit.adjustable else "Locked" }}
+                </div>
+              </div>
+              <div class="btn-group" style="align-items:center; gap:8px;">
+                <label class="switch" title="Toggle +/- buttons">
+                  <input type="checkbox" class="js-unit-toggle" data-id="{{ unit.id }}" {% if unit.adjustable %}checked{% endif %}>
+                  <span class="slider"></span>
+                </label>
+                <button type="button" class="btn btn-small btn-ghost js-entity-edit" data-entity="unit" data-id="{{ unit.id }}" data-name="{{ unit.name }}">Edit</button>
+                <button class="btn btn-danger btn-small js-delete-row" type="button" data-entity="unit" data-id="{{ unit.id }}">Delete</button>
+              </div>
+            </li>
+          {% else %}
+            <li class="admin-empty muted">No units yet.</li>
+          {% endfor %}
+        </ul>
+      </form>
+    </section>
+
   </div>
 </section>
 
@@ -564,6 +613,22 @@ registerSortable('usewithin-list', 'usewithin_order', 'usewithin-status', 'usewi
 registerSortable('category-list', 'category_order', 'category-status', 'category-order-form');
 registerSortable('bin-list', 'bin_order', 'bin-status', 'bin-order-form');
 registerSortable('location-list', 'location_order', 'location-status', 'location-order-form');
+registerSortable('unit-list', 'unit_order', 'unit-status', 'unit-order-form');
+
+// Unit toggle auto-save
+document.addEventListener('change', (e) => {
+  const toggle = e.target.closest('.js-unit-toggle');
+  if (!toggle) return;
+  const id = toggle.dataset.id;
+  if (!id) return;
+  const fd = new FormData();
+  fd.append('toggle_unit_id', id);
+  fd.append('unit_adjustable', toggle.checked ? '1' : '0');
+  fetch(window.location.href, { method: 'POST', body: fd }).catch(() => {
+    alert('Toggle failed');
+    toggle.checked = !toggle.checked;
+  });
+});
 
 // Collapsible sections
 (function(){

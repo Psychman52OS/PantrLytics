@@ -63,9 +63,12 @@
 
     <div class="field">
       <label>Unit {% if 'unit' in required_fields %}(REQUIRED){% endif %}</label>
-      <input class="input" type="text" name="unit"
+      <input class="input" type="text" name="unit" list="unit-list"
              value="{{ form_values.unit or 'each' }}"
              {% if 'unit' in required_fields %}required{% endif %}>
+      <datalist id="unit-list">
+        {% for u in units|default([]) %}<option value="{{ u }}">{% endfor %}
+      </datalist>
     </div>
 
     <div class="field">

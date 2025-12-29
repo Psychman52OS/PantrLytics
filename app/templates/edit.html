@@ -43,7 +43,12 @@
 
   <label class="field">
     <span>Unit</span>
-    <input class="input" type="text" name="unit" value="{{ item.unit or '' }}">
+    <input class="input" type="text" name="unit" value="{{ item.unit or '' }}" list="edit-unit-inline">
+    <datalist id="edit-unit-inline">
+      {% for unit_name in units|default([]) %}
+        <option value="{{ unit_name }}">
+      {% endfor %}
+    </datalist>
   </label>
 
   <label class="field">

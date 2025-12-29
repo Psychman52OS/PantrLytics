@@ -122,13 +122,20 @@
       <div class="field">
         <label class="kv-label" for="unit">Unit {% if required_fields and 'unit' in required_fields %}(REQUIRED){% endif %}</label>
         <input
-          class="input"
+          class="input js-suggest"
           id="unit"
           name="unit"
           type="text"
+          list="edit-unit-list"
+          data-options='{{ units|default([])|tojson }}'
           value="{{ item.unit or '' }}"
           {% if required_fields and 'unit' in required_fields %}required{% endif %}
         >
+        <datalist id="edit-unit-list">
+          {% for unit_name in units|default([]) %}
+            <option value="{{ unit_name }}">
+          {% endfor %}
+        </datalist>
       </div>
 
       <!-- Condition -->

@@ -1,5 +1,8 @@
 # PantrLytics Changelog
 
+## 2025.12.18
+- Add Admin controls to manage units (add/edit/delete, reorder) with a toggle for quantity buttons, and wire those units into item forms and adjustments.
+
 ## 2025.12.17
 - Submit multi-copy print jobs as a single CUPS job by repeating the label image per page, keeping the queue tidy.
 

@@ -40,7 +40,7 @@ except Exception as e:
 # Timezone / datetime formatting helper
 # -------------------------------------------------
 LOCAL_TZ = tzlocal.get_localzone()
-APP_VERSION = "2025.12.17"
+APP_VERSION = "2025.12.18"
 APP_INTERNAL_PORT = 8099
 
 
@@ -107,17 +107,17 @@ BASE_URL = config["base_url"].rstrip("/")  # used for QR/links
 IPP_HOST = config["ipp_host"]
 IPP_PRINTER = config["ipp_printer"]
 SERIAL_PREFIX = config["serial_prefix"]
-ADJUSTABLE_UNITS = {
-    "each",
-    "unit",
-    "units",
-    "bag",
-    "bags",
-    "serving",
-    "servings",
-    "can",
-    "cans",
-}
+DEFAULT_UNIT_ENTRIES = [
+    {"name": "each", "adjustable": True},
+    {"name": "unit", "adjustable": True},
+    {"name": "units", "adjustable": True},
+    {"name": "bag", "adjustable": True},
+    {"name": "bags", "adjustable": True},
+    {"name": "serving", "adjustable": True},
+    {"name": "servings", "adjustable": True},
+    {"name": "can", "adjustable": True},
+    {"name": "cans", "adjustable": True},
+]
 MAX_LABEL_COPIES = 25  # Safety limit for print jobs triggered via UI
 DEPLETION_REASONS = [
     "Consumed/Used",
@@ -250,6 +250,16 @@ class UseWithin(SQLModel, table=True):
     """Admin-managed list of 'Use Within' options."""
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(index=True, unique=True)
+    created_at: str = Field(
+        default_factory=lambda: dt.datetime.utcnow().isoformat()
+    )
+
+
+class UnitOption(SQLModel, table=True):
+    """Admin-managed unit names with adjustable toggle."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(index=True, unique=True)
+    adjustable: bool = Field(default=True)
     created_at: str = Field(
         default_factory=lambda: dt.datetime.utcnow().isoformat()
     )
@@ -559,6 +569,70 @@ def get_locations_ordered(session: Session) -> list[Location]:
 
 def save_location_order(session: Session, ids: list[int]):
     _save_order_generic(session, ids, Location, "location_order")
+
+
+def ensure_default_units(session: Session):
+    """Seed default units if none exist yet."""
+    existing = session.exec(select(UnitOption.id)).first()
+    if existing:
+        return
+    for entry in DEFAULT_UNIT_ENTRIES:
+        session.add(
+            UnitOption(
+                name=entry["name"],
+                adjustable=bool(entry.get("adjustable", False)),
+            )
+        )
+    session.commit()
+    ordered = session.exec(select(UnitOption).order_by(UnitOption.created_at)).all()
+    save_unit_order(session, [u.id for u in ordered])
+
+
+def get_units_ordered(session: Session) -> list[UnitOption]:
+    ensure_default_units(session)
+    return _ordered_generic(session, UnitOption, "unit_order")
+
+
+def save_unit_order(session: Session, ids: list[int]):
+    _save_order_generic(session, ids, UnitOption, "unit_order")
+
+
+def get_unit_names(session: Session) -> list[str]:
+    return [u.name for u in get_units_ordered(session)]
+
+
+def get_adjustable_unit_names(session: Session) -> set[str]:
+    ensure_default_units(session)
+    units = session.exec(
+        select(UnitOption).where(UnitOption.adjustable == True)  # noqa: E712
+    ).all()
+    result = set()
+    for u in units:
+        name = (u.name or "").strip().lower()
+        if name:
+            result.add(name)
+    return result
+
+
+def ensure_unit_entry(session: Session, value: str):
+    """Ensure a unit exists in UnitOption list (defaults to non-adjustable)."""
+    if not value:
+        return
+    ensure_default_units(session)
+    existing = session.exec(
+        select(UnitOption).where(func.lower(UnitOption.name) == value.lower())
+    ).first()
+    if existing:
+        return existing
+    unit_obj = UnitOption(name=value, adjustable=False)
+    session.add(unit_obj)
+    session.commit()
+    session.refresh(unit_obj)
+    current_order = [u.id for u in get_units_ordered(session)]
+    if unit_obj.id not in current_order:
+        current_order.append(unit_obj.id)
+        save_unit_order(session, current_order)
+    return unit_obj
 
 
 def get_required_field_keys(session: Session) -> list[str]:
@@ -923,7 +997,6 @@ templates.env.globals["css_version"] = str(int(dt.datetime.utcnow().timestamp())
 templates.env.globals["format_datetime"] = format_datetime  # <-- global for Jinja
 templates.env.globals["BASE_URL"] = BASE_URL
 templates.env.globals["app_version"] = APP_VERSION
-templates.env.globals["adjustable_units"] = sorted(ADJUSTABLE_UNITS)
 templates.env.globals["max_label_copies"] = MAX_LABEL_COPIES
 
 
@@ -1588,8 +1661,9 @@ def adjust_qty(
             target = redirect_to or str(request.url_for("index"))
             return RedirectResponse(url=target, status_code=303)
 
+        adjustable_units = get_adjustable_unit_names(session)
         unit_norm = (item.unit or "").strip().lower()
-        if unit_norm not in ADJUSTABLE_UNITS:
+        if unit_norm not in adjustable_units:
             if request.headers.get("x-requested-with", "").lower() == "xmlhttprequest":
                 return JSONResponse({"ok": False, "reason": "unit_not_adjustable"}, status_code=400)
             target = redirect_to or str(request.url_for("index"))
@@ -1898,6 +1972,7 @@ def index(
     bin_counts = {}
     total_count = 0
     per_page = 50
+    adjustable_units: list[str] = []
 
     # Normalize include_depleted query param
     if isinstance(include_depleted, str):
@@ -2007,6 +2082,7 @@ def index(
                     tag_suggestions.add(t2)
         search_suggestions = list({*cats, *bins, *locations, *tag_suggestions})
         app_heading = get_app_heading(session)
+        adjustable_units = sorted(get_adjustable_unit_names(session))
 
     db_updated_at = _inventory_update_token()
 
@@ -2039,6 +2115,7 @@ def index(
             "bin_counts": bin_counts,
             "app_heading": app_heading,
             "db_updated_at": db_updated_at,
+            "adjustable_units": adjustable_units,
         },
 )
 
@@ -2104,6 +2181,7 @@ async def new_item(
 ):
     with Session(engine) as session:
         cats, bins, locations, use_withins = _choices(session)
+        unit_names = get_unit_names(session)
         required_fields = get_required_field_keys(session)
 
     if request.method == "GET":
@@ -2115,6 +2193,7 @@ async def new_item(
                 "bins": bins,
                 "locations": locations,
                 "use_withins": use_withins,
+                "units": unit_names,
                 "required_fields": required_fields,
                 "form_values": {},
                 "error": "",
@@ -2173,6 +2252,7 @@ async def new_item(
                 "bins": bins,
                 "locations": locations,
                 "use_withins": use_withins,
+                "units": unit_names,
                 "required_fields": required_fields,
                 "error": msg,
                 "form_values": {
@@ -2198,6 +2278,8 @@ async def new_item(
         _upsert_name(session, Bin, bin_number)
         _upsert_name(session, Location, location)
         _upsert_name(session, UseWithin, use_within)
+        ensure_unit_entry(session, unit)
+        ensure_unit_entry(session, unit)
 
         serial = next_serial(session)
         item = Item(
@@ -3009,6 +3091,7 @@ def edit_item_form(request: Request, item_id: int, partial: int = 0):
         item = _get_item_or_404(session, item_id)
         cats, bins, locations, use_withins = _choices(session)
         required_fields = get_required_field_keys(session)
+        unit_names = get_unit_names(session)
         photos = get_item_photos(session, item_id, include_missing=True)
     ctx = {
         "request": request,
@@ -3017,6 +3100,7 @@ def edit_item_form(request: Request, item_id: int, partial: int = 0):
         "bins": bins,
         "locations": locations,
         "use_withins": use_withins,
+        "units": unit_names,
         "required_fields": required_fields,
         "photos": photos,
         "error": "",
@@ -3060,6 +3144,7 @@ async def edit_item_submit(
     with Session(engine) as session:
         item = _get_item_or_404(session, item_id)
         cats, bins, _locations, use_withins = _choices(session)
+        unit_names = get_unit_names(session)
         required_fields = get_required_field_keys(session)
 
         def _missing_required() -> list[str]:
@@ -3108,6 +3193,7 @@ async def edit_item_submit(
                     "bins": bins,
                     "locations": _locations,
                     "use_withins": use_withins,
+                    "units": unit_names,
                     "required_fields": required_fields,
                     "error": msg,
                 },
@@ -3364,6 +3450,15 @@ async def admin(request: Request, response: Response):
                     save_usewithin_order(
                         session, [u.id for u in get_use_withins_ordered(session)]
                     )
+            elif "new_unit" in form:
+                name = (form.get("new_unit") or "").strip()
+                adjustable = bool(form.get("new_unit_adjustable"))
+                if name and not session.exec(
+                    select(UnitOption).where(func.lower(UnitOption.name) == name.lower())
+                ).first():
+                    session.add(UnitOption(name=name, adjustable=adjustable))
+                    session.commit()
+                    save_unit_order(session, [u.id for u in get_units_ordered(session)])
 
             elif "delete_category_id" in form:
                 cid = form.get("delete_category_id")
@@ -3494,6 +3589,48 @@ async def admin(request: Request, response: Response):
                         for it in items:
                             it.use_within = new_name
                         session.commit()
+            elif "delete_unit_id" in form:
+                uid = form.get("delete_unit_id")
+                if uid:
+                    unit_obj = session.get(UnitOption, int(uid))
+                    if unit_obj:
+                        items = session.exec(
+                            select(Item).where(Item.unit == unit_obj.name)
+                        ).all()
+                        for it in items:
+                            it.unit = None
+                        session.delete(unit_obj)
+                        session.commit()
+                        save_unit_order(session, [u.id for u in get_units_ordered(session)])
+
+            elif "edit_unit_id" in form:
+                uid = form.get("edit_unit_id")
+                new_name = (form.get("edit_unit_name") or "").strip()
+                if uid and new_name:
+                    unit_obj = session.get(UnitOption, int(uid))
+                    exists = session.exec(
+                        select(UnitOption).where(func.lower(UnitOption.name) == new_name.lower())
+                    ).first()
+                    if unit_obj and not exists:
+                        old = unit_obj.name
+                        unit_obj.name = new_name
+                        session.add(unit_obj)
+                        items = session.exec(select(Item).where(Item.unit == old)).all()
+                        for it in items:
+                            it.unit = new_name
+                        session.commit()
+
+            elif form.get("toggle_unit_id"):
+                uid = form.get("toggle_unit_id")
+                try:
+                    unit_obj = session.get(UnitOption, int(uid))
+                except Exception:
+                    unit_obj = None
+                if unit_obj:
+                    value = form.get("unit_adjustable")
+                    unit_obj.adjustable = value not in (None, "", "0", "false", "False")
+                    session.add(unit_obj)
+                    session.commit()
 
             elif form.get("display_fields_action") == "save":
                 # Order comes as comma-separated keys; we only keep checked ones, in order.
@@ -3537,6 +3674,9 @@ async def admin(request: Request, response: Response):
             elif form.get("location_order_action") == "save":
                 ids = [int(x) for x in (form.get("location_order", "") or "").split(",") if x]
                 save_location_order(session, ids)
+            elif form.get("unit_order_action") == "save":
+                ids = [int(x) for x in (form.get("unit_order", "") or "").split(",") if x]
+                save_unit_order(session, ids)
 
             elif form.get("app_heading_action") == "save":
                 heading = (form.get("app_heading_value") or "").strip()
@@ -3562,6 +3702,7 @@ async def admin(request: Request, response: Response):
         bins = get_bins_ordered(session)
         locations = get_locations_ordered(session)
         use_withins = get_use_withins_ordered(session)
+        units = get_units_ordered(session)
         app_heading = get_app_heading(session)
         selected_display_fields = get_display_field_keys(session)
         display_fields_defs = DISPLAYABLE_FIELDS
@@ -3582,6 +3723,7 @@ async def admin(request: Request, response: Response):
             "bins": bins,
             "locations": locations,
             "use_withins": use_withins,
+            "units": units,
             "display_fields_defs": display_fields_defs,
             "selected_display_fields": selected_display_fields,
             "required_field_defs": required_field_defs,
