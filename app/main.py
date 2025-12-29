@@ -40,7 +40,7 @@ except Exception as e:
 # Timezone / datetime formatting helper
 # -------------------------------------------------
 LOCAL_TZ = tzlocal.get_localzone()
-APP_VERSION = "2025.12.15"
+APP_VERSION = "2025.12.16"
 APP_INTERNAL_PORT = 8099
 
 
@@ -870,6 +870,25 @@ def next_serial(session: Session) -> str:
     return f"{SERIAL_PREFIX}{uuid.uuid4()}"
 
 
+def _request_base_url(request: Request) -> str | None:
+    """
+    Compose a base URL (scheme + host + ingress prefix) using proxy headers.
+    """
+    proto = request.headers.get("x-forwarded-proto") or request.url.scheme
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host")
+    if not host:
+        return None
+    prefix = (
+        request.headers.get("x-ingress-path")
+        or request.headers.get("x-forwarded-prefix")
+        or request.scope.get("root_path", "")
+    )
+    prefix = prefix.rstrip("/")
+    if prefix and not prefix.startswith("/"):
+        prefix = f"/{prefix}"
+    return f"{proto}://{host}{prefix}"
+
+
 def build_item_link(item: Item, request: Request | None = None) -> str:
     """
     Build the URL encoded into the QR code and shown as 'Open link'.
@@ -880,6 +899,9 @@ def build_item_link(item: Item, request: Request | None = None) -> str:
         base = BASE_URL.rstrip("/")
         return f"{base}/item/by-serial/{serial}"
     if request:
+        base = _request_base_url(request)
+        if base:
+            return f"{base}/item/{item.id}"
         return str(request.url_for("show_item", item_id=item.id))
 
     # Last resort: plain serial text

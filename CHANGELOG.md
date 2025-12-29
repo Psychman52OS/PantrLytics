@@ -1,5 +1,8 @@
 # PantrLytics Changelog
 
+## 2025.12.16
+- Derive QR code URLs from ingress/proxy headers so scans resolve correctly through Home Assistant ingress without configuring `BASE_URL`.
+
 ## 2025.12.15
 - Generate QR codes with item detail URLs (using request context) so scans open the record even without `BASE_URL`.
 
