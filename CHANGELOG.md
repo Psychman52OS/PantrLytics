@@ -1,5 +1,8 @@
 # PantrLytics Changelog
 
+## 2025.12.30
+- Fix unit normalization cleanup so duplicate/empty units are removed on startup and the admin list only shows real units; add local pytest env.
+
 ## 2025.12.25
 - Ignore 1-character/empty units when backfilling into the admin list; adjustable toggles still control +/- visibility per unit.
 
