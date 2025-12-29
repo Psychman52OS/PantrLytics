@@ -40,7 +40,7 @@ except Exception as e:
 # Timezone / datetime formatting helper
 # -------------------------------------------------
 LOCAL_TZ = tzlocal.get_localzone()
-APP_VERSION = "2025.12.23"
+APP_VERSION = "2025.12.24"
 APP_INTERNAL_PORT = 8099
 
 
@@ -3411,7 +3411,7 @@ def duplicate_item(request: Request, item_id: int):
 async def admin(request: Request, response: Response):
     form = await request.form() if request.method == "POST" else {}
 
-    with Session(engine) as session:
+    with Session(engine, expire_on_commit=False) as session:
         stored_hash = get_admin_password_hash(session)
         cookie_token = request.cookies.get("admin_auth", "")
         authed = cookie_token == stored_hash

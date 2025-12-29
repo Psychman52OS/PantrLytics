@@ -1,5 +1,8 @@
 # PantrLytics Changelog
 
+## 2025.12.24
+- Keep admin query objects attached (no expire-on-commit) to prevent DetachedInstanceError when loading /admin.
+
 ## 2025.12.23
 - Keep items attached during home page rendering to prevent DetachedInstanceError on the inventory list.
 
