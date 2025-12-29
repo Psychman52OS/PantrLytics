@@ -40,7 +40,7 @@ except Exception as e:
 # Timezone / datetime formatting helper
 # -------------------------------------------------
 LOCAL_TZ = tzlocal.get_localzone()
-APP_VERSION = "2025.12.20"
+APP_VERSION = "2025.12.21"
 APP_INTERNAL_PORT = 8099
 
 
@@ -605,9 +605,12 @@ def ensure_units_from_items(session: Session):
         name = (row[0] or "").strip()
         if not name:
             continue
-        if name.lower() in existing:
+        key = name.lower()
+        if key in existing:
             continue
+        # Insert non-adjustable by default; track existing to avoid dup inserts this pass
         session.add(UnitOption(name=name, adjustable=False))
+        existing.add(key)
         added = True
     if added:
         session.commit()
