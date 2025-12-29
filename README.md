@@ -7,23 +7,50 @@ License: Personal use only (non-commercial). See LICENSE.
 ## Add-on install (Home Assistant)
 1) Add this repository in Supervisor → Add-on Store (`https://github.com/Psychman52OS/PantrLytics`).  
 2) Install the “PantrLytics” add-on.  
-3) In Configuration:
-   - `base_url` (optional): URL used in QR codes and the “Direct label URL.” For HA mobile, use `homeassistant://navigate/hassio/ingress/<your_addon_slug>`.
-   - `ipp_host` / `ipp_printer` (optional): IPP host:port and printer name for direct printing. If unset, print actions return PNG previews instead of sending to a printer.
-   - `serial_prefix` (optional): Prefix for new serials/barcodes (default `USERconfigurable-`).  
-   - `workers` (optional): Gunicorn workers (defaults to 2).
-4) In Network, map the host port you want to container port 8099 (container always listens on 8099).  
-5) Start the add-on, then open via “Open Web UI” (ingress) or `http://<HA-host>:<host-port>/`.
-6) **Important:** Set a new Admin password (default is `password`). Go to Admin → “Admin password” and change it immediately after install.
+3) Configuration options:
+   - `base_url` (recommended): The URL encoded in QR codes and shown as “Direct label URL.” Use a reachable, non-ingress address such as `http://<ha-host>:<mapped-port>` or your reverse proxy HTTPS URL. If you must use ingress, use the HA deep link: `homeassistant://navigate/hassio/ingress/<your_addon_slug>`.
+   - `ipp_host` / `ipp_printer` (optional): IPP host:port and queue name for direct printing. If unset, print actions return PNG previews instead of sending to a printer.
+   - `serial_prefix` (optional): Prefix for new serials/barcodes (default `USERconfigurable-`).
+   - `workers` (optional): Gunicorn workers (default 2).
+4) Network: map a host port to container port `8099` (container always listens on 8099). Example: host `8099` → container `8099`.  
+5) Start the add-on, then open via “Open Web UI” (ingress) or `http://<HA-host>:<host-port>/`.  
+6) **Important:** Set a new Admin password (default `password`) in Admin → “Admin password.”
 
-## Using the app
-- **Items**: Create/edit items, track quantity, units, locations/bins, tags, cook/use-by dates, photos, depletion, and recovery.  
-- **Columns & filters**: Configure visible columns in Admin → “Main table columns.” Use quick filters for categories, bins, locations, and use-within.  
-- **Depletion**: Mark items depleted, capture reason, optionally recover later, or delete permanently. Depleted items are listed under “Depleted.”  
-- **Reports**: Aging buckets with drill-down modal showing the same columns you configured on the main list.  
-- **Quantity adjust**: Inline +/– for units like each/bag/unit/serving; updates without page reload.  
-- **Labels**: Generate/print labels per item or via designer presets.  
-- **Backup/restore**: Create zip backups (DB, photos, options, CSV export) and restore. Import/export CSV from the Backup page. “Delete all items” wipes all items (including depleted) and photos—irreversible.
+## Core usage
+### Adding and editing items
+- From the main page, click **New item**, fill in name, category, location, bin, quantity, unit, dates, notes, and optional photos. Required fields are configurable in Admin → “Required fields.”
+- Units are now admin-managed: pick from suggestions or type a new unit; any new unit is saved to Admin → Units.
+- Edit an item via the row actions; depleted items can be recovered or deleted.
+
+### Quantity buttons (±)
+- The inline +/- buttons appear only for units marked **Adjustable** in Admin → Units. Turn the toggle off to hide the buttons for that unit; turn it on to re-enable them. All units (including ones found on existing items like “grams”) show up in the Units list so you can control the toggle.
+
+### Labels and QR codes
+- Each item can print a label or show a PNG preview. The QR code encodes `base_url` + `/item/<id>` (or the ingress deep link if you set it that way).
+- For reliable scans outside HA ingress, set `base_url` to a direct, reachable URL with the correct scheme/port (e.g., `http://ha.local:8099` or your HTTPS reverse proxy). If you change `base_url`, reprint labels so QR codes carry the new link.
+
+### Reports
+- **Horizon filters:** Choose 7/14/30/60 days or All to control what’s in view.
+- **KPIs:** Expired and upcoming expiry buckets.
+- **Use-within compliance:** Percentage of items within their intended use-within window.
+- **Aging waterfall:** Visualizes age buckets of items.
+- **Heatmap:** Category × Location counts for expiring items.
+- **Depletions:** Counts, average days on hand, reasons (click to drill down), and recent depleted items.
+- **Upcoming risk:** Top 25 soon-to-expire items sorted by days remaining.
+
+### Admin tools
+- **Main table columns:** Show/hide and reorder columns on the main list.
+- **Required fields:** Choose which fields must be filled on new/edit.
+- **Theme:** Light/Dark toggle.
+- **App heading:** Custom title on the main page.
+- **Categories / Bins / Locations / Use Within:** Add, edit, delete, and drag to reorder. Item values update when you rename entries.
+- **Units:** Add/edit/delete units, reorder, and toggle **Adjustable** to control the +/- buttons. New units from items auto-appear here so you can toggle them.
+- **Admin password:** Change the default password.
+
+### Backup and import/export
+- **Backup page:** Create zip backups (DB, photos, options, CSV export) and download. Restore from a zip created by the app.  
+- **CSV export/import:** Export selected fields; import expects matching headers. Missing serials auto-generate; categories/bins/locations/units are upserted.  
+- **Delete all items:** On Backup page—wipes all items (including depleted) and photos. Irreversible.
 
 ## Printer setup (IPP/CUPS over local network)
 1) Ensure your label printer is shared via CUPS/IPP on your LAN (e.g., DYMO/Brother):
