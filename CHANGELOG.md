@@ -1,5 +1,8 @@
 # PantrLytics Changelog
 
+## 2025.12.22
+- Prevent session expiration during unit backfill to avoid DetachedInstanceError when rendering the home page.
+
 ## 2025.12.21
 - Prevent duplicate unit inserts during item-unit backfill to avoid startup 500s (UNIQUE constraint).
 
