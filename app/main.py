@@ -40,7 +40,7 @@ except Exception as e:
 # Timezone / datetime formatting helper
 # -------------------------------------------------
 LOCAL_TZ = tzlocal.get_localzone()
-APP_VERSION = "2025.12.14"
+APP_VERSION = "2025.12.15"
 APP_INTERNAL_PORT = 8099
 
 
@@ -870,14 +870,17 @@ def next_serial(session: Session) -> str:
     return f"{SERIAL_PREFIX}{uuid.uuid4()}"
 
 
-def build_item_link(item: Item) -> str:
+def build_item_link(item: Item, request: Request | None = None) -> str:
     """
     Build the URL encoded into the QR code and shown as 'Open link'.
     """
     serial = item.serial_number
 
     if BASE_URL:
-        return f"{BASE_URL}/item/by-serial/{serial}"
+        base = BASE_URL.rstrip("/")
+        return f"{base}/item/by-serial/{serial}"
+    if request:
+        return str(request.url_for("show_item", item_id=item.id))
 
     # Last resort: plain serial text
     return serial
@@ -1110,7 +1113,11 @@ def startup():
 # -----------------------------
 # Label image helpers
 # -----------------------------
-def make_label_image(item: Item, preset: LabelPreset | None = None) -> Image.Image:
+def make_label_image(
+    item: Item,
+    preset: LabelPreset | None = None,
+    link_override: str | None = None,
+) -> Image.Image:
     """
     Build the PIL.Image for a DYMO label (89x28mm @ 300 dpi).
 
@@ -1166,8 +1173,8 @@ def make_label_image(item: Item, preset: LabelPreset | None = None) -> Image.Ima
     # --- QR code (optional) ---------------------------------------------
     x = 10
     if include_qr:
-        link = build_item_link(item)
-        qr = qrcode.make(link, image_factory=qrcode.image.pil.PilImage)
+        link_text = link_override or build_item_link(item)
+        qr = qrcode.make(link_text, image_factory=qrcode.image.pil.PilImage)
         qr_size = h - 20
         qr = qr.resize((qr_size, qr_size), Image.NEAREST)
         img.paste(qr, (10, 10))
@@ -1290,11 +1297,15 @@ def make_label_image(item: Item, preset: LabelPreset | None = None) -> Image.Ima
     return img
 
 
-def make_label_png(item: Item, preset: LabelPreset | None = None) -> bytes:
+def make_label_png(
+    item: Item,
+    preset: LabelPreset | None = None,
+    link_override: str | None = None,
+) -> bytes:
     """
     Return PNG bytes for the label image.
     """
-    img = make_label_image(item, preset)
+    img = make_label_image(item, preset, link_override=link_override)
     buf = io.BytesIO()
     img.save(buf, format="PNG", dpi=(300, 300))
     return buf.getvalue()
@@ -2211,7 +2222,7 @@ def show_item(request: Request, item_id: int):
             f"photos={len(photos)}"
         )
 
-    link = build_item_link(item)
+    link = build_item_link(item, request=request)
 
     # One-shot flag to auto-open the edit modal
     auto_edit = request.query_params.get("auto_edit") == "1"
@@ -2239,7 +2250,7 @@ def show_by_serial(request: Request, serial: str):
             return Response(status_code=404)
         photos = get_item_photos(session, item.id)
         object.__setattr__(item, "expiry_info", _expiry_info(item))
-    link = build_item_link(item)
+    link = build_item_link(item, request=request)
     return templates.TemplateResponse(
         "show.html",
         {
@@ -2535,7 +2546,7 @@ def export_csv():
 # Label PNG routes (preview)
 # -----------------------------
 @app.get("/label/{item_id}.png", name="label_png")
-def label_png_file(item_id: int):
+def label_png_file(request: Request, item_id: int):
     """
     File-style PNG route, used by the "Direct label URL" link
     and anywhere we need a label preview image.
@@ -2548,7 +2559,8 @@ def label_png_file(item_id: int):
             return Response(status_code=404)
 
         preset = get_default_preset(session)
-        png = make_label_png(item, preset)
+        link = build_item_link(item, request=request)
+        png = make_label_png(item, preset, link_override=link)
 
     return StreamingResponse(io.BytesIO(png), media_type="image/png")
 
@@ -2802,7 +2814,8 @@ def _print_impl(
             status_code=400,
         )
 
-    base_img = make_label_image(item, preset)
+    link = build_item_link(item, request=request)
+    base_img = make_label_image(item, preset, link_override=link)
     img_for_print = base_img.rotate(270, expand=True)
 
     buf = io.BytesIO()

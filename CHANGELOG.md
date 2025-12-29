@@ -1,5 +1,8 @@
 # PantrLytics Changelog
 
+## 2025.12.15
+- Generate QR codes with item detail URLs (using request context) so scans open the record even without `BASE_URL`.
+
 ## 2025.12.14
 - Ensure multi-copy printing works with CUPS/IPP by submitting one job per requested label.
 
