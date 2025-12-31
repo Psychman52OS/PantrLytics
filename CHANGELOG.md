@@ -1,5 +1,8 @@
 # PantrLytics Changelog
 
+## 2025.12.33
+- Use cook date (fallback to entry date) when calculating days on hand for depleted items in reports and the depleted list; keep edit modal items attached to avoid DetachedInstanceError; version bump.
+
 ## 2025.12.31
 - Ensure default units (ounces, bottles, jugs, grams, etc.) are backfilled into existing databases so the admin unit list shows all standard units by default.
 

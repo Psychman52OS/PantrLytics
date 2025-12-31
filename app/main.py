@@ -40,7 +40,7 @@ except Exception as e:
 # Timezone / datetime formatting helper
 # -------------------------------------------------
 LOCAL_TZ = tzlocal.get_localzone()
-APP_VERSION = "2025.12.32"
+APP_VERSION = "2025.12.33"
 APP_INTERNAL_PORT = 8099
 
 
@@ -2275,10 +2275,13 @@ def depleted_items(
         ).all()
         for it in items:
             created = _parse_date(it.created_at)
+            cooked = _parse_date(it.cook_date)
             depleted = _parse_date(it.depleted_at)
             days_on_hand = None
-            if created and depleted:
-                days_on_hand = (depleted - created).days
+            # Prefer cook_date to represent when the item was prepared; fall back to created_at
+            basis = cooked or created
+            if basis and depleted:
+                days_on_hand = (depleted - basis).days
             object.__setattr__(it, "days_on_hand", days_on_hand)
 
     total_pages = max(1, (total_count + per_page - 1) // per_page)
@@ -2559,6 +2562,7 @@ def reports(
 
             if it.depleted_at:
                 created = _parse_date(it.created_at)
+                cooked = _parse_date(it.cook_date)
                 depleted_date = _parse_date(it.depleted_at)
                 if depleted_date:
                     lookback_ok = True
@@ -2566,8 +2570,9 @@ def reports(
                         lookback_ok = (today - depleted_date).days <= horizon_days
                     if lookback_ok:
                         doh = None
-                        if created:
-                            doh = (depleted_date - created).days
+                        basis = cooked or created
+                        if basis:
+                            doh = (depleted_date - basis).days
                         depleted_records.append(
                             {
                                 "item": it,
@@ -3219,6 +3224,7 @@ async def quick_label_print(
 @app.get("/item/{item_id}/edit", name="edit_item_form", response_class=HTMLResponse)
 def edit_item_form(request: Request, item_id: int, partial: int = 0):
     with Session(engine) as session:
+        session.expire_on_commit = False  # keep item attached for template rendering
         item = _get_item_or_404(session, item_id)
         cats, bins, locations, use_withins = _choices(session)
         required_fields = get_required_field_keys(session)
