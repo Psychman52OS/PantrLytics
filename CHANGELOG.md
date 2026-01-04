@@ -9,9 +9,6 @@
 ## 2026.01.03
 - Fix ingress scanning URL to respect the HA ingress root path (no more `//` redirects); version bump.
 
-## 2026.01.04
-- Switch in-app scanner to use the native `BarcodeDetector` API (no CDN dependency) and surface camera-permission errors; version bump.
-
 ## 2025.12.33
 - Use cook date (fallback to entry date) when calculating days on hand for depleted items in reports and the depleted list; keep edit modal items attached to avoid DetachedInstanceError; version bump.
 
