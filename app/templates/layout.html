@@ -292,34 +292,34 @@
     const closeBtn= document.getElementById('scan-close');
     if (!fab || !overlay || !videoEl) return;
 
-    let reader = null;
-    let currentDeviceId = null;
-
     const rootPath = (document.documentElement.dataset.rootPath || '').replace(/\/+$/,'');
+    let stream = null;
+    let rafId = null;
+    let detector = null;
 
     function setStatus(msg) {
       if (statusEl) statusEl.textContent = msg;
     }
 
-    function ensureLib() {
-      if (window.ZXingBrowser) return Promise.resolve();
-      return new Promise((resolve, reject) => {
-        const s = document.createElement('script');
-        s.src = "https://unpkg.com/@zxing/browser@0.1.5/umd/index.min.js";
-        s.onload = () => resolve();
-        s.onerror = reject;
-        document.head.appendChild(s);
-      });
-    }
-
-    async function stopScan() {
-      if (reader) {
-        try { reader.reset(); } catch(_e){}
-      }
+    function hideOverlay() {
       if (overlay) {
         overlay.removeAttribute('open');
         overlay.setAttribute('hidden','hidden');
       }
+    }
+
+    async function stopScan() {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = null;
+      if (stream) {
+        stream.getTracks().forEach(t => t.stop());
+        stream = null;
+      }
+      if (videoEl) {
+        videoEl.pause();
+        videoEl.srcObject = null;
+      }
+      hideOverlay();
     }
 
     function handleResult(text) {
@@ -335,34 +335,54 @@
       window.location.href = `${base}/item/by-serial/${serial}`;
     }
 
-    async function startScan() {
+    async function detectLoop() {
+      if (!detector || !videoEl || !stream) return;
       try {
-        await ensureLib();
-        overlay.removeAttribute('hidden');
-        overlay.setAttribute('open','open');
-        setStatus('Starting camera…');
-        const { BrowserMultiFormatReader, BrowserCodeReader } = window.ZXingBrowser;
-        reader = new BrowserMultiFormatReader();
-        const devices = await BrowserCodeReader.listVideoInputDevices();
-        if (!devices || !devices.length) {
-          setStatus('No camera found.');
+        const results = await detector.detect(videoEl);
+        if (results && results.length) {
+          handleResult(results[0].rawValue || results[0].rawdata || results[0].rawData || results[0].rawtext || '');
           return;
         }
-        const rear = devices.find(d => /back|rear|environment/i.test(d.label));
-        currentDeviceId = (rear && rear.deviceId) || devices[0].deviceId;
-        reader.decodeFromVideoDevice(currentDeviceId, videoEl, (result, err) => {
-          if (result) {
-            handleResult(result.getText());
-          } else if (err && !(err instanceof window.ZXingBrowser.NotFoundException)) {
-            setStatus('Scanning error, please try again.');
-          }
-        });
-        setStatus('Point your camera at a label QR code.');
-      } catch (e) {
-        console.error(e);
-        setStatus('Unable to start camera. Allow camera access and try again.');
-        setTimeout(stopScan, 1500);
+      } catch (err) {
+        // Ignore "not found" type errors; log others
+        if (console && err && !/NotFoundError/i.test(err.name || '')) console.debug(err);
       }
+      rafId = requestAnimationFrame(detectLoop);
+    }
+
+    async function startScan() {
+      try {
+        if (!('BarcodeDetector' in window)) {
+          alert('QR scanning not supported on this browser. Please use the system camera app.');
+          return;
+        }
+        detector = new window.BarcodeDetector({ formats: ['qr_code', 'code_128', 'code_39', 'code_93', 'data_matrix'] });
+      } catch (err) {
+        console.error(err);
+        alert('QR scanning not supported on this device.');
+        return;
+      }
+
+      overlay.removeAttribute('hidden');
+      overlay.setAttribute('open','open');
+      setStatus('Starting camera…');
+
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' } },
+          audio: false
+        });
+      } catch (err) {
+        console.error(err);
+        setStatus('Camera permission needed. Please allow camera access.');
+        setTimeout(stopScan, 1800);
+        return;
+      }
+
+      videoEl.srcObject = stream;
+      try { await videoEl.play(); } catch(_e){}
+      setStatus('Point your camera at a label QR code.');
+      rafId = requestAnimationFrame(detectLoop);
     }
 
     fab.addEventListener('click', (e) => {
