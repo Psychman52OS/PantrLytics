@@ -40,7 +40,7 @@ except Exception as e:
 # Timezone / datetime formatting helper
 # -------------------------------------------------
 LOCAL_TZ = tzlocal.get_localzone()
-APP_VERSION = "2025.12.33"
+APP_VERSION = "2026.01.01"
 APP_INTERNAL_PORT = 8099
 
 
@@ -2255,6 +2255,7 @@ def index(
             "app_heading": app_heading,
             "db_updated_at": db_updated_at,
             "adjustable_units": adjustable_units,
+            "scan_button": True,
         },
 )
 
