@@ -331,8 +331,7 @@
         return;
       }
       const serial = encodeURIComponent(trimmed);
-      const base = rootPath || '';
-      window.location.href = `${base}/item/by-serial/${serial}`;
+      window.location.href = `${rootPath}/item/by-serial/${serial}`.replace(/\/{2,}/g,'/');
     }
 
     async function startScan() {
