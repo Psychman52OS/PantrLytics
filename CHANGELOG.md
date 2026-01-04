@@ -1,8 +1,5 @@
 # PantrLytics Changelog
 
-## 2026.01.01
-- Add an in-app mobile QR scanner (floating FAB, bottom-right) that opens the scanned item inside the app; version bump.
-
 ## 2025.12.33
 - Use cook date (fallback to entry date) when calculating days on hand for depleted items in reports and the depleted list; keep edit modal items attached to avoid DetachedInstanceError; version bump.
 

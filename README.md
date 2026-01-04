@@ -28,11 +28,6 @@ License: Personal use only (non-commercial). See LICENSE.
 - Ingress URLs (`/api/hassio_ingress/...`) need short-lived tokens and often fail when scanned; prefer a direct reachable address.
 - After changing `base_url`, **reprint labels** so the QR codes carry the new URL.
 
-### In-app QR scanning (mobile)
-- On mobile, a floating “Scan” button appears on the home page (bottom-right). Tap to open the in-app camera scanner.
-- Grants camera access when prompted; scans QR codes and opens the matching item inside the app (no browser handoff).
-- Works best over HTTPS (ingress is fine) so Safari/Chrome allow camera access.
-
 ---
 
 ## Using the app (all pages and controls)
@@ -60,10 +55,10 @@ License: Personal use only (non-commercial). See LICENSE.
 ### Reports page
 - **Horizon**: 7/14/30/60/all days for expiry risk.
 - **KPIs**: Expired, ≤7d, ≤14d, ≤30d, ≤60d, total in view.
-- **Use-by compliance**: % of items not past their use-by date (non-depleted).
+- **Use-within compliance**: % of items within intended window.
 - **Aging waterfall**: Age distribution bars.
 - **Heatmap**: Category × Location counts for expiring items.
-- **Depletions**: Counts, avg days on hand (cook date preferred, otherwise entry date), reasons (click to drill into items), recent depleted list.
+- **Depletions**: Counts, avg days on hand, reasons (click to drill into items), recent depleted list.
 - **Upcoming risk (top 25)**: Soonest-to-expire items sorted by days remaining.
 
 ### Admin sections (everything configurable)

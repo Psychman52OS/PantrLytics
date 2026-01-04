@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-root-path="{{ request.scope.get('root_path','') | replace('//','/') }}">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -26,64 +26,6 @@
       href="{{ (rootp ~ '/assets/styles.css?v=' ~ css_version) | replace('//','/') }}">
   <link rel="icon" type="image/png" href="{{ (rootp ~ '/assets/icon.png') | replace('//','/') }}">
   <link rel="alternate icon" type="image/svg+xml" href="{{ (rootp ~ '/assets/icon.svg') | replace('//','/') }}">
-  <style>
-    /* Mobile-only floating scan button */
-    #scan-fab {
-      position: fixed;
-      right: 16px;
-      bottom: 16px;
-      z-index: 1100;
-      width: 56px;
-      height: 56px;
-      border-radius: 999px;
-      border: none;
-      background: linear-gradient(135deg, #ff7a18, #ffb347);
-      color: #0b0b0d;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.35);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-    }
-    #scan-fab svg { width: 26px; height: 26px; }
-    /* Hide on larger screens */
-    @media (min-width: 900px) { #scan-fab { display: none; } }
-
-    /* Scanner overlay */
-    #scan-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.65);
-      backdrop-filter: blur(3px);
-      z-index: 1200;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      padding: 16px;
-    }
-    #scan-overlay[open] { display: flex; }
-    .scan-sheet {
-      background: var(--card, #121217);
-      color: var(--text, #e5e7eb);
-      border-radius: 16px;
-      padding: 14px;
-      width: min(480px, 100%);
-      box-shadow: 0 15px 35px rgba(0,0,0,0.45);
-      display: grid;
-      gap: 10px;
-    }
-    .scan-header { display:flex; align-items:center; justify-content:space-between; gap:10px; }
-    .scan-video-wrap {
-      background:#000;
-      border-radius:12px;
-      overflow:hidden;
-      position:relative;
-      min-height:220px;
-    }
-    #scan-video { width:100%; height:100%; object-fit:cover; }
-    .scan-status { font-size:13px; color: var(--muted, #9ca3af); }
-    .scan-actions { display:flex; justify-content:flex-end; gap:8px; }
-  </style>
 </head>
 <body>
   <script>
@@ -282,116 +224,6 @@
     const names = files.slice(0,3).map(f => f.name).join(', ');
     label.textContent = files.length > 3 ? `${files.length} files selected (${names}…)` : names;
   });
-
-  // -------- In-app QR scanner (mobile) --------
-  (function(){
-    const fab     = document.getElementById('scan-fab');
-    const overlay = document.getElementById('scan-overlay');
-    const videoEl = document.getElementById('scan-video');
-    const statusEl= document.getElementById('scan-status');
-    const closeBtn= document.getElementById('scan-close');
-    if (!fab || !overlay || !videoEl) return;
-
-    let reader = null;
-    let currentDeviceId = null;
-
-    const rootPath = (document.documentElement.dataset.rootPath || '').replace(/\/+$/,'');
-
-    function setStatus(msg) {
-      if (statusEl) statusEl.textContent = msg;
-    }
-
-    function ensureLib() {
-      if (window.ZXingBrowser) return Promise.resolve();
-      return new Promise((resolve, reject) => {
-        const s = document.createElement('script');
-        s.src = "https://unpkg.com/@zxing/browser@0.1.5/umd/index.min.js";
-        s.onload = () => resolve();
-        s.onerror = reject;
-        document.head.appendChild(s);
-      });
-    }
-
-    async function stopScan() {
-      if (reader) {
-        try { reader.reset(); } catch(_e){}
-      }
-      if (overlay) overlay.removeAttribute('open');
-    }
-
-    function handleResult(text) {
-      stopScan();
-      const trimmed = (text || '').trim();
-      if (!trimmed) return;
-      if (/^https?:\/\//i.test(trimmed)) {
-        window.location.href = trimmed;
-        return;
-      }
-      const serial = encodeURIComponent(trimmed);
-      window.location.href = `${rootPath}/item/by-serial/${serial}`.replace(/\/{2,}/g,'/');
-    }
-
-    async function startScan() {
-      try {
-        await ensureLib();
-        overlay.setAttribute('open','open');
-        setStatus('Starting camera…');
-        const { BrowserMultiFormatReader, BrowserCodeReader } = window.ZXingBrowser;
-        reader = new BrowserMultiFormatReader();
-        const devices = await BrowserCodeReader.listVideoInputDevices();
-        if (!devices || !devices.length) {
-          setStatus('No camera found.');
-          return;
-        }
-        const rear = devices.find(d => /back|rear|environment/i.test(d.label));
-        currentDeviceId = (rear && rear.deviceId) || devices[0].deviceId;
-        reader.decodeFromVideoDevice(currentDeviceId, videoEl, (result, err) => {
-          if (result) {
-            handleResult(result.getText());
-          } else if (err && !(err instanceof window.ZXingBrowser.NotFoundException)) {
-            setStatus('Scanning error, please try again.');
-          }
-        });
-        setStatus('Point your camera at a label QR code.');
-      } catch (e) {
-        console.error(e);
-        setStatus('Unable to start camera.');
-      }
-    }
-
-    fab.addEventListener('click', (e) => {
-      e.preventDefault();
-      startScan();
-    });
-    if (closeBtn) {
-      closeBtn.addEventListener('click', (e) => { e.preventDefault(); stopScan(); });
-    }
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) stopScan();
-    });
-  })();
 </script>
 </body>
-
-{% if scan_button %}
-  <button id="scan-fab" aria-label="Scan QR">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M4 4h5v2H6v3H4V4zM15 4h5v5h-2V6h-3V4zM4 15h2v3h3v2H4v-5zM18 15h2v5h-5v-2h3v-3zM7 12h2v2H7zM11 12h2v2h-2zM15 12h2v2h-2zM11 16h2v2h-2z"/>
-    </svg>
-  </button>
-  <div id="scan-overlay" role="dialog" aria-modal="true" hidden>
-    <div class="scan-sheet">
-      <div class="scan-header">
-        <div>
-          <div style="font-weight:700;">Scan a label</div>
-          <div class="scan-status" id="scan-status">Starting…</div>
-        </div>
-        <button class="btn btn-secondary btn-small" id="scan-close" type="button">Close</button>
-      </div>
-      <div class="scan-video-wrap">
-        <video id="scan-video" playsinline></video>
-      </div>
-    </div>
-  </div>
-{% endif %}
 </html>
