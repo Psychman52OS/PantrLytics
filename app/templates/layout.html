@@ -316,7 +316,10 @@
       if (reader) {
         try { reader.reset(); } catch(_e){}
       }
-      if (overlay) overlay.removeAttribute('open');
+      if (overlay) {
+        overlay.removeAttribute('open');
+        overlay.setAttribute('hidden','hidden');
+      }
     }
 
     function handleResult(text) {
@@ -334,6 +337,7 @@
     async function startScan() {
       try {
         await ensureLib();
+        overlay.removeAttribute('hidden');
         overlay.setAttribute('open','open');
         setStatus('Starting camera…');
         const { BrowserMultiFormatReader, BrowserCodeReader } = window.ZXingBrowser;
@@ -355,7 +359,8 @@
         setStatus('Point your camera at a label QR code.');
       } catch (e) {
         console.error(e);
-        setStatus('Unable to start camera.');
+        setStatus('Unable to start camera. Allow camera access and try again.');
+        setTimeout(stopScan, 1500);
       }
     }
 
