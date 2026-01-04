@@ -6,6 +6,9 @@
 ## 2026.01.02
 - Fix the in-app scanner overlay so it actually opens on mobile (remove hidden flag, clearer errors); version bump.
 
+## 2026.01.03
+- Fix ingress scanning URL to respect the HA ingress root path (no more `//` redirects); version bump.
+
 ## 2025.12.33
 - Use cook date (fallback to entry date) when calculating days on hand for depleted items in reports and the depleted list; keep edit modal items attached to avoid DetachedInstanceError; version bump.
 
