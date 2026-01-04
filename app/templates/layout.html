@@ -300,6 +300,10 @@
     let ctx = null;
     let jsqrReady = false;
 
+    function log(msg, obj) {
+      try { console.debug('[scan]', msg, obj || ''); } catch (_e) {}
+    }
+
     function setStatus(msg) {
       if (statusEl) statusEl.textContent = msg;
     }
@@ -329,6 +333,7 @@
       stopScan();
       const trimmed = (text || '').trim();
       if (!trimmed) return;
+      log('decoded', trimmed);
       if (/^https?:\/\//i.test(trimmed)) {
         window.location.href = trimmed;
         return;
@@ -348,6 +353,7 @@
             return;
           }
         } else if (jsqrReady && window.jsQR) {
+          // Canvas decode path
           if (!canvas) {
             canvas = document.createElement('canvas');
             ctx = canvas.getContext('2d');
@@ -384,6 +390,12 @@
     }
 
     async function startScan() {
+      log('startScan click');
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setStatus('Camera not available in this browser.');
+        alert('Camera not available. Please use the system camera.');
+        return;
+      }
       overlay.removeAttribute('hidden');
       overlay.setAttribute('open','open');
       setStatus('Starting camera…');
@@ -415,6 +427,7 @@
       } catch (err) {
         console.error(err);
         setStatus('Camera permission needed. Please allow camera access.');
+        alert('Allow camera access to scan labels.');
         setTimeout(stopScan, 1800);
         return;
       }
