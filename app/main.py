@@ -40,7 +40,7 @@ except Exception as e:
 # Timezone / datetime formatting helper
 # -------------------------------------------------
 LOCAL_TZ = tzlocal.get_localzone()
-APP_VERSION = "2025.12.33"
+APP_VERSION = "2026.01.07"
 APP_INTERNAL_PORT = 8099
 
 
@@ -3876,6 +3876,9 @@ async def admin(request: Request, response: Response):
         resp.set_cookie("admin_auth", stored_hash, path="/", httponly=True)
         next_dest = request.query_params.get("next", "")
         if next_dest:
+            # Map legacy/short names to actual route names
+            if next_dest == "backup":
+                next_dest = "backup_page"
             return RedirectResponse(
                 url=str(request.url_for(next_dest)),
                 status_code=303,
