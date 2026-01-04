@@ -40,7 +40,7 @@ except Exception as e:
 # Timezone / datetime formatting helper
 # -------------------------------------------------
 LOCAL_TZ = tzlocal.get_localzone()
-APP_VERSION = "2026.01.08"
+APP_VERSION = "2026.01.09"
 APP_INTERNAL_PORT = 8099
 
 
@@ -3873,8 +3873,8 @@ async def admin(request: Request, response: Response):
         },
     )
     if authed:
-        rootp = request.scope.get("root_path", "") or "/"
-        resp.set_cookie("admin_auth", stored_hash, path=rootp, httponly=True)
+        # Use root path "/" so ingress and direct accesses share the cookie
+        resp.set_cookie("admin_auth", stored_hash, path="/", httponly=True)
         next_dest = request.query_params.get("next", "")
         if next_dest:
             # Map legacy/short names to actual route names

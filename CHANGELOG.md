@@ -6,6 +6,9 @@
 ## 2026.01.08
 - Set admin auth cookie path to the ingress root so login persists under HA ingress; version bump.
 
+## 2026.01.09
+- Set admin auth cookie path to "/" so ingress/direct both honor login and backup redirect works; version bump.
+
 ## 2025.12.33
 - Use cook date (fallback to entry date) when calculating days on hand for depleted items in reports and the depleted list; keep edit modal items attached to avoid DetachedInstanceError; version bump.
 
