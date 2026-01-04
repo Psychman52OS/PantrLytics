@@ -12,9 +12,6 @@
 ## 2026.01.04
 - Switch in-app scanner to use the native `BarcodeDetector` API (no CDN dependency) and surface camera-permission errors; version bump.
 
-## 2026.01.05
-- Add jsQR fallback and canvas decoding for browsers without `BarcodeDetector`; adjust status text and keep using ingress-safe paths for scan routing; version bump.
-
 ## 2025.12.33
 - Use cook date (fallback to entry date) when calculating days on hand for depleted items in reports and the depleted list; keep edit modal items attached to avoid DetachedInstanceError; version bump.
 

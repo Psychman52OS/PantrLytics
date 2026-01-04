@@ -296,9 +296,6 @@
     let stream = null;
     let rafId = null;
     let detector = null;
-    let canvas = null;
-    let ctx = null;
-    let jsqrReady = false;
 
     function setStatus(msg) {
       if (statusEl) statusEl.textContent = msg;
@@ -339,73 +336,36 @@
     }
 
     async function detectLoop() {
-      if (!videoEl || !stream) return;
+      if (!detector || !videoEl || !stream) return;
       try {
-        if (detector) {
-          const results = await detector.detect(videoEl);
-          if (results && results.length) {
-            handleResult(results[0].rawValue || results[0].rawdata || results[0].rawData || results[0].rawtext || '');
-            return;
-          }
-        } else if (jsqrReady && window.jsQR) {
-          if (!canvas) {
-            canvas = document.createElement('canvas');
-            ctx = canvas.getContext('2d');
-          }
-          const vw = videoEl.videoWidth;
-          const vh = videoEl.videoHeight;
-          if (vw && vh) {
-            canvas.width = vw;
-            canvas.height = vh;
-            ctx.drawImage(videoEl, 0, 0, vw, vh);
-            const img = ctx.getImageData(0, 0, vw, vh);
-            const result = window.jsQR(img.data, img.width, img.height);
-            if (result && result.data) {
-              handleResult(result.data);
-              return;
-            }
-          }
+        const results = await detector.detect(videoEl);
+        if (results && results.length) {
+          handleResult(results[0].rawValue || results[0].rawdata || results[0].rawData || results[0].rawtext || '');
+          return;
         }
       } catch (err) {
+        // Ignore "not found" type errors; log others
         if (console && err && !/NotFoundError/i.test(err.name || '')) console.debug(err);
       }
       rafId = requestAnimationFrame(detectLoop);
     }
 
-    function ensureJsQR() {
-      if (window.jsQR) { jsqrReady = true; return Promise.resolve(); }
-      return new Promise((resolve, reject) => {
-        const s = document.createElement('script');
-        s.src = `${rootPath}/assets/jsqr.min.js`;
-        s.onload = () => { jsqrReady = true; resolve(); };
-        s.onerror = reject;
-        document.head.appendChild(s);
-      });
-    }
-
     async function startScan() {
+      try {
+        if (!('BarcodeDetector' in window)) {
+          alert('QR scanning not supported on this browser. Please use the system camera app.');
+          return;
+        }
+        detector = new window.BarcodeDetector({ formats: ['qr_code', 'code_128', 'code_39', 'code_93', 'data_matrix'] });
+      } catch (err) {
+        console.error(err);
+        alert('QR scanning not supported on this device.');
+        return;
+      }
+
       overlay.removeAttribute('hidden');
       overlay.setAttribute('open','open');
       setStatus('Starting camera…');
-
-      // Prefer native detector; fall back to jsQR
-      detector = null;
-      if ('BarcodeDetector' in window) {
-        try {
-          detector = new window.BarcodeDetector({ formats: ['qr_code', 'code_128', 'code_39', 'code_93', 'data_matrix'] });
-        } catch (_e) {
-          detector = null;
-        }
-      } else {
-        try {
-          await ensureJsQR();
-        } catch (err) {
-          console.error(err);
-          setStatus('QR scanning not supported here. Use the system camera.');
-          setTimeout(stopScan, 2000);
-          return;
-        }
-      }
 
       try {
         stream = await navigator.mediaDevices.getUserMedia({
@@ -450,7 +410,7 @@
       <div class="scan-header">
         <div>
           <div style="font-weight:700;">Scan a label</div>
-          <div class="scan-status" id="scan-status">Ready</div>
+          <div class="scan-status" id="scan-status">Starting…</div>
         </div>
         <button class="btn btn-secondary btn-small" id="scan-close" type="button">Close</button>
       </div>
