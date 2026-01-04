@@ -15,9 +15,6 @@
 ## 2026.01.05
 - Add jsQR fallback and canvas decoding for browsers without `BarcodeDetector`; adjust status text and keep using ingress-safe paths for scan routing; version bump.
 
-## 2026.01.06
-- Add debug/status messaging and camera-availability checks for the in-app scanner to diagnose ingress/mobile issues; version bump.
-
 ## 2025.12.33
 - Use cook date (fallback to entry date) when calculating days on hand for depleted items in reports and the depleted list; keep edit modal items attached to avoid DetachedInstanceError; version bump.
 
