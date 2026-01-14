@@ -1,5 +1,8 @@
 # PantrLytics Changelog
 
+## 2026.01.11
+- Default theme now follows the browser’s color scheme when no preference is saved; version bump.
+
 ## 2026.01.10
 - Run DB initialization before startup migrations/unit seeding so fresh installs don't crash; version bump.
 
