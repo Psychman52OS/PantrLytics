@@ -1,5 +1,8 @@
 # PantrLytics Changelog
 
+## 2026.01.10
+- Run DB initialization before startup migrations/unit seeding so fresh installs don't crash; version bump.
+
 ## 2026.01.07
 - Fix admin redirect so `next=backup` correctly lands on the Backup page; version bump.
 

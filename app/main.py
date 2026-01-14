@@ -40,7 +40,7 @@ except Exception as e:
 # Timezone / datetime formatting helper
 # -------------------------------------------------
 LOCAL_TZ = tzlocal.get_localzone()
-APP_VERSION = "2026.01.09"
+APP_VERSION = "2026.01.10"
 APP_INTERNAL_PORT = 8099
 
 
@@ -1173,6 +1173,7 @@ app.add_middleware(GZipMiddleware, minimum_size=512)
 
 @app.on_event("startup")
 def _log_port_notice():
+    init_db()
     host_port = os.environ.get("PORT", APP_INTERNAL_PORT)
     print(
         f"[startup] Container listening on :{APP_INTERNAL_PORT}; "
@@ -1304,7 +1305,6 @@ def startup():
     os.makedirs(DATA_DIR, exist_ok=True)
     os.makedirs(PHOTOS_DIR, exist_ok=True)
     os.makedirs(BACKUP_DIR, exist_ok=True)
-    init_db()
 
     # Debug: see what the container actually has in /app/static
     try:
