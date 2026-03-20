@@ -999,6 +999,39 @@ def create_backup_zip(opts: dict, session: Session, target_dir: str | None = Non
     return fpath, fname
 
 
+def _push_options_to_supervisor(options_json_path: str):
+    """Push restored options to the HA Supervisor API so the config tab reflects them.
+
+    Requires hassio_api: true in config.yaml and the SUPERVISOR_TOKEN env var.
+    Silently skips if not running inside Home Assistant.
+    """
+    token = os.environ.get("SUPERVISOR_TOKEN")
+    if not token:
+        print("[RESTORE] No SUPERVISOR_TOKEN — skipping Supervisor options update")
+        return
+    try:
+        with open(options_json_path, "r") as f:
+            opts = json.load(f)
+        # Only forward keys defined in the add-on schema; drop internal-only keys
+        allowed = {"base_url", "ipp_host", "ipp_printer", "serial_prefix"}
+        payload = json.dumps({"options": {k: v for k, v in opts.items() if k in allowed}})
+        result = subprocess.run(
+            [
+                "curl", "-s", "-X", "POST",
+                "-H", f"Authorization: Bearer {token}",
+                "-H", "Content-Type: application/json",
+                "-d", payload,
+                "http://supervisor/addons/self/options",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        print(f"[RESTORE] Supervisor options update: {result.stdout.strip()}")
+    except Exception as e:
+        print(f"[RESTORE] Could not push options to Supervisor: {e}")
+
+
 def restore_backup(zip_path: str) -> dict:
     """Restore DB/photos/options from a backup zip. Returns a summary dict.
 
@@ -1065,7 +1098,10 @@ def restore_backup(zip_path: str) -> dict:
                 elif logical == "options.json":
                     zf.extract(member, path=tmpdir)
                     try:
-                        shutil.copyfile(os.path.join(tmpdir, member), ADDON_OPTIONS_PATH)
+                        src = os.path.join(tmpdir, member)
+                        shutil.copyfile(src, ADDON_OPTIONS_PATH)
+                        # Also push to the HA Supervisor API so the config tab updates
+                        _push_options_to_supervisor(src)
                         summary["options"] = True
                     except Exception as e:
                         print("[RESTORE] options restore error", e)
@@ -2024,7 +2060,7 @@ def _restore_restart_html(base_url: str) -> str:
 <head>
   <meta charset="utf-8">
   <title>Restore Complete — Restarting</title>
-  <meta http-equiv="refresh" content="12;url={base_url}">
+  <meta http-equiv="refresh" content="45;url={base_url}">
   <style>
     body {{ font-family: sans-serif; display: flex; align-items: center;
             justify-content: center; height: 100vh; margin: 0; background: #f0f4f8; }}
@@ -2042,7 +2078,7 @@ def _restore_restart_html(base_url: str) -> str:
   <div class="card">
     <h2>&#10003; Restore Successful</h2>
     <p>The app is restarting to reload your data.<br>
-       You will be redirected automatically in <strong>12 seconds</strong>.</p>
+       You will be redirected automatically in <strong>45 seconds</strong>.</p>
     <div class="spinner"></div>
     <p><small>If the page does not reload, <a href="{base_url}">click here</a>.</small></p>
   </div>
