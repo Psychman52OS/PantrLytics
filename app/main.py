@@ -1038,6 +1038,13 @@ def restore_backup(zip_path: str) -> dict:
                         if os.path.isfile(DB_PATH):
                             shutil.copyfile(DB_PATH, DB_PATH + ".bak")
                         shutil.copyfile(target, DB_PATH)
+                        # Remove stale WAL/SHM files — they belong to the old DB
+                        # and will corrupt the restored one if left on disk
+                        for _wal_suffix in ("-wal", "-shm"):
+                            _wal_path = DB_PATH + _wal_suffix
+                            if os.path.isfile(_wal_path):
+                                os.remove(_wal_path)
+                                print(f"[RESTORE] Removed stale WAL file: {_wal_path}")
                         engine.dispose()   # drop pooled connections so next request reads restored DB
                         summary["db"] = True
                     except Exception as e:
@@ -2106,6 +2113,40 @@ def delete_all_items(request: Request):
         msg += f"+and+{removed_photos}+photos"
     target = str(request.url_for("backup_page")) + f"?msg={msg}"
     print(f"[delete_all] redirect -> {target}")
+    return RedirectResponse(url=target, status_code=303)
+
+
+@app.post("/backup/repair-db")
+def repair_db(request: Request):
+    """Remove stale WAL/SHM files and reconnect the engine.
+
+    Use this if the app shows 'database disk image is malformed' after a restore.
+    """
+    print("[repair-db] starting")
+    removed = []
+    for _suffix in ("-wal", "-shm"):
+        _path = DB_PATH + _suffix
+        if os.path.isfile(_path):
+            try:
+                os.remove(_path)
+                removed.append(_suffix)
+                print(f"[repair-db] removed {_path}")
+            except Exception as e:
+                print(f"[repair-db] could not remove {_path}: {e}")
+    engine.dispose()
+    # verify the database is readable after cleanup
+    try:
+        with engine.connect() as conn:
+            result = conn.exec_driver_sql("PRAGMA integrity_check;").fetchone()
+            status = result[0] if result else "unknown"
+        print(f"[repair-db] integrity_check: {status}")
+        msg = f"DB+repaired+(integrity:+{status})"
+        if removed:
+            msg += f"+removed+WAL:+{'+'.join(removed)}"
+    except Exception as e:
+        print(f"[repair-db] integrity check failed: {e}")
+        msg = f"Repair+attempted+but+DB+still+has+errors:+{e}"
+    target = str(request.url_for("backup_page")) + f"?msg={msg}"
     return RedirectResponse(url=target, status_code=303)
 
 
