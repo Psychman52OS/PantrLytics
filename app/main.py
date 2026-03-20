@@ -1015,6 +1015,7 @@ def restore_backup(zip_path: str) -> dict:
                         if os.path.isfile(DB_PATH):
                             shutil.copyfile(DB_PATH, DB_PATH + ".bak")
                         shutil.copyfile(target, DB_PATH)
+                        engine.dispose()   # drop pooled connections so next request reads restored DB
                         summary["db"] = True
                     except Exception as e:
                         print("[RESTORE] DB restore error", e)
