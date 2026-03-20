@@ -998,19 +998,42 @@ def create_backup_zip(opts: dict, session: Session, target_dir: str | None = Non
 
 
 def restore_backup(zip_path: str) -> dict:
-    """Restore DB/photos/options from a backup zip. Returns a summary dict."""
+    """Restore DB/photos/options from a backup zip. Returns a summary dict.
+
+    Handles both flat zips (files at root) and macOS-style zips where all
+    files are nested inside a single top-level subdirectory.
+    """
     summary = {"db": False, "photos": 0, "options": False}
 
     with tempfile.TemporaryDirectory() as tmpdir:
         with zipfile.ZipFile(zip_path, "r") as zf:
-            for member in zf.namelist():
+            members = zf.namelist()
+
+            # Detect a single top-level subdirectory wrapper (macOS zip behaviour).
+            # If every non-__MACOSX entry sits under one common folder, strip it.
+            real_members = [m for m in members if not m.startswith("__MACOSX")]
+            prefix = ""
+            top_dirs = {m.split("/")[0] for m in real_members if m.split("/")[0]}
+            if len(top_dirs) == 1:
+                candidate = next(iter(top_dirs)) + "/"
+                if all(m.startswith(candidate) or m == candidate for m in real_members):
+                    prefix = candidate
+
+            for member in members:
+                # Skip macOS metadata files
+                if member.startswith("__MACOSX"):
+                    continue
                 if member.startswith("/") or ".." in member.split("/"):
                     continue  # skip unsafe entries
 
-                if member == "inventory.db":
-                    target = os.path.join(tmpdir, "inventory.db")
+                # Strip the subdirectory prefix if present
+                logical = member[len(prefix):] if prefix and member.startswith(prefix) else member
+                if not logical or logical.endswith("/"):
+                    continue
+
+                if logical == "inventory.db":
                     zf.extract(member, path=tmpdir)
-                    # backup existing db
+                    target = os.path.join(tmpdir, member)
                     try:
                         if os.path.isfile(DB_PATH):
                             shutil.copyfile(DB_PATH, DB_PATH + ".bak")
@@ -1020,15 +1043,17 @@ def restore_backup(zip_path: str) -> dict:
                     except Exception as e:
                         print("[RESTORE] DB restore error", e)
 
-                elif member.startswith("photos/"):
+                elif logical.startswith("photos/"):
                     zf.extract(member, path=tmpdir)
-                    rel_path = member[len("photos/") :]
+                    rel_path = logical[len("photos/"):]
+                    if not rel_path:
+                        continue
                     dest = os.path.join(PHOTOS_DIR, rel_path)
                     os.makedirs(os.path.dirname(dest), exist_ok=True)
                     shutil.copyfile(os.path.join(tmpdir, member), dest)
                     summary["photos"] += 1
 
-                elif member == "options.json":
+                elif logical == "options.json":
                     zf.extract(member, path=tmpdir)
                     try:
                         shutil.copyfile(os.path.join(tmpdir, member), ADDON_OPTIONS_PATH)
