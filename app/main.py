@@ -1004,7 +1004,9 @@ def _push_options_to_supervisor(options_json_path: str):
 
     Requires hassio_api: true in config.yaml and the SUPERVISOR_TOKEN env var.
     Silently skips if not running inside Home Assistant.
+    Uses urllib so no external tools (curl) are required.
     """
+    import urllib.request as _urlreq
     token = os.environ.get("SUPERVISOR_TOKEN")
     if not token:
         print("[RESTORE] No SUPERVISOR_TOKEN — skipping Supervisor options update")
@@ -1014,20 +1016,19 @@ def _push_options_to_supervisor(options_json_path: str):
             opts = json.load(f)
         # Only forward keys defined in the add-on schema; drop internal-only keys
         allowed = {"base_url", "ipp_host", "ipp_printer", "serial_prefix"}
-        payload = json.dumps({"options": {k: v for k, v in opts.items() if k in allowed}})
-        result = subprocess.run(
-            [
-                "curl", "-s", "-X", "POST",
-                "-H", f"Authorization: Bearer {token}",
-                "-H", "Content-Type: application/json",
-                "-d", payload,
-                "http://supervisor/addons/self/options",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=10,
+        payload = json.dumps({"options": {k: v for k, v in opts.items() if k in allowed}}).encode()
+        req = _urlreq.Request(
+            "http://supervisor/addons/self/options",
+            data=payload,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
         )
-        print(f"[RESTORE] Supervisor options update: {result.stdout.strip()}")
+        with _urlreq.urlopen(req, timeout=10) as resp:
+            body = resp.read().decode()
+        print(f"[RESTORE] Supervisor options update: {body.strip()}")
     except Exception as e:
         print(f"[RESTORE] Could not push options to Supervisor: {e}")
 
@@ -2053,35 +2054,73 @@ async def import_csv(request: Request, file: UploadFile = File(...)):
     return RedirectResponse(url=target, status_code=303)
 
 
-def _restore_restart_html(base_url: str) -> str:
-    """Return an HTML page that shows a success message and reloads after restart."""
-    return f"""<!doctype html>
+def _restore_restart_html() -> str:
+    """Return an HTML page that polls /ping until the app is back up, then redirects.
+
+    Uses the browser's own URL to derive the correct ingress root — no server-side
+    URL generation needed, so it works correctly behind HA ingress.
+    """
+    return """<!doctype html>
 <html>
 <head>
   <meta charset="utf-8">
   <title>Restore Complete — Restarting</title>
-  <meta http-equiv="refresh" content="45;url={base_url}">
   <style>
-    body {{ font-family: sans-serif; display: flex; align-items: center;
-            justify-content: center; height: 100vh; margin: 0; background: #f0f4f8; }}
-    .card {{ background: white; border-radius: 12px; padding: 2rem 3rem;
-             box-shadow: 0 4px 24px rgba(0,0,0,.1); text-align: center; max-width: 420px; }}
-    h2 {{ color: #2e7d32; margin-top: 0; }}
-    p {{ color: #555; }}
-    .spinner {{ margin: 1.5rem auto; width: 40px; height: 40px;
-                border: 4px solid #ccc; border-top-color: #2e7d32;
-                border-radius: 50%; animation: spin 1s linear infinite; }}
-    @keyframes spin {{ to {{ transform: rotate(360deg); }} }}
+    body { font-family: sans-serif; display: flex; align-items: center;
+           justify-content: center; height: 100vh; margin: 0; background: #f0f4f8; }
+    .card { background: white; border-radius: 12px; padding: 2rem 3rem;
+            box-shadow: 0 4px 24px rgba(0,0,0,.1); text-align: center; max-width: 420px; }
+    h2 { color: #2e7d32; margin-top: 0; }
+    p { color: #555; }
+    .spinner { margin: 1.5rem auto; width: 40px; height: 40px;
+               border: 4px solid #ccc; border-top-color: #2e7d32;
+               border-radius: 50%; animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #status { font-size: 0.85rem; color: #888; margin-top: 0.5rem; }
   </style>
 </head>
 <body>
   <div class="card">
     <h2>&#10003; Restore Successful</h2>
     <p>The app is restarting to reload your data.<br>
-       You will be redirected automatically in <strong>45 seconds</strong>.</p>
+       You will be redirected automatically once it is ready.</p>
     <div class="spinner"></div>
-    <p><small>If the page does not reload, <a href="{base_url}">click here</a>.</small></p>
+    <p id="status">Waiting for app to restart&hellip;</p>
   </div>
+  <script>
+    // Derive the app root URL from the browser's current URL.
+    // e.g. https://host/api/hassio_ingress/TOKEN/backup/restore
+    //   => https://host/api/hassio_ingress/TOKEN/
+    var pingUrl  = window.location.href.replace(/\\/backup\\/restore.*$/, '/ping');
+    var rootUrl  = window.location.href.replace(/\\/backup\\/restore.*$/, '/');
+    var attempts = 0;
+    var maxWait  = 120; // give up after 120 attempts × 3s = 6 minutes
+
+    function tryRedirect() {
+      attempts++;
+      document.getElementById('status').textContent =
+        'Waiting for app to restart\u2026 (' + attempts + 's)';
+      fetch(pingUrl, { cache: 'no-store' })
+        .then(function(r) {
+          if (r.ok) {
+            document.getElementById('status').textContent = 'Ready! Redirecting\u2026';
+            window.location.href = rootUrl;
+          } else {
+            schedule();
+          }
+        })
+        .catch(function() { schedule(); });
+    }
+
+    function schedule() {
+      if (attempts < maxWait) setTimeout(tryRedirect, 3000);
+      else document.getElementById('status').textContent =
+        'Timed out. Please refresh manually.';
+    }
+
+    // First attempt after 5s to give the process time to shut down
+    setTimeout(tryRedirect, 5000);
+  </script>
 </body>
 </html>"""
 
@@ -2114,8 +2153,7 @@ async def backup_restore(request: Request, file: UploadFile = File(...)):
             os.kill(os.getpid(), signal.SIGTERM)
 
         asyncio.create_task(_restart())
-        base_url = str(request.url_for("index"))
-        return HTMLResponse(_restore_restart_html(base_url))
+        return HTMLResponse(_restore_restart_html())
     except Exception as e:
         target = str(request.url_for("backup_page")) + "?err=Restore+failed"
         print(f"[backup restore upload] redirect -> {target} err={e}")
@@ -2159,8 +2197,7 @@ async def backup_restore_file(request: Request, filename: str = Form(...)):
             os.kill(os.getpid(), signal.SIGTERM)
 
         asyncio.create_task(_restart())
-        base_url = str(request.url_for("index"))
-        return HTMLResponse(_restore_restart_html(base_url))
+        return HTMLResponse(_restore_restart_html())
     except Exception as e:
         target = str(request.url_for("backup_page")) + "?err=Restore+failed"
         print(f"[backup restore file] redirect -> {target} err={e}")
@@ -2236,6 +2273,12 @@ def repair_db(request: Request):
 # -----------------------------
 # Routes
 # -----------------------------
+@app.get("/ping")
+def ping():
+    """Lightweight health check — no DB access. Used by the restore page to detect restart."""
+    return {"status": "ok"}
+
+
 @app.get("/", response_class=HTMLResponse)
 def index(
     request: Request,
