@@ -4,6 +4,7 @@ import threading
 import time
 import signal
 import asyncio
+import sys
 import datetime as dt
 import uuid
 import shutil
@@ -2055,7 +2056,7 @@ async def import_csv(request: Request, file: UploadFile = File(...)):
 
 
 def _restore_restart_html() -> str:
-    """Return an HTML page that polls /ping until the app is back up, then redirects.
+    """Return a fun HTML page that polls /ping until the app is back up, then redirects.
 
     Uses the browser's own URL to derive the correct ingress root — no server-side
     URL generation needed, so it works correctly behind HA ingress.
@@ -2064,47 +2065,154 @@ def _restore_restart_html() -> str:
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Restore Complete — Restarting</title>
+  <title>PantrLytics — Restoring Your Pantry</title>
   <style>
-    body { font-family: sans-serif; display: flex; align-items: center;
-           justify-content: center; height: 100vh; margin: 0; background: #f0f4f8; }
-    .card { background: white; border-radius: 12px; padding: 2rem 3rem;
-            box-shadow: 0 4px 24px rgba(0,0,0,.1); text-align: center; max-width: 420px; }
-    h2 { color: #2e7d32; margin-top: 0; }
-    p { color: #555; }
-    .spinner { margin: 1.5rem auto; width: 40px; height: 40px;
-               border: 4px solid #ccc; border-top-color: #2e7d32;
-               border-radius: 50%; animation: spin 1s linear infinite; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    #status { font-size: 0.85rem; color: #888; margin-top: 0.5rem; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #e8f5e9 0%, #f0f4f8 50%, #e3f2fd 100%);
+    }
+
+    .card {
+      background: white;
+      border-radius: 20px;
+      padding: 2.5rem 3rem;
+      box-shadow: 0 8px 40px rgba(0,0,0,.12);
+      text-align: center;
+      max-width: 460px;
+      width: 90%;
+      animation: fadeIn .5s ease;
+    }
+
+    @keyframes fadeIn { from { opacity:0; transform: translateY(16px); } to { opacity:1; transform: translateY(0); } }
+
+    .icon-row {
+      font-size: 2.8rem;
+      letter-spacing: .15em;
+      margin-bottom: 1.2rem;
+      animation: bounce 2s infinite;
+    }
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50%       { transform: translateY(-6px); }
+    }
+
+    h2 {
+      color: #1b5e20;
+      font-size: 1.5rem;
+      margin-bottom: .5rem;
+    }
+
+    .subtitle {
+      color: #666;
+      font-size: .95rem;
+      margin-bottom: 1.6rem;
+      line-height: 1.5;
+    }
+
+    /* Progress bar */
+    .bar-wrap {
+      background: #e8f5e9;
+      border-radius: 99px;
+      height: 10px;
+      overflow: hidden;
+      margin-bottom: 1.4rem;
+    }
+    .bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #43a047, #66bb6a);
+      border-radius: 99px;
+      transition: width .4s ease;
+    }
+
+    /* Rotating fun messages */
+    #fun-msg {
+      font-size: .9rem;
+      color: #388e3c;
+      font-weight: 500;
+      min-height: 1.4em;
+      margin-bottom: 1.2rem;
+      transition: opacity .3s;
+    }
+
+    #status {
+      font-size: .8rem;
+      color: #aaa;
+    }
+
+    .ready-msg {
+      color: #1b5e20 !important;
+      font-size: 1.1rem !important;
+      font-weight: 600;
+    }
   </style>
 </head>
 <body>
   <div class="card">
-    <h2>&#10003; Restore Successful</h2>
-    <p>The app is restarting to reload your data.<br>
-       You will be redirected automatically once it is ready.</p>
-    <div class="spinner"></div>
-    <p id="status">Waiting for app to restart&hellip;</p>
+    <div class="icon-row">&#127829; &#10024; &#128218;</div>
+    <h2>Restore Complete!</h2>
+    <p class="subtitle">Your pantry data is back. The app is reloading&mdash;<br>
+      hang tight while we stock the shelves.</p>
+
+    <div class="bar-wrap"><div class="bar-fill" id="bar"></div></div>
+    <p id="fun-msg">Counting the cans&hellip;</p>
+    <p id="status">Checking if the app is ready&hellip;</p>
   </div>
+
   <script>
-    // Derive the app root URL from the browser's current URL.
-    // e.g. https://host/api/hassio_ingress/TOKEN/backup/restore
-    //   => https://host/api/hassio_ingress/TOKEN/
-    var pingUrl  = window.location.href.replace(/\\/backup\\/restore.*$/, '/ping');
-    var rootUrl  = window.location.href.replace(/\\/backup\\/restore.*$/, '/');
-    var attempts = 0;
-    var maxWait  = 120; // give up after 120 attempts × 3s = 6 minutes
+    var pingUrl = window.location.href.replace(/\\/backup(\\/restore.*)?$/, '/ping');
+    var rootUrl = window.location.href.replace(/\\/backup(\\/restore.*)?$/, '/');
+
+    var msgs = [
+      'Counting the cans\u2026',
+      'Alphabetising the spices\u2026',
+      'Checking the expiry dates\u2026',
+      'Restocking the freezer\u2026',
+      'Labelling everything neatly\u2026',
+      'Rotating the stock\u2026',
+      'Making sure nothing expired\u2026',
+      'Organising the bins\u2026',
+      'Brewing a quick coffee while we wait\u2026',
+      'Almost there, promise\u2026',
+    ];
+
+    var attempts  = 0;
+    var maxWait   = 120;
+    var msgIndex  = 0;
+    var barEl     = document.getElementById('bar');
+    var funEl     = document.getElementById('fun-msg');
+    var statusEl  = document.getElementById('status');
+
+    function nextMsg() {
+      funEl.style.opacity = 0;
+      setTimeout(function() {
+        msgIndex = (msgIndex + 1) % msgs.length;
+        funEl.textContent = msgs[msgIndex];
+        funEl.style.opacity = 1;
+      }, 300);
+    }
+    setInterval(nextMsg, 3500);
 
     function tryRedirect() {
       attempts++;
-      document.getElementById('status').textContent =
-        'Waiting for app to restart\u2026 (' + attempts + 's)';
+      var pct = Math.min(90, attempts * 3);
+      barEl.style.width = pct + '%';
+      statusEl.textContent = 'Attempt ' + attempts + '\u2026';
+
       fetch(pingUrl, { cache: 'no-store' })
         .then(function(r) {
           if (r.ok) {
-            document.getElementById('status').textContent = 'Ready! Redirecting\u2026';
-            window.location.href = rootUrl;
+            barEl.style.width = '100%';
+            funEl.textContent = '\u2705 All stocked up!';
+            statusEl.className = 'ready-msg';
+            statusEl.textContent = 'Taking you home\u2026';
+            setTimeout(function() { window.location.href = rootUrl; }, 800);
           } else {
             schedule();
           }
@@ -2114,11 +2222,12 @@ def _restore_restart_html() -> str:
 
     function schedule() {
       if (attempts < maxWait) setTimeout(tryRedirect, 3000);
-      else document.getElementById('status').textContent =
-        'Timed out. Please refresh manually.';
+      else {
+        funEl.textContent = '\u26a0\ufe0f Timed out';
+        statusEl.textContent = 'Please refresh the page manually.';
+      }
     }
 
-    // First attempt after 5s to give the process time to shut down
     setTimeout(tryRedirect, 5000);
   </script>
 </body>
@@ -2150,7 +2259,7 @@ async def backup_restore(request: Request, file: UploadFile = File(...)):
         async def _restart():
             await asyncio.sleep(2)
             print("[backup restore] restarting process to reload database")
-            os.kill(os.getpid(), signal.SIGTERM)
+            os.execv(sys.executable, [sys.executable] + sys.argv)
 
         asyncio.create_task(_restart())
         return HTMLResponse(_restore_restart_html())
@@ -2194,7 +2303,7 @@ async def backup_restore_file(request: Request, filename: str = Form(...)):
         async def _restart():
             await asyncio.sleep(2)
             print("[backup restore] restarting process to reload database")
-            os.kill(os.getpid(), signal.SIGTERM)
+            os.execv(sys.executable, [sys.executable] + sys.argv)
 
         asyncio.create_task(_restart())
         return HTMLResponse(_restore_restart_html())
