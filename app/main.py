@@ -981,7 +981,16 @@ def create_backup_zip(opts: dict, session: Session, target_dir: str | None = Non
         zf.writestr("backup_info.json", json.dumps(info, indent=2))
 
         if opts.get("include_db") and os.path.isfile(DB_PATH):
-            zf.write(DB_PATH, arcname="inventory.db")
+            # Use VACUUM INTO to produce a clean, WAL-free snapshot so the backup
+            # always contains every committed write regardless of WAL state.
+            _vacuum_path = DB_PATH + ".vacuumtmp"
+            try:
+                with engine.connect() as _conn:
+                    _conn.exec_driver_sql(f"VACUUM INTO '{_vacuum_path}';")
+                zf.write(_vacuum_path, arcname="inventory.db")
+            finally:
+                if os.path.isfile(_vacuum_path):
+                    os.remove(_vacuum_path)
 
         if opts.get("include_photos") and os.path.isdir(PHOTOS_DIR):
             for root, dirs, files in os.walk(PHOTOS_DIR):
@@ -1959,7 +1968,11 @@ def recover_item(
 
 @app.post("/import/csv")
 async def import_csv(request: Request, file: UploadFile = File(...)):
-    """Import items from a CSV whose columns match the export."""
+    """Import items from a CSV whose columns match the export.
+
+    Accepts both label-based headers (e.g. "Name", "Serial number") produced by
+    the app's own export, and key-based headers (e.g. "name", "serial_number").
+    """
     import csv
 
     if not file or not file.filename:
@@ -1981,6 +1994,26 @@ async def import_csv(request: Request, file: UploadFile = File(...)):
         print(f"[csv import] redirect -> {target}")
         return RedirectResponse(url=target, status_code=303)
 
+    # Build a mapping from whatever header the CSV uses → internal key.
+    # Supports both label headers ("Name", "Serial number") and key headers ("name").
+    label_to_key = {f["label"].lower(): f["key"] for f in EXPORTABLE_FIELDS}
+    key_set = {f["key"] for f in EXPORTABLE_FIELDS}
+    header_map = {}
+    for col in reader.fieldnames:
+        col_lower = col.strip().lower()
+        if col_lower in label_to_key:
+            header_map[col] = label_to_key[col_lower]
+        elif col_lower in key_set:
+            header_map[col] = col_lower
+    print(f"[csv import] header map: {header_map}")
+
+    def _val(row: dict, key: str):
+        """Look up a field by its internal key, regardless of which header style was used."""
+        for col, mapped_key in header_map.items():
+            if mapped_key == key:
+                return _norm(row.get(col)) or None
+        return None
+
     created = 0
     skipped = 0
 
@@ -1991,23 +2024,23 @@ async def import_csv(request: Request, file: UploadFile = File(...)):
         for row in reader:
             if not row:
                 continue
-            name = _clean(row.get("name"))
+            name = _val(row, "name")
             if not name:
                 skipped += 1
                 continue
 
-            qty_raw = _clean(row.get("quantity"))
+            qty_raw = _val(row, "quantity")
             try:
                 qty = int(qty_raw) if qty_raw is not None else 1
             except Exception:
                 qty = 1
-            depleted_qty_raw = _clean(row.get("depleted_qty"))
+            depleted_qty_raw = _val(row, "depleted_qty")
             try:
                 depleted_qty = int(depleted_qty_raw) if depleted_qty_raw is not None else None
             except Exception:
                 depleted_qty = None
 
-            serial = _clean(row.get("serial_number"))
+            serial = _val(row, "serial_number")
             if serial:
                 existing = session.exec(
                     select(Item).where(Item.serial_number == serial)
@@ -2019,25 +2052,25 @@ async def import_csv(request: Request, file: UploadFile = File(...)):
             item = Item(
                 serial_number=serial,
                 name=name,
-                category=_clean(row.get("category")),
-                tags=_clean(row.get("tags")),
-                location=_clean(row.get("location")),
-                bin_number=_clean(row.get("bin_number")),
-            quantity=qty,
-            unit=_clean(row.get("unit")) or "each",
-            barcode=_clean(row.get("barcode")),
-            second_serial_number=_clean(row.get("second_serial_number")),
-            condition=_clean(row.get("condition")),
-                cook_date=_clean(row.get("cook_date")),
-                use_by_date=_clean(row.get("use_by_date")),
-                use_within=_clean(row.get("use_within")),
-                notes=_clean(row.get("notes")),
-                photo_path=_clean(row.get("photo_path")),
-                last_audit_date=_clean(row.get("last_audit_date")),
-                depleted_at=_clean(row.get("depleted_at")),
-                depleted_reason=_clean(row.get("depleted_reason")),
+                category=_val(row, "category"),
+                tags=_val(row, "tags"),
+                location=_val(row, "location"),
+                bin_number=_val(row, "bin_number"),
+                quantity=qty,
+                unit=_val(row, "unit") or "each",
+                barcode=_val(row, "barcode"),
+                second_serial_number=_val(row, "second_serial_number"),
+                condition=_val(row, "condition"),
+                cook_date=_val(row, "cook_date"),
+                use_by_date=_val(row, "use_by_date"),
+                use_within=_val(row, "use_within"),
+                notes=_val(row, "notes"),
+                photo_path=_val(row, "photo_path"),
+                last_audit_date=_val(row, "last_audit_date"),
+                depleted_at=_val(row, "depleted_at"),
+                depleted_reason=_val(row, "depleted_reason"),
                 depleted_qty=depleted_qty,
-                created_at=_clean(row.get("created_at")) or dt.datetime.utcnow().isoformat(),
+                created_at=_val(row, "created_at") or dt.datetime.utcnow().isoformat(),
             )
             session.add(item)
             created += 1
