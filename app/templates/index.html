@@ -349,7 +349,7 @@ function applyChipsVisibility() {
   const wrap = document.getElementById('quick-filters-wrap');
   const btn = document.getElementById('chips-toggle');
   const hidden = localStorage.getItem('chips_hidden') === '1';
-  if (wrap) wrap.hidden = hidden;
+  if (wrap) wrap.classList.toggle('hidden', hidden);
   if (btn) {
     btn.textContent = hidden ? '⊞ Filters' : '⊟ Filters';
     btn.classList.toggle('active', !hidden);

@@ -294,8 +294,7 @@ button.btn { -webkit-appearance: none; appearance: none; }
 }
 .item-main { min-width: 0; }
 .item-sidebar {
-  position: sticky;
-  top: 16px;
+  align-self: center;
   background: color-mix(in oklab, var(--card), var(--bg) 20%);
   border: 1px solid var(--border);
   border-radius: var(--radius);
