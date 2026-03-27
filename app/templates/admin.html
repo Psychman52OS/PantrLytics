@@ -187,6 +187,41 @@
     </form>
   </section>
 
+  <!-- Swipe actions -->
+  <section class="admin-section" id="swipe-actions-section">
+    <div class="admin-section-header">
+      <h2>Swipe actions</h2>
+      <p class="admin-section-help">
+        Choose what happens when you swipe left or right on item cards (touch or click-drag on desktop).
+      </p>
+    </div>
+    <form method="post" style="display:flex; flex-direction:column; gap:12px; max-width:400px;">
+      <input type="hidden" name="swipe_action_action" value="save">
+      {% set action_labels = {"edit": "Edit item", "deplete": "Mark depleted", "open": "Open details", "print": "Print label", "none": "— No action —"} %}
+      <div class="field">
+        <label class="kv-label" for="swipe-right-action">Swipe right → (left overlay)</label>
+        <select id="swipe-right-action" name="swipe_right_action" class="input" style="max-width:200px;">
+          {% for opt in swipe_action_options %}
+            <option value="{{ opt }}" {% if admin_swipe_actions.right == opt %}selected{% endif %}>
+              {{ action_labels.get(opt, opt) }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label class="kv-label" for="swipe-left-action">Swipe left ← (right overlay)</label>
+        <select id="swipe-left-action" name="swipe_left_action" class="input" style="max-width:200px;">
+          {% for opt in swipe_action_options %}
+            <option value="{{ opt }}" {% if admin_swipe_actions.left == opt %}selected{% endif %}>
+              {{ action_labels.get(opt, opt) }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <button class="btn btn-accent" type="submit" style="width:fit-content;">Save swipe actions</button>
+    </form>
+  </section>
+
   <!-- Default item icon -->
   <section class="admin-section" id="default-icon-section">
     <div class="admin-section-header">

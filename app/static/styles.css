@@ -425,7 +425,10 @@ button.btn { -webkit-appearance: none; appearance: none; }
   position: relative;
   z-index: 1;
   will-change: transform;
+  cursor: grab;
 }
+.swipe-inner:active { cursor: grabbing; }
+@media (pointer: coarse) { .swipe-inner { cursor: auto; } }
 .swipe-action {
   position: absolute;
   top: 0; bottom: 0;

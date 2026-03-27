@@ -911,6 +911,30 @@ def save_font_sizes(session: Session, base: int, list_page: int, show_page: int)
     _fs_cache_exp = 0.0
 
 
+SWIPE_ACTION_OPTIONS = ["edit", "deplete", "open", "print", "none"]
+SWIPE_ACTION_DEFAULTS = {"right": "edit", "left": "deplete"}
+
+
+def get_swipe_actions(session: Session) -> dict:
+    """Return swipe action config: {"right": action, "left": action}."""
+    right = _get_setting(session, "swipe_right_action", SWIPE_ACTION_DEFAULTS["right"])
+    left  = _get_setting(session, "swipe_left_action",  SWIPE_ACTION_DEFAULTS["left"])
+    if right not in SWIPE_ACTION_OPTIONS:
+        right = SWIPE_ACTION_DEFAULTS["right"]
+    if left not in SWIPE_ACTION_OPTIONS:
+        left = SWIPE_ACTION_DEFAULTS["left"]
+    return {"right": right, "left": left}
+
+
+def save_swipe_actions(session: Session, right: str, left: str):
+    if right not in SWIPE_ACTION_OPTIONS:
+        right = SWIPE_ACTION_DEFAULTS["right"]
+    if left not in SWIPE_ACTION_OPTIONS:
+        left = SWIPE_ACTION_DEFAULTS["left"]
+    _set_setting(session, "swipe_right_action", right)
+    _set_setting(session, "swipe_left_action", left)
+
+
 def _export_csv_bytes(session: Session, fields: list[str] | None = None) -> bytes:
     import csv
     items = session.exec(select(Item)).all()
@@ -2681,6 +2705,7 @@ def index(
         search_suggestions = list({*cats, *bins, *locations, *tag_suggestions})
         app_heading = get_app_heading(session)
         adjustable_units = sorted(get_adjustable_unit_names(session))
+        swipe_actions = get_swipe_actions(session)
 
     db_updated_at = _inventory_update_token()
 
@@ -2708,6 +2733,7 @@ def index(
             "loc_counts": loc_counts,
             "adjustable_units": adjustable_units,
             "include_depleted": include_depleted,
+            "swipe_actions": swipe_actions,
         })
 
     return templates.TemplateResponse(
@@ -2740,6 +2766,7 @@ def index(
             "app_heading": app_heading,
             "db_updated_at": db_updated_at,
             "adjustable_units": adjustable_units,
+            "swipe_actions": swipe_actions,
         },
 )
 
@@ -4342,6 +4369,13 @@ async def admin(request: Request, response: Response):
                 _set_setting(session, "default_icon_emoji", val)
                 _invalidate_emoji_cache()
 
+            elif form.get("swipe_action_action") == "save":
+                save_swipe_actions(
+                    session,
+                    right=form.get("swipe_right_action", SWIPE_ACTION_DEFAULTS["right"]),
+                    left=form.get("swipe_left_action", SWIPE_ACTION_DEFAULTS["left"]),
+                )
+
             elif form.get("usewithin_order_action") == "save":
                 order_str = form.get("usewithin_order", "")
                 try:
@@ -4398,6 +4432,7 @@ async def admin(request: Request, response: Response):
         current_theme = get_theme(session)
         admin_font_sizes = get_font_sizes(session)
         admin_default_emoji = _get_setting(session, "default_icon_emoji", DEFAULT_ITEM_EMOJI) or DEFAULT_ITEM_EMOJI
+        admin_swipe_actions = get_swipe_actions(session)
         health = {
             "ipp_status": check_ipp_status(),
             "disk": get_disk_usage(DATA_DIR),
@@ -4422,6 +4457,8 @@ async def admin(request: Request, response: Response):
             "font_size_min": FONT_SIZE_MIN,
             "font_size_max": FONT_SIZE_MAX,
             "admin_default_emoji": admin_default_emoji,
+            "admin_swipe_actions": admin_swipe_actions,
+            "swipe_action_options": SWIPE_ACTION_OPTIONS,
             "health": health,
             "app_heading": app_heading,
             "pass_error": pass_error,

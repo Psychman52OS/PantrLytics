@@ -126,6 +126,10 @@
 </dialog>
 
 <script>
+// ─── Swipe action config (from admin settings) ─────────────────────
+const SWIPE_RIGHT_ACTION = "{{ (swipe_actions or {}).get('right', 'edit') }}";
+const SWIPE_LEFT_ACTION  = "{{ (swipe_actions or {}).get('left', 'deplete') }}";
+
 // ─── Deplete dialog ────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   const dlg = document.getElementById('deplete-dialog');
@@ -301,48 +305,78 @@ function initColumnResize() {
   });
 }
 
-// ─── Mobile swipe on cards ─────────────────────────────────────────
+// ─── Swipe on cards (touch + desktop pointer drag) ─────────────────
 function initSwipe() {
   const THRESHOLD = 80;
+  const ACTION_META = {
+    edit:    { icon: '✏️',  label: 'Edit' },
+    deplete: { icon: '📦', label: 'Deplete' },
+    open:    { icon: '👁',  label: 'Open' },
+    print:   { icon: '🖨️', label: 'Print' },
+  };
 
-  // ── Grid cards: full swipe-to-reveal with action overlays ──
+  function execCardAction(action, card) {
+    if (!action || action === 'none') return;
+    if (action === 'edit')    { card.querySelector('.js-edit')?.click(); return; }
+    if (action === 'deplete') { card.querySelector('.js-deplete-form button[type="submit"]')?.click(); return; }
+    if (action === 'open')    { const u = card.dataset.itemUrl; if (u) location.href = u; return; }
+    if (action === 'print')   { const a = card.querySelector('a.row-menu-item[href*="print"]'); if (a) location.href = a.href; return; }
+  }
+
+  // ── Grid cards ──
   document.querySelectorAll('.item-card').forEach(card => {
     if (card.dataset.swipeInit) return;
     card.dataset.swipeInit = '1';
 
-    const editBtn  = card.querySelector('.js-edit');
-    const deplForm = card.querySelector('.js-deplete-form');
-
-    // Wrap all existing children in a background-bearing inner div
+    // Wrap children in translatable inner div
     const inner = document.createElement('div');
     inner.className = 'swipe-inner';
     while (card.firstChild) inner.appendChild(card.firstChild);
     card.appendChild(inner);
 
-    // Left overlay = Edit (swipe right to reveal)
-    if (editBtn) {
+    // Left overlay (swipe right reveals it)
+    if (SWIPE_RIGHT_ACTION && SWIPE_RIGHT_ACTION !== 'none' && ACTION_META[SWIPE_RIGHT_ACTION]) {
+      const m = ACTION_META[SWIPE_RIGHT_ACTION];
       const lo = document.createElement('div');
       lo.className = 'swipe-action swipe-action-left';
-      lo.innerHTML = '<span class="swipe-icon">✏️</span><span class="swipe-label">Edit</span>';
+      lo.innerHTML = `<span class="swipe-icon">${m.icon}</span><span class="swipe-label">${m.label}</span>`;
       card.prepend(lo);
     }
-    // Right overlay = Deplete (swipe left to reveal)
-    if (deplForm) {
+    // Right overlay (swipe left reveals it)
+    if (SWIPE_LEFT_ACTION && SWIPE_LEFT_ACTION !== 'none' && ACTION_META[SWIPE_LEFT_ACTION]) {
+      const m = ACTION_META[SWIPE_LEFT_ACTION];
       const ro = document.createElement('div');
       ro.className = 'swipe-action swipe-action-right';
-      ro.innerHTML = '<span class="swipe-icon">📦</span><span class="swipe-label">Deplete</span>';
+      ro.innerHTML = `<span class="swipe-icon">${m.icon}</span><span class="swipe-label">${m.label}</span>`;
       card.appendChild(ro);
     }
 
-    let sx, sy, dx = 0, axis = null;
+    let sx, sy, dx = 0, axis = null, activePtr = null;
 
+    function cardMoveUpdate() {
+      inner.style.transform = `translateX(${Math.max(-120, Math.min(120, dx))}px)`;
+      card.querySelector('.swipe-action-left')?.classList.toggle('swipe-active', dx > 30);
+      card.querySelector('.swipe-action-right')?.classList.toggle('swipe-active', dx < -30);
+    }
+    function cardReset(fire) {
+      inner.style.transition = 'transform 0.2s ease';
+      inner.style.transform = '';
+      card.querySelector('.swipe-action-left')?.classList.remove('swipe-active');
+      card.querySelector('.swipe-action-right')?.classList.remove('swipe-active');
+      if (fire) {
+        if (dx > THRESHOLD)  execCardAction(SWIPE_RIGHT_ACTION, card);
+        else if (dx < -THRESHOLD) execCardAction(SWIPE_LEFT_ACTION, card);
+      }
+      sx = undefined; activePtr = null;
+    }
+
+    // Touch
     inner.addEventListener('touchstart', (e) => {
       if (e.target.closest('button, a, input, select')) return;
       sx = e.touches[0].clientX; sy = e.touches[0].clientY;
       dx = 0; axis = null;
       inner.style.transition = 'none';
     }, { passive: true });
-
     inner.addEventListener('touchmove', (e) => {
       if (sx === undefined) return;
       dx = e.touches[0].clientX - sx;
@@ -350,39 +384,76 @@ function initSwipe() {
       if (!axis) axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
       if (axis !== 'x') return;
       e.preventDefault();
-      inner.style.transform = `translateX(${Math.max(-120, Math.min(120, dx))}px)`;
-      card.querySelector('.swipe-action-left')?.classList.toggle('swipe-active', dx > 30);
-      card.querySelector('.swipe-action-right')?.classList.toggle('swipe-active', dx < -30);
+      cardMoveUpdate();
     }, { passive: false });
-
     inner.addEventListener('touchend', () => {
       if (sx === undefined || axis !== 'x') { sx = undefined; return; }
-      inner.style.transition = 'transform 0.2s ease';
-      inner.style.transform = '';
-      card.querySelector('.swipe-action-left')?.classList.remove('swipe-active');
-      card.querySelector('.swipe-action-right')?.classList.remove('swipe-active');
-      const captured = dx;
-      sx = undefined;
-      if (captured > THRESHOLD && editBtn) editBtn.click();
-      else if (captured < -THRESHOLD && deplForm) deplForm.querySelector('button[type="submit"]')?.click();
+      cardReset(true);
+    });
+
+    // Pointer (mouse/pen desktop drag)
+    inner.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'touch') return;
+      if (e.button !== 0) return;
+      if (e.target.closest('button, a, input, select')) return;
+      inner.setPointerCapture(e.pointerId);
+      activePtr = e.pointerId;
+      sx = e.clientX; sy = e.clientY;
+      dx = 0; axis = null;
+      inner.style.transition = 'none';
+      inner.style.cursor = 'grabbing';
+    });
+    inner.addEventListener('pointermove', (e) => {
+      if (e.pointerType === 'touch' || activePtr !== e.pointerId) return;
+      dx = e.clientX - sx;
+      const dy = e.clientY - sy;
+      if (!axis) axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+      if (axis !== 'x') return;
+      cardMoveUpdate();
+    });
+    inner.addEventListener('pointerup', (e) => {
+      if (e.pointerType === 'touch' || activePtr !== e.pointerId) return;
+      inner.style.cursor = '';
+      if (axis !== 'x') { sx = undefined; activePtr = null; return; }
+      cardReset(true);
+    });
+    inner.addEventListener('pointercancel', (e) => {
+      if (e.pointerType === 'touch') return;
+      inner.style.cursor = '';
+      cardReset(false);
     });
   });
 
-  // ── List rows: lighter treatment (background tint, no DOM restructuring) ──
+  // ── List rows: tint only, no DOM restructuring ──
   document.querySelectorAll('.table-inventory tbody tr[data-item-url]').forEach(row => {
     if (row.dataset.swipeInit) return;
     row.dataset.swipeInit = '1';
 
-    const editBtn  = row.querySelector('.js-edit');
-    const deplForm = row.querySelector('.js-deplete-form');
-    let sx, sy, dx = 0, axis = null;
+    function execRowAction(action) {
+      if (!action || action === 'none') return;
+      if (action === 'edit')    { row.querySelector('.js-edit')?.click(); return; }
+      if (action === 'deplete') { row.querySelector('.js-deplete-form button[type="submit"]')?.click(); return; }
+      if (action === 'open')    { const u = row.dataset.itemUrl; if (u) location.href = u; return; }
+      if (action === 'print')   { const a = row.querySelector('a.row-menu-item[href*="print"]'); if (a) location.href = a.href; return; }
+    }
 
+    let sx, sy, dx = 0, axis = null, activePtr = null;
+
+    function rowReset(fire) {
+      row.dataset.swipeDir = '';
+      if (fire) {
+        if (dx > THRESHOLD)  execRowAction(SWIPE_RIGHT_ACTION);
+        else if (dx < -THRESHOLD) execRowAction(SWIPE_LEFT_ACTION);
+      }
+      sx = undefined; activePtr = null;
+    }
+
+    // Touch
     row.addEventListener('touchstart', (e) => {
       if (e.target.closest('button, a, input, select')) return;
       sx = e.touches[0].clientX; sy = e.touches[0].clientY;
       dx = 0; axis = null;
     }, { passive: true });
-
     row.addEventListener('touchmove', (e) => {
       if (sx === undefined) return;
       dx = e.touches[0].clientX - sx;
@@ -392,14 +463,37 @@ function initSwipe() {
       e.preventDefault();
       row.dataset.swipeDir = dx > 30 ? 'right' : dx < -30 ? 'left' : '';
     }, { passive: false });
-
     row.addEventListener('touchend', () => {
       if (sx === undefined || axis !== 'x') { sx = undefined; return; }
-      const captured = dx;
-      row.dataset.swipeDir = '';
-      sx = undefined;
-      if (captured > THRESHOLD && editBtn) editBtn.click();
-      else if (captured < -THRESHOLD && deplForm) deplForm.querySelector('button[type="submit"]')?.click();
+      rowReset(true);
+    });
+
+    // Pointer (desktop)
+    row.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'touch') return;
+      if (e.button !== 0) return;
+      if (e.target.closest('button, a, input, select')) return;
+      row.setPointerCapture(e.pointerId);
+      activePtr = e.pointerId;
+      sx = e.clientX; sy = e.clientY;
+      dx = 0; axis = null;
+    });
+    row.addEventListener('pointermove', (e) => {
+      if (e.pointerType === 'touch' || activePtr !== e.pointerId) return;
+      dx = e.clientX - sx;
+      const dy = e.clientY - sy;
+      if (!axis) axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+      if (axis !== 'x') return;
+      row.dataset.swipeDir = dx > 30 ? 'right' : dx < -30 ? 'left' : '';
+    });
+    row.addEventListener('pointerup', (e) => {
+      if (e.pointerType === 'touch' || activePtr !== e.pointerId) return;
+      if (axis !== 'x') { sx = undefined; activePtr = null; return; }
+      rowReset(true);
+    });
+    row.addEventListener('pointercancel', (e) => {
+      if (e.pointerType === 'touch') return;
+      rowReset(false);
     });
   });
 }
