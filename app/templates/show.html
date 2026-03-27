@@ -37,181 +37,113 @@
     </div>
   {% endif %}
 
-  <!-- Main details + photo on the right -->
-  <div class="detail-grid">
-    <!-- Left column: key/value info -->
-    <div class="kv">
-      <div>
-        <span class="kv-label">Category</span>
-        <span class="kv-value">{{ item.category or "—" }}</span>
-      </div>
-      <div>
-        <span class="kv-label">Bin</span>
-        <span class="kv-value">{{ item.bin_number or "—" }}</span>
-      </div>
-      <div>
-        <span class="kv-label">Qty</span>
-        <span class="kv-value">{{ item.quantity }} {{ item.unit or "" }}</span>
-      </div>
-      <div>
-        <span class="kv-label">Location</span>
-        <span class="kv-value">{{ item.location or "—" }}</span>
-      </div>
-      <div>
-        <span class="kv-label">Condition</span>
-        <span class="kv-value">{{ item.condition or "—" }}</span>
-      </div>
-      <div>
-        <span class="kv-label">Cook Date</span>
-        <span class="kv-value">{{ item.cook_date or "—" }}</span>
-      </div>
-      <div>
-        <span class="kv-label">Use-by</span>
-        <span class="kv-value">{{ item.use_by_date or "—" }}</span>
-      </div>
-      <div>
-        <span class="kv-label">Use Within</span>
-        <span class="kv-value">{{ item.use_within or "—" }}</span>
-      </div>
-      <div>
-        <span class="kv-label">Depleted</span>
-        <span class="kv-value">
-          {% if item.depleted_at %}
-            Yes — {{ item.depleted_at.split('T')[0] }}{% if item.depleted_reason %} ({{ item.depleted_reason }}){% endif %}
-          {% else %}
-            No
-          {% endif %}
-        </span>
-      </div>
-      <div>
-        <span class="kv-label">Tags</span>
-        <span class="kv-value">{{ item.tags or "—" }}</span>
-      </div>
-      <div class="field--full">
-        <span class="kv-label">Notes</span>
-        <span class="kv-value wrap">{{ item.notes or "—" }}</span>
-      </div>
-      <div>
-        <span class="kv-label">Created</span>
-        <span class="kv-value">{{ format_datetime(item.created_at) }}</span>
-      </div>
-      {% if BASE_URL %}
-      <div class="kv-row">
-        <span class="kv-label">Direct label URL</span>
-        <span class="kv-value">
-          {{ BASE_URL.rstrip('/') }}/label/{{ item.id }}.png
-        </span>
-      </div>
-      {% endif %}
-    </div>
-
-    <!-- Right column: photos -->
-    <aside class="detail-photo-card">
-      <div class="detail-photo-header">
-        <span class="kv-label">Photos</span>
-      </div>
-
-      {% if photos and photos|length %}
-        <div class="photo-grid">
-          {% for p in photos %}
-            <button
-              class="thumb js-photo-open"
-              data-index="{{ loop.index0 }}"
-              data-photo-url="{{ url_for('photo_by_id', photo_id=p.id) }}"
-              type="button"
-              title="Click to view full photo"
-            >
-              <img src="{{ url_for('photo_by_id', photo_id=p.id) }}" alt="Photo {{ loop.index }}">
-              <span class="thumb-overlay">Click to view</span>
-            </button>
-          {% endfor %}
+  <!-- Detail layout: main info + sidebar actions -->
+  <div class="item-layout">
+    <!-- Left: key/value info + photos -->
+    <div class="item-main">
+      <div class="kv">
+        <div><span class="kv-label">Category</span><span class="kv-value">{{ item.category or "—" }}</span></div>
+        <div><span class="kv-label">Bin</span><span class="kv-value">{{ item.bin_number or "—" }}</span></div>
+        <div><span class="kv-label">Qty</span><span class="kv-value">{{ item.quantity }} {{ item.unit or "" }}</span></div>
+        <div><span class="kv-label">Location</span><span class="kv-value">{{ item.location or "—" }}</span></div>
+        <div><span class="kv-label">Condition</span><span class="kv-value">{{ item.condition or "—" }}</span></div>
+        <div><span class="kv-label">Cook Date</span><span class="kv-value">{{ item.cook_date or "—" }}</span></div>
+        <div><span class="kv-label">Use-by</span><span class="kv-value">{{ item.use_by_date or "—" }}</span></div>
+        <div><span class="kv-label">Use Within</span><span class="kv-value">{{ item.use_within or "—" }}</span></div>
+        <div>
+          <span class="kv-label">Depleted</span>
+          <span class="kv-value">
+            {% if item.depleted_at %}
+              Yes — {{ item.depleted_at.split('T')[0] }}{% if item.depleted_reason %} ({{ item.depleted_reason }}){% endif %}
+            {% else %}No{% endif %}
+          </span>
         </div>
-      {% else %}
-        <div class="muted">No photo yet.</div>
-      {% endif %}
+        <div><span class="kv-label">Tags</span><span class="kv-value">{{ item.tags or "—" }}</span></div>
+        <div class="field--full"><span class="kv-label">Notes</span><span class="kv-value wrap">{{ item.notes or "—" }}</span></div>
+        <div><span class="kv-label">Created</span><span class="kv-value">{{ format_datetime(item.created_at) }}</span></div>
+        {% if BASE_URL %}
+        <div class="kv-row">
+          <span class="kv-label">Direct label URL</span>
+          <span class="kv-value">{{ BASE_URL.rstrip('/') }}/label/{{ item.id }}.png</span>
+        </div>
+        {% endif %}
+      </div>
+
+      <aside class="detail-photo-card" style="margin-top:16px;">
+        <div class="detail-photo-header"><span class="kv-label">Photos</span></div>
+        {% if photos and photos|length %}
+          <div class="photo-grid">
+            {% for p in photos %}
+              <button class="thumb js-photo-open" data-index="{{ loop.index0 }}"
+                      data-photo-url="{{ url_for('photo_by_id', photo_id=p.id) }}"
+                      type="button" title="Click to view full photo">
+                <img src="{{ url_for('photo_by_id', photo_id=p.id) }}" alt="Photo {{ loop.index }}">
+                <span class="thumb-overlay">Click to view</span>
+              </button>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="muted">No photo yet.</div>
+        {% endif %}
+      </aside>
+    </div>
+
+    <!-- Right: sticky action sidebar -->
+    <aside class="item-sidebar">
+      <div class="sidebar-section">
+        <span class="sidebar-section-label">Item</span>
+        <button class="btn btn-accent sidebar-btn" type="button"
+                data-edit-url="{{ url_for('edit_item_form', item_id=item.id) }}?partial=1"
+                onclick="openModal(this.dataset.editUrl)">Edit</button>
+        <form method="post" action="{{ url_for('duplicate_item', item_id=item.id) }}" style="display:contents">
+          <button class="btn sidebar-btn" type="submit">Duplicate From</button>
+        </form>
+      </div>
+
+      <div class="sidebar-section">
+        <span class="sidebar-section-label">Print Labels</span>
+        <form method="post" action="{{ url_for('print_label_post', item_id=item.id) }}" class="sidebar-print-form">
+          <label for="print-copies-{{ item.id }}" class="muted" style="font-size:12px;">Copies</label>
+          <input id="print-copies-{{ item.id }}" name="copies" type="number"
+                 min="1" max="{{ max_label_copies }}" value="1"
+                 class="input input-small" style="width:56px;" aria-label="Number of labels">
+          <button class="btn sidebar-btn" type="submit" style="flex:1;">Print</button>
+        </form>
+        <a class="btn btn-ghost sidebar-btn" href="{{ url_for('label_png', item_id=item.id) }}"
+           target="_blank" rel="noopener">Preview Label</a>
+        <a class="btn btn-ghost sidebar-btn" href="{{ url_for('label_designer') }}">Label Designer</a>
+      </div>
+
+      <div class="sidebar-section">
+        {% if not item.depleted_at %}
+          <span class="sidebar-section-label">Status</span>
+          <form method="post" action="{{ url_for('deplete_item', item_id=item.id) }}" style="display:contents" class="js-deplete-form">
+            <input type="hidden" name="reason" value="">
+            <input type="hidden" name="depleted_at_input" value="">
+            <button class="btn btn-danger sidebar-btn" type="submit">Mark Depleted</button>
+          </form>
+        {% else %}
+          <span class="sidebar-section-label">Status</span>
+          <form method="post" action="{{ url_for('recover_item', item_id=item.id) }}" style="display:contents">
+            <button class="btn btn-accent sidebar-btn" type="submit">Recover Item</button>
+          </form>
+          <span class="pill pill-danger" style="align-self:flex-start; margin-top:4px;">Depleted</span>
+        {% endif %}
+      </div>
+
+      <div class="sidebar-section sidebar-section-danger">
+        <form method="post" action="{{ url_for('delete_item', item_id=item.id) }}" style="display:contents"
+              onsubmit="return confirm('Delete this item permanently?');">
+          <button class="btn btn-danger sidebar-btn" type="submit">
+            {{ 'Delete Permanently' if item.depleted_at else 'Delete Item' }}
+          </button>
+        </form>
+      </div>
+
+      <div class="sidebar-section" style="border-bottom:none;">
+        <a class="sidebar-back-link" href="{{ url_for('index') }}">← Back to list</a>
+      </div>
     </aside>
-  </div>
-
-  <!-- Actions: grouped into logical sections -->
-  <div class="item-actions">
-
-    <!-- Row 1: Primary navigation + editing -->
-    <div class="item-actions-row">
-      <a class="btn btn-ghost" href="{{ url_for('index') }}">← Back</a>
-      <button
-        class="btn btn-accent"
-        type="button"
-        data-edit-url="{{ url_for('edit_item_form', item_id=item.id) }}?partial=1"
-        onclick="openModal(this.dataset.editUrl)">
-        Edit
-      </button>
-      <form method="post"
-            action="{{ url_for('duplicate_item', item_id=item.id) }}"
-            style="display:contents">
-        <button class="btn btn-secondary" type="submit" title="Duplicate and reset cook/use-by/use-within">
-          Duplicate From
-        </button>
-      </form>
-    </div>
-
-    <!-- Row 2: Label printing -->
-    <div class="item-actions-row item-actions-labels">
-      <form method="post"
-            action="{{ url_for('print_label_post', item_id=item.id) }}"
-            class="print-copies-form">
-        <label for="print-copies-{{ item.id }}" class="muted" style="font-size:12px; white-space:nowrap;">Copies</label>
-        <input
-          id="print-copies-{{ item.id }}"
-          name="copies"
-          type="number"
-          min="1"
-          max="{{ max_label_copies }}"
-          value="1"
-          class="input input-small"
-          style="width:64px;"
-          aria-label="Number of labels" />
-        <button class="btn" type="submit">Print Label(s)</button>
-      </form>
-      <a class="btn btn-ghost" href="{{ url_for('label_png', item_id=item.id) }}"
-         target="_blank" rel="noopener">Preview Label</a>
-      <a class="btn btn-ghost" href="{{ url_for('label_designer') }}">Designer</a>
-    </div>
-
-    <!-- Row 3: Status change (deplete / recover) -->
-    <div class="item-actions-row item-actions-status">
-      {% if not item.depleted_at %}
-        <form method="post"
-              action="{{ url_for('deplete_item', item_id=item.id) }}"
-              style="display:contents"
-              class="js-deplete-form">
-          <input type="hidden" name="reason" value="">
-          <input type="hidden" name="depleted_at_input" value="">
-          <button class="btn btn-danger" type="submit" title="Mark item as depleted (sets qty to 0)">
-            Mark Depleted
-          </button>
-        </form>
-      {% else %}
-        <form method="post"
-              action="{{ url_for('recover_item', item_id=item.id) }}"
-              style="display:contents">
-          <button class="btn btn-accent" type="submit" title="Recover this item (restore qty)">
-            Recover Item
-          </button>
-        </form>
-        <span class="pill pill-danger" style="align-self:center;">Depleted</span>
-      {% endif %}
-    </div>
-
-    <!-- Row 4: Destructive -->
-    <div class="item-actions-row item-actions-danger">
-      <form method="post"
-            action="{{ url_for('delete_item', item_id=item.id) }}"
-            style="display:contents"
-            onsubmit="return confirm('Delete this item permanently?');">
-        <button class="btn btn-danger" type="submit">{{ 'Delete Permanently' if item.depleted_at else 'Delete Item' }}</button>
-      </form>
-    </div>
-
   </div>
   <script>
     (function(){

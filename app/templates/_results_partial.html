@@ -1,0 +1,207 @@
+{# ─── Quick filter chips ─── #}
+<div class="quick-filters">
+  <div class="chip-row">
+    <span class="chip-label">Categories</span>
+    {% for c in categories %}
+      {% set is_active = category == c %}
+      <a class="chip {% if is_active %}chip-active{% endif %}"
+         href="?category={{ '' if is_active else c | urlencode }}&location={{ location | urlencode }}&bin={{ bin | urlencode }}&cook_date={{ cook_date | urlencode }}&use_by_date={{ use_by_date | urlencode }}&tags={{ tags | urlencode }}&q={{ q | urlencode }}&include_depleted={{ 1 if include_depleted else '' }}">
+        {{ c }} <span class="chip-count">{{ cat_counts.get(c, 0) }}</span>
+      </a>
+    {% else %}
+      <span class="muted" style="font-size:12px;">None yet</span>
+    {% endfor %}
+    <a class="chip" href="{{ url_for('depleted_items') }}" style="opacity:0.75;">📦 Depleted</a>
+  </div>
+  <div class="chip-row">
+    <span class="chip-label">Locations</span>
+    {% for l in locations %}
+      {% set is_active = location == l %}
+      <a class="chip {% if is_active %}chip-active{% endif %}"
+         href="?category={{ category | urlencode }}&location={{ '' if is_active else l | urlencode }}&bin={{ bin | urlencode }}&cook_date={{ cook_date | urlencode }}&use_by_date={{ use_by_date | urlencode }}&tags={{ tags | urlencode }}&q={{ q | urlencode }}&include_depleted={{ 1 if include_depleted else '' }}">
+        {{ l }} <span class="chip-count">{{ loc_counts.get(l, 0) }}</span>
+      </a>
+    {% else %}
+      <span class="muted" style="font-size:12px;">None yet</span>
+    {% endfor %}
+  </div>
+</div>
+
+{# ─── Items container (holds both list and grid) ─── #}
+<div id="items-container">
+  {% if items %}
+
+  {# ── TABLE (list view) ── #}
+  <div class="table-wrap view-list-only">
+    <table class="table table-inventory">
+      <thead>
+        <tr>
+          <th class="sortable" data-sort-index="0" data-sort-type="text">Name</th>
+          {% set base_sort_index = 1 %}
+          {% for col in display_fields %}
+            <th class="sortable" data-sort-index="{{ base_sort_index + loop.index0 }}" data-sort-type="{{ col.sort_type }}">
+              {{ col.label }}
+            </th>
+          {% endfor %}
+          <th class="right">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in items %}
+        <tr data-item-url="{{ url_for('show_item', item_id=item.id) }}">
+          <td class="col-name">
+            <a class="link name-link" href="{{ url_for('show_item', item_id=item.id) }}">{{ item.name }}</a>
+            {% if item.depleted_at %}<span class="pill pill-danger">Depleted</span>{% endif %}
+            {% if item.expiry_info and item.expiry_info.days <= 30 %}
+              <span class="pill {{ item.expiry_info.severity }}"> {{ item.expiry_info.badge }} </span>
+            {% endif %}
+            {% if item.depleted_reason %}<span class="pill pill-neutral"> {{ item.depleted_reason }} </span>{% endif %}
+          </td>
+          {% for col in display_fields %}
+            {% set val = item|attr(col.key) %}
+            <td class="col-{{ col.key }}">
+              {% if col.key == "quantity" %}
+                {% if item.depleted_at %}
+                  <span class="muted">0</span>
+                  {% if item.depleted_qty is not none %}<span class="muted" style="font-size:11px;">(was {{ item.depleted_qty }})</span>{% endif %}
+                {% else %}
+                  {% set unit_lower = (item.unit or '')|lower %}
+                  {% set qty_clickable = unit_lower in (adjustable_units|default([])) %}
+                  {% if qty_clickable %}
+                    <div class="qty-inline">
+                      <form method="post" action="{{ url_for('adjust_qty', item_id=item.id) }}">
+                        <input type="hidden" name="delta" value="-1">
+                        <input type="hidden" name="redirect_to" value="{{ request.url }}">
+                        <button class="qty-btn dec" type="submit" title="Decrease">−</button>
+                      </form>
+                      <span class="qty-value">{{ val }}</span>
+                      <form method="post" action="{{ url_for('adjust_qty', item_id=item.id) }}">
+                        <input type="hidden" name="delta" value="1">
+                        <input type="hidden" name="redirect_to" value="{{ request.url }}">
+                        <button class="qty-btn inc" type="submit" title="Increase">+</button>
+                      </form>
+                    </div>
+                  {% else %}
+                    {{ val }}
+                  {% endif %}
+                {% endif %}
+              {% elif col.key in ["cook_date", "use_by_date", "last_audit_date"] %}
+                {{ val or "—" }}
+              {% elif col.key == "notes" %}
+                <span class="wrap">{{ val or "—" }}</span>
+              {% else %}
+                {{ val or "—" }}
+              {% endif %}
+            </td>
+          {% endfor %}
+          <td class="right col-actions">
+            <div class="btn-group">
+              <a class="btn btn-small btn-ghost action-open"
+                 href="{{ url_for('show_item', item_id=item.id) }}"
+                 title="Open details">Open</a>
+              <div class="row-menu">
+                <button class="btn btn-small btn-ghost row-menu-toggle" type="button" aria-label="More actions" aria-haspopup="true">
+                  <span class="hide-mobile">⋯</span><span class="hide-desktop">Actions</span>
+                </button>
+                <div class="row-menu-dropdown" hidden>
+                  <button class="row-menu-item js-edit" type="button"
+                          data-edit-url="{{ url_for('edit_item_form', item_id=item.id) }}?partial=1">Edit</button>
+                  <a class="row-menu-item" href="{{ url_for('print_label_get', item_id=item.id) }}">Print Label</a>
+                  {% if not item.depleted_at %}
+                  <form class="js-deplete-form" method="post" action="{{ url_for('deplete_item', item_id=item.id) }}" style="display:contents">
+                    <input type="hidden" name="reason" value="">
+                    <input type="hidden" name="depleted_at_input" value="">
+                    <button class="row-menu-item row-menu-danger" type="submit">Mark Depleted</button>
+                  </form>
+                  {% else %}
+                  <form method="post" action="{{ url_for('recover_item', item_id=item.id) }}" style="display:contents">
+                    <button class="row-menu-item" type="submit">Recover</button>
+                  </form>
+                  {% endif %}
+                  <form method="post" action="{{ url_for('delete_item', item_id=item.id) }}" style="display:contents"
+                        onsubmit="return confirm('Delete this item permanently?');">
+                    <button class="row-menu-item row-menu-danger" type="submit">Delete</button>
+                  </form>
+                </div>
+              </div>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {# ── CARD GRID (grid view) ── #}
+  <div class="items-grid view-grid-only">
+    {% for item in items %}
+    <div class="item-card" data-item-url="{{ url_for('show_item', item_id=item.id) }}">
+      <div class="item-card-thumb">
+        {% if item.photo_path %}
+          <img src="{{ url_for('photo', item_id=item.id) }}" alt="{{ item.name }}" loading="lazy">
+        {% else %}
+          <div class="item-card-thumb-empty">📦</div>
+        {% endif %}
+      </div>
+      <div class="item-card-body">
+        <a class="item-card-name link" href="{{ url_for('show_item', item_id=item.id) }}">{{ item.name }}</a>
+        <div class="item-card-meta">
+          {% if item.category %}<span>{{ item.category }}</span>{% endif %}
+          {% if item.location %}<span>{{ item.location }}</span>{% endif %}
+        </div>
+        <div class="item-card-qty">{{ item.quantity }} {{ item.unit or '' }}</div>
+        {% if item.depleted_at %}<span class="pill pill-danger">Depleted</span>{% endif %}
+        {% if item.expiry_info and item.expiry_info.days <= 30 %}
+          <span class="pill {{ item.expiry_info.severity }}">{{ item.expiry_info.badge }}</span>
+        {% endif %}
+      </div>
+      <div class="item-card-footer">
+        <div class="row-menu" style="width:100%;">
+          <button class="btn btn-small row-menu-toggle item-card-actions-btn" type="button">⋯ Actions</button>
+          <div class="row-menu-dropdown" hidden>
+            <a class="row-menu-item" href="{{ url_for('show_item', item_id=item.id) }}">Open</a>
+            <button class="row-menu-item js-edit" type="button"
+                    data-edit-url="{{ url_for('edit_item_form', item_id=item.id) }}?partial=1">Edit</button>
+            <a class="row-menu-item" href="{{ url_for('print_label_get', item_id=item.id) }}">Print Label</a>
+            {% if not item.depleted_at %}
+            <form class="js-deplete-form" method="post" action="{{ url_for('deplete_item', item_id=item.id) }}" style="display:contents">
+              <input type="hidden" name="reason" value="">
+              <input type="hidden" name="depleted_at_input" value="">
+              <button class="row-menu-item row-menu-danger" type="submit">Mark Depleted</button>
+            </form>
+            {% else %}
+            <form method="post" action="{{ url_for('recover_item', item_id=item.id) }}" style="display:contents">
+              <button class="row-menu-item" type="submit">Recover</button>
+            </form>
+            {% endif %}
+            <form method="post" action="{{ url_for('delete_item', item_id=item.id) }}" style="display:contents"
+                  onsubmit="return confirm('Delete this item permanently?');">
+              <button class="row-menu-item row-menu-danger" type="submit">Delete</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {# ── PAGINATION ── #}
+  {% set total_pages = ((total_count + per_page - 1) // per_page) %}
+  <div class="pagination">
+    <div class="pagination-info">Page {{ page }} of {{ total_pages }} ({{ total_count }} items)</div>
+    <div class="pagination-controls">
+      {% if page > 1 %}
+        <a class="btn" href="{{ request.url_for('index').include_query_params(page=page-1, q=q, category=category, location=location, bin=bin, cook_date=cook_date, use_by_date=use_by_date, tags=tags, include_depleted=1 if include_depleted else 0) }}">← Prev</a>
+      {% endif %}
+      {% if page < total_pages %}
+        <a class="btn" href="{{ request.url_for('index').include_query_params(page=page+1, q=q, category=category, location=location, bin=bin, cook_date=cook_date, use_by_date=use_by_date, tags=tags, include_depleted=1 if include_depleted else 0) }}">Next →</a>
+      {% endif %}
+    </div>
+  </div>
+
+  {% else %}
+  <p class="muted" style="margin-top:16px;">
+    No items yet. <a class="link" href="{{ url_for('new_item') }}">Create one</a>.
+  </p>
+  {% endif %}
+</div>

@@ -1974,6 +1974,19 @@ def recover_item(
     return RedirectResponse(url=target, status_code=303)
 
 
+@app.post("/item/{item_id}/set-primary-photo/{photo_id}", name="set_primary_photo")
+def set_primary_photo(request: Request, item_id: int, photo_id: int):
+    with Session(engine) as session:
+        item = session.get(Item, item_id)
+        photo = session.get(ItemPhoto, photo_id)
+        if not item or not photo or photo.item_id != item_id:
+            return JSONResponse({"ok": False}, status_code=404)
+        item.photo_path = photo.path
+        session.add(item)
+        session.commit()
+    return JSONResponse({"ok": True})
+
+
 @app.post("/import/csv")
 async def import_csv(request: Request, file: UploadFile = File(...)):
     """Import items from a CSV whose columns match the export.
@@ -2442,6 +2455,7 @@ def index(
     page: int = 1,
     include_depleted: bool | str = False,
     depleted_reason: str = "",
+    partial: int = 0,
 ):
     # Defaults to avoid unbound locals if something goes wrong
     items = []
@@ -2567,6 +2581,32 @@ def index(
         adjustable_units = sorted(get_adjustable_unit_names(session))
 
     db_updated_at = _inventory_update_token()
+
+    if partial:
+        return templates.TemplateResponse("_results_partial.html", {
+            "request": request,
+            "items": items if 'items' in locals() else [],
+            "q": q or "",
+            "category": category or "",
+            "location": location or "",
+            "bin": bin or "",
+            "cook_date": cook_date or "",
+            "use_by_date": use_by_date or "",
+            "tags": tags or "",
+            "depleted_reason": depleted_reason or "",
+            "categories": cats,
+            "locations": locations,
+            "bins": bins,
+            "DEPLETION_REASONS": DEPLETION_REASONS,
+            "display_fields": display_fields,
+            "page": page,
+            "per_page": per_page,
+            "total_count": total_count,
+            "cat_counts": cat_counts,
+            "loc_counts": loc_counts,
+            "adjustable_units": adjustable_units,
+            "include_depleted": include_depleted,
+        })
 
     return templates.TemplateResponse(
         "index.html",
