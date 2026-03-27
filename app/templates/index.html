@@ -79,6 +79,7 @@
 
 {# View toggle bar #}
 <div class="view-toggle-bar">
+  <button class="btn btn-small" id="chips-toggle" title="Show/hide quick filters">⊟ Filters</button>
   <div class="view-toggle-btns">
     <button class="btn btn-small" data-view-toggle="list" title="List view">☰ List</button>
     <button class="btn btn-small" data-view-toggle="grid" title="Grid view">⊞ Grid</button>
@@ -343,6 +344,24 @@ document.addEventListener('click', (e) => {
   applyView(view);
 });
 
+// ─── Quick-filter chips toggle ─────────────────────────────────────
+function applyChipsVisibility() {
+  const wrap = document.getElementById('quick-filters-wrap');
+  const btn = document.getElementById('chips-toggle');
+  const hidden = localStorage.getItem('chips_hidden') === '1';
+  if (wrap) wrap.hidden = hidden;
+  if (btn) {
+    btn.textContent = hidden ? '⊞ Filters' : '⊟ Filters';
+    btn.classList.toggle('active', !hidden);
+  }
+}
+
+document.getElementById('chips-toggle')?.addEventListener('click', () => {
+  const hidden = localStorage.getItem('chips_hidden') === '1';
+  localStorage.setItem('chips_hidden', hidden ? '0' : '1');
+  applyChipsVisibility();
+});
+
 // ─── AJAX search & filter ─────────────────────────────────────────
 const pantrSearch = (function () {
   const region = document.getElementById('results-region');
@@ -369,9 +388,10 @@ const pantrSearch = (function () {
       initTableSort();
       initColumnResize();
       initSwipe();
-      // Restore current view
+      // Restore current view and chips visibility
       const savedView = localStorage.getItem('items_view') || 'list';
       applyView(savedView);
+      applyChipsVisibility();
     } catch (e) {
       if (e.name !== 'AbortError') console.error('Search failed:', e);
     } finally {
@@ -456,6 +476,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initSwipe();
   const savedView = localStorage.getItem('items_view') || 'list';
   applyView(savedView);
+  applyChipsVisibility();
 });
 
 // ─── URL hash → serial redirect ────────────────────────────────────

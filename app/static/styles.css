@@ -404,7 +404,7 @@ button.btn { -webkit-appearance: none; appearance: none; }
   border-radius: var(--radius);
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  position: relative; /* needed for dropdown to overflow correctly */
   transition: border-color 0.15s;
 }
 .item-card:hover { border-color: color-mix(in oklab, var(--accent), var(--border) 60%); }
@@ -416,6 +416,7 @@ button.btn { -webkit-appearance: none; appearance: none; }
   justify-content: center;
   overflow: hidden;
   border-bottom: 1px solid var(--border);
+  border-radius: var(--radius) var(--radius) 0 0;
 }
 .item-card-thumb img {
   width: 100%;
