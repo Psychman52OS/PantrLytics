@@ -424,7 +424,43 @@ function initSwipe() {
     });
   });
 
-  // ── List rows: tint only, no DOM restructuring ──
+  // ── List rows: fixed-position overlay (tr can't contain divs) ──
+  // Shared overlay div anchored over the active row via getBoundingClientRect
+  function _getRowHint() {
+    let h = document.getElementById('row-swipe-hint');
+    if (!h) {
+      h = document.createElement('div');
+      h.id = 'row-swipe-hint';
+      h.innerHTML = '<div class="rsh-left"></div><div class="rsh-right"></div>';
+      document.body.appendChild(h);
+    }
+    return h;
+  }
+  function _updateRowHint(row, dir) {
+    const h = _getRowHint();
+    const rect = row.getBoundingClientRect();
+    h.style.top    = rect.top + 'px';
+    h.style.left   = rect.left + 'px';
+    h.style.width  = rect.width + 'px';
+    h.style.height = rect.height + 'px';
+    const lEl = h.querySelector('.rsh-left');
+    const rEl = h.querySelector('.rsh-right');
+    const buildInner = (action) => {
+      const m = ACTION_META[action];
+      return m ? `<span class="swipe-icon">${m.icon}</span><span class="swipe-label">${m.label}</span>` : '';
+    };
+    lEl.innerHTML = buildInner(SWIPE_RIGHT_ACTION);
+    rEl.innerHTML = buildInner(SWIPE_LEFT_ACTION);
+    lEl.classList.toggle('rsh-active', dir === 'right');
+    rEl.classList.toggle('rsh-active', dir === 'left');
+  }
+  function _hideRowHint() {
+    const h = document.getElementById('row-swipe-hint');
+    if (!h) return;
+    h.querySelector('.rsh-left')?.classList.remove('rsh-active');
+    h.querySelector('.rsh-right')?.classList.remove('rsh-active');
+  }
+
   document.querySelectorAll('.table-inventory tbody tr[data-item-url]').forEach(row => {
     if (row.dataset.swipeInit) return;
     row.dataset.swipeInit = '1';
@@ -439,8 +475,14 @@ function initSwipe() {
 
     let sx, sy, dx = 0, axis = null, activePtr = null;
 
+    function rowUpdate() {
+      const dir = dx > 30 ? 'right' : dx < -30 ? 'left' : '';
+      row.dataset.swipeDir = dir;
+      if (dir) _updateRowHint(row, dir); else _hideRowHint();
+    }
     function rowReset(fire) {
       row.dataset.swipeDir = '';
+      _hideRowHint();
       if (fire) {
         if (dx > THRESHOLD)  execRowAction(SWIPE_RIGHT_ACTION);
         else if (dx < -THRESHOLD) execRowAction(SWIPE_LEFT_ACTION);
@@ -461,7 +503,7 @@ function initSwipe() {
       if (!axis) axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
       if (axis !== 'x') return;
       e.preventDefault();
-      row.dataset.swipeDir = dx > 30 ? 'right' : dx < -30 ? 'left' : '';
+      rowUpdate();
     }, { passive: false });
     row.addEventListener('touchend', () => {
       if (sx === undefined || axis !== 'x') { sx = undefined; return; }
@@ -484,7 +526,7 @@ function initSwipe() {
       const dy = e.clientY - sy;
       if (!axis) axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
       if (axis !== 'x') return;
-      row.dataset.swipeDir = dx > 30 ? 'right' : dx < -30 ? 'left' : '';
+      rowUpdate();
     });
     row.addEventListener('pointerup', (e) => {
       if (e.pointerType === 'touch' || activePtr !== e.pointerId) return;

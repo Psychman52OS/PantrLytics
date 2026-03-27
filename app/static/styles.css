@@ -452,6 +452,29 @@ button.btn { -webkit-appearance: none; appearance: none; }
 /* ── Swipe tint (list rows) ── */
 .table-inventory tbody tr[data-swipe-dir="right"] { background: color-mix(in oklab, #1864ab, transparent 82%) !important; }
 .table-inventory tbody tr[data-swipe-dir="left"]  { background: color-mix(in oklab, var(--danger), transparent 82%) !important; }
+/* Fixed-position overlay that appears over the active list row during swipe */
+#row-swipe-hint {
+  position: fixed;
+  pointer-events: none;
+  z-index: 60;
+  overflow: hidden;
+  border-radius: var(--radius);
+}
+.rsh-left, .rsh-right {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 80px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.rsh-left  { left: 0;  background: #1864ab;     color: #fff; border-radius: var(--radius) 0 0 var(--radius); }
+.rsh-right { right: 0; background: var(--danger); color: #fff; border-radius: 0 var(--radius) var(--radius) 0; }
+.rsh-left.rsh-active, .rsh-right.rsh-active { opacity: 1; }
 .item-card:hover { border-color: color-mix(in oklab, var(--accent), var(--border) 60%); }
 .item-card-thumb {
   aspect-ratio: 4/3;
