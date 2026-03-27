@@ -82,6 +82,44 @@
       <div id="app-modal-body" class="modal-card"></div>
     </dialog>
   </main>
+
+  <!-- Bottom tab bar (mobile only) -->
+  <nav class="bottom-nav" aria-label="Main navigation">
+    <div class="bottom-nav-inner">
+      <a class="bottom-nav-item" href="{{ url_for('index') }}">
+        <span class="bottom-nav-icon">🏠</span>
+        <span class="bottom-nav-label">Items</span>
+      </a>
+      <a class="bottom-nav-item" href="{{ url_for('new_item') }}">
+        <span class="bottom-nav-icon">＋</span>
+        <span class="bottom-nav-label">New</span>
+      </a>
+      <a class="bottom-nav-item" href="{{ url_for('label_designer') }}">
+        <span class="bottom-nav-icon">🏷</span>
+        <span class="bottom-nav-label">Designer</span>
+      </a>
+      <a class="bottom-nav-item" href="{{ url_for('reports') }}">
+        <span class="bottom-nav-icon">📊</span>
+        <span class="bottom-nav-label">Reports</span>
+      </a>
+      <button class="bottom-nav-item" type="button" id="bottom-more-btn">
+        <span class="bottom-nav-icon">⋯</span>
+        <span class="bottom-nav-label">More</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- More sheet -->
+  <div class="bottom-sheet" id="bottom-sheet" aria-hidden="true">
+    <div class="bottom-sheet-backdrop" id="bottom-sheet-backdrop"></div>
+    <div class="bottom-sheet-content">
+      <div class="bottom-sheet-handle"></div>
+      <a class="bottom-sheet-item" href="{{ url_for('admin') }}">⚙ Admin &amp; Settings</a>
+      <a class="bottom-sheet-item" href="{{ url_for('backup_page') }}">💾 Backup</a>
+      <a class="bottom-sheet-item" href="{{ url_for('depleted_items') }}">📦 Depleted Items</a>
+    </div>
+  </div>
+
 <script>
   const dlg  = document.getElementById('app-modal');
   const body = document.getElementById('app-modal-body');
@@ -231,7 +269,7 @@
     label.textContent = files.length > 3 ? `${files.length} files selected (${names}…)` : names;
   });
 
-  // Hamburger nav toggle
+  // Hamburger nav toggle (desktop fallback, hidden on mobile)
   (function () {
     const toggle = document.getElementById('nav-toggle');
     const nav = document.getElementById('main-nav');
@@ -241,6 +279,29 @@
       toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
       toggle.textContent = open ? '✕' : '☰';
     });
+  })();
+
+  // Bottom nav: highlight active tab
+  (function () {
+    const path = window.location.pathname.replace(/\/+$/, '') || '/';
+    document.querySelectorAll('.bottom-nav-item[href]').forEach(item => {
+      const href = (item.getAttribute('href') || '').split('?')[0].replace(/\/+$/, '') || '/';
+      if (path === href || (href !== '/' && path.startsWith(href + '/'))) {
+        item.classList.add('active');
+      }
+    });
+  })();
+
+  // Bottom nav: More sheet
+  (function () {
+    const btn = document.getElementById('bottom-more-btn');
+    const sheet = document.getElementById('bottom-sheet');
+    const backdrop = document.getElementById('bottom-sheet-backdrop');
+    if (!btn || !sheet || !backdrop) return;
+    function open() { sheet.classList.add('open'); sheet.setAttribute('aria-hidden', 'false'); }
+    function close() { sheet.classList.remove('open'); sheet.setAttribute('aria-hidden', 'true'); }
+    btn.addEventListener('click', open);
+    backdrop.addEventListener('click', close);
   })();
 </script>
 </body>

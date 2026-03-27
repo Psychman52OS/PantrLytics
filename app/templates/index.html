@@ -9,36 +9,21 @@
         Search, review, and print labels for everything in the bunker.
       </p>
     </div>
-    <div class="page-header-actions">
-        <a class="btn btn-primary" href="{{ url_for('new_item') }}">
-          <span class="btn-icon-left">＋</span>
-          <span>New Item</span>
-        </a>
-      <a class="btn btn-secondary" href="{{ url_for('admin') }}">
-        Manage Categories &amp; Bins
-      </a>
-      <a class="btn btn-secondary" href="{{ url_for('depleted_items') }}">
-        View Depleted
-      </a>
-    </div>
   </div>
 
-<div class="filter-toggle-row">
-  <button type="button" class="btn btn-secondary" id="toggle-filters">Show filters &amp; search</button>
-</div>
-
 <form method="get" class="search-and-filters" id="filter-panel">
-    <!-- TOP SEARCH BAR -->
+    <!-- TOP SEARCH BAR (always visible) -->
     <div class="search-row">
         <input
             type="text"
             name="q"
             class="filter-input search-input"
-            placeholder="Search name / serial / barcode / tags / notes / location / bin / etc…"
+            placeholder="Search name, serial, tags, location, bin…"
             value="{{ q }}"
             list="search-suggestions"
         >
-        <button class="btn-primary" type="submit">Search</button>
+        <button class="btn btn-primary" type="submit">Search</button>
+        <button class="btn btn-secondary" type="button" id="adv-filter-toggle" aria-expanded="false">⚙ Filters</button>
         <datalist id="search-suggestions">
           {% for s in search_suggestions %}
             <option value="{{ s }}">
@@ -46,86 +31,88 @@
         </datalist>
     </div>
 
-    <!-- FILTER GRID -->
-    <div class="filters-row">
+    <!-- ADVANCED FILTERS (collapsed by default, toggled by ⚙ Filters button) -->
+    <div id="adv-filters-body" hidden>
+      <div class="filters-row">
 
-        <div class="filter-group">
-            <label>Category</label>
-            <select name="category" class="filter-input">
-                <option value="">(Any)</option>
-                {% for c in cats %}
-                    <option value="{{ c }}" {% if category == c %}selected{% endif %}>{{ c }}</option>
-                {% endfor %}
+          <div class="filter-group">
+              <label>Category</label>
+              <select name="category" class="filter-input">
+                  <option value="">(Any)</option>
+                  {% for c in cats %}
+                      <option value="{{ c }}" {% if category == c %}selected{% endif %}>{{ c }}</option>
+                  {% endfor %}
+              </select>
+          </div>
+
+          <div class="filter-group">
+              <label>Location</label>
+              <select name="location" class="filter-input">
+                  <option value="">(Any)</option>
+                  {% for l in locations %}
+                      <option value="{{ l }}" {% if location == l %}selected{% endif %}>{{ l }}</option>
+                  {% endfor %}
+              </select>
+          </div>
+
+          <div class="filter-group">
+              <label>Bin</label>
+              <select name="bin_number" class="filter-input">
+                  <option value="">(Any)</option>
+                  {% for b in bins %}
+                      <option value="{{ b }}" {% if bin_number == b %}selected{% endif %}>{{ b }}</option>
+                  {% endfor %}
+              </select>
+          </div>
+
+          <div class="filter-group">
+              <label>Cook date</label>
+              <input type="date" name="cook_date" class="filter-input"
+                     value="{{ cook_date }}">
+          </div>
+
+          <div class="filter-group">
+              <label>Use-by date</label>
+              <input type="date" name="use_by_date" class="filter-input"
+                     value="{{ use_by_date }}">
+          </div>
+
+          <div class="filter-group">
+              <label>Tags (contains)</label>
+              <input type="text" name="tags" class="filter-input"
+                     placeholder="e.g. beef, freezer"
+                     value="{{ tags }}">
+          </div>
+          <div class="filter-group">
+            <label>Depletion reason</label>
+            <select name="depleted_reason" class="filter-input">
+              <option value="">(Any)</option>
+              {% for r in DEPLETION_REASONS %}
+                <option value="{{ r }}" {% if request.query_params.get('depleted_reason') == r %}selected{% endif %}>{{ r }}</option>
+              {% endfor %}
             </select>
-        </div>
+          </div>
+          <div class="filter-group">
+            <label>&nbsp;</label>
+            <label style="display:flex; align-items:center; gap:6px; font-size:13px;">
+              <input type="checkbox" name="include_depleted" value="1" {% if include_depleted %}checked{% endif %}>
+              Include depleted
+            </label>
+          </div>
 
-        <div class="filter-group">
-            <label>Location</label>
-            <select name="location" class="filter-input">
-                <option value="">(Any)</option>
-                {% for l in locations %}
-                    <option value="{{ l }}" {% if location == l %}selected{% endif %}>{{ l }}</option>
-                {% endfor %}
-            </select>
-        </div>
+      </div>
 
-        <div class="filter-group">
-            <label>Bin</label>
-            <select name="bin_number" class="filter-input">
-                <option value="">(Any)</option>
-                {% for b in bins %}
-                    <option value="{{ b }}" {% if bin_number == b %}selected{% endif %}>{{ b }}</option>
-                {% endfor %}
-            </select>
-        </div>
-
-        <div class="filter-group">
-            <label>Cook date</label>
-            <input type="date" name="cook_date" class="filter-input"
-                   value="{{ cook_date }}">
-        </div>
-
-        <div class="filter-group">
-            <label>Use-by date</label>
-            <input type="date" name="use_by_date" class="filter-input"
-                   value="{{ use_by_date }}">
-        </div>
-
-        <div class="filter-group">
-            <label>Tags (contains)</label>
-            <input type="text" name="tags" class="filter-input"
-                   placeholder="e.g. beef, freezer"
-                   value="{{ tags }}">
-        </div>
-        <div class="filter-group">
-          <label>Depletion reason</label>
-          <select name="depleted_reason" class="filter-input">
-            <option value="">(Any)</option>
-            {% for r in DEPLETION_REASONS %}
-              <option value="{{ r }}" {% if request.query_params.get('depleted_reason') == r %}selected{% endif %}>{{ r }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="filter-group">
-          <label>&nbsp;</label>
-          <label style="display:flex; align-items:center; gap:6px; font-size:13px;">
-            <input type="checkbox" name="include_depleted" value="1" {% if include_depleted %}checked{% endif %}>
-            Include depleted
-          </label>
-        </div>
-
-    </div>
-
-    <!-- ACTION BUTTONS -->
-    <div class="filters-actions">
-        <button class="btn-primary" type="submit">Apply filters</button>
-        <a class="btn-clear-filters" href="{{ url_for('index') }}">Clear</a>
+      <!-- ACTION BUTTONS -->
+      <div class="filters-actions">
+          <button class="btn-primary" type="submit">Apply filters</button>
+          <a class="btn-clear-filters" href="{{ url_for('index') }}">Clear</a>
+      </div>
     </div>
 </form>
 
-<div class="quick-filters row">
+<div class="quick-filters">
   <div class="chip-row">
-    <span class="chip-label">Quick filters · Categories:</span>
+    <span class="chip-label">Categories</span>
     {% for c in categories %}
       {% set is_active = category == c %}
       <a class="chip {% if is_active %}chip-active{% endif %}"
@@ -135,9 +122,10 @@
     {% else %}
       <span class="admin-section-help">None yet</span>
     {% endfor %}
+    <a class="chip" href="{{ url_for('depleted_items') }}" style="opacity:0.75;">📦 Depleted</a>
   </div>
   <div class="chip-row">
-    <span class="chip-label">Quick filters · Locations:</span>
+    <span class="chip-label">Locations</span>
     {% for l in locations %}
       {% set is_active = location == l %}
       <a class="chip {% if is_active %}chip-active{% endif %}"
@@ -456,26 +444,34 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 });
 
-// Filter panel toggle
+// Advanced filters toggle
 document.addEventListener("DOMContentLoaded", () => {
-  const panel = document.getElementById("filter-panel");
-  const toggle = document.getElementById("toggle-filters");
-  if (!panel || !toggle) return;
-  let collapsed = true;
-  function sync() {
-    if (collapsed) {
-      panel.classList.add("collapsed");
-      toggle.textContent = "Show filters & search";
-    } else {
-      panel.classList.remove("collapsed");
-      toggle.textContent = "Hide filters & search";
-    }
+  const body = document.getElementById("adv-filters-body");
+  const btn = document.getElementById("adv-filter-toggle");
+  if (!body || !btn) return;
+
+  // Auto-open if any advanced filter is currently active
+  const params = new URLSearchParams(window.location.search);
+  const advKeys = ["category", "location", "bin_number", "cook_date", "use_by_date", "tags", "depleted_reason", "include_depleted"];
+  const hasActive = advKeys.some(k => params.get(k));
+  if (hasActive) {
+    body.removeAttribute("hidden");
+    btn.setAttribute("aria-expanded", "true");
+    btn.textContent = "✕ Filters";
   }
-  toggle.addEventListener("click", () => {
-    collapsed = !collapsed;
-    sync();
+
+  btn.addEventListener("click", () => {
+    const open = body.hasAttribute("hidden");
+    if (open) {
+      body.removeAttribute("hidden");
+      btn.setAttribute("aria-expanded", "true");
+      btn.textContent = "✕ Filters";
+    } else {
+      body.setAttribute("hidden", "");
+      btn.setAttribute("aria-expanded", "false");
+      btn.textContent = "⚙ Filters";
+    }
   });
-  sync();
 });
 </script>
 <script>

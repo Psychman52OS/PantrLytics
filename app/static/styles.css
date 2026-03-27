@@ -1092,6 +1092,92 @@ dialog#app-modal::backdrop {
    MOBILE IMPROVEMENTS (≤ 640px)
    ============================================== */
 
+/* -------------------------
+   Bottom tab nav (mobile only)
+-------------------------- */
+.bottom-nav {
+  display: none;
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  z-index: 100;
+  background: color-mix(in oklab, var(--bg), transparent 5%);
+  backdrop-filter: saturate(150%) blur(12px);
+  -webkit-backdrop-filter: saturate(150%) blur(12px);
+  border-top: 1px solid var(--border);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+.bottom-nav-inner {
+  display: flex;
+  align-items: stretch;
+}
+.bottom-nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 8px 4px;
+  min-height: 56px;
+  color: var(--muted);
+  text-decoration: none;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  transition: color 0.15s ease;
+}
+.bottom-nav-item.active,
+.bottom-nav-item:hover { color: var(--accent); text-decoration: none; }
+.bottom-nav-icon { font-size: 22px; line-height: 1; }
+.bottom-nav-label { font-size: 10px; letter-spacing: 0.01em; }
+
+/* More sheet */
+.bottom-sheet {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+}
+.bottom-sheet.open { display: block; }
+.bottom-sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.bottom-sheet-content {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  background: var(--card);
+  border-top: 1px solid var(--border);
+  border-radius: var(--radius) var(--radius) 0 0;
+  padding: 16px 16px calc(env(safe-area-inset-bottom, 0px) + 16px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.bottom-sheet-handle {
+  width: 40px; height: 4px;
+  background: var(--border);
+  border-radius: 999px;
+  margin: 0 auto 12px;
+}
+.bottom-sheet-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--card), var(--bg) 8%);
+  border: 1px solid var(--border);
+  color: var(--text);
+  text-decoration: none;
+  font-size: 15px;
+}
+.bottom-sheet-item:hover { border-color: var(--accent); color: var(--accent); text-decoration: none; }
+
 /* E — Hamburger button (hidden on desktop) */
 .nav-toggle {
   display: none;
@@ -1118,46 +1204,27 @@ dialog#app-modal::backdrop {
 }
 
 @media (max-width: 640px) {
-  /* E — Show hamburger, collapse nav */
-  .nav-toggle {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 44px;
-    min-width: 44px;
+  /* Bottom tab bar — show on mobile */
+  .bottom-nav { display: block; }
+
+  /* Hide hamburger and top nav — bottom bar handles navigation */
+  .nav-toggle { display: none !important; }
+  .nav-container { display: none !important; }
+
+  /* Pad content so bottom nav doesn't overlap */
+  main.container {
+    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
   }
 
-  .nav {
-    display: none !important;
-    flex-direction: column !important;
-    gap: 0 !important;
-    width: 100%;
-    padding: 4px 0 8px;
-    border-top: 1px solid var(--border);
-    margin-top: 6px;
-    font-size: 15px !important;
+  /* Scrollable chip rows */
+  .chip-row {
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 2px;
   }
-
-  .nav.nav-open {
-    display: flex !important;
-  }
-
-  .nav a {
-    padding: 12px 6px !important;
-    border-radius: 0 !important;
-    border: none !important;
-    border-bottom: 1px solid var(--border) !important;
-    font-size: 15px !important;
-  }
-
-  .nav a:last-child {
-    border-bottom: none !important;
-  }
-
-  /* Nav container spans full header width when open */
-  .nav-container {
-    grid-column: 1 / -1 !important;
-  }
+  .chip-row::-webkit-scrollbar { display: none; }
 
   /* C — Prevent iOS auto-zoom on input focus */
   .input,
@@ -1397,7 +1464,7 @@ form.search-and-filters {
 }
 form.search-and-filters .search-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 8px;
   align-items: center;
 }
