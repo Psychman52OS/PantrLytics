@@ -113,11 +113,18 @@
 
     <div class="field field--full">
       <label>Photos</label>
-      <label class="file-input">
-        <span class="file-btn">Choose photos</span>
-        <input class="input" type="file" name="photos" accept="image/*" multiple>
-        <span class="file-name">You can select multiple files</span>
-      </label>
+      <div class="photo-input-row">
+        <label class="file-input">
+          <span class="file-btn">📷 Take photo</span>
+          <input class="input" type="file" name="photos" accept="image/*" capture="environment">
+          <span class="file-name">Camera</span>
+        </label>
+        <label class="file-input">
+          <span class="file-btn">🖼 Choose file</span>
+          <input class="input" type="file" name="photos" accept="image/*" multiple>
+          <span class="file-name">Select one or more</span>
+        </label>
+      </div>
     </div>
 
     <div class="actions field--full">

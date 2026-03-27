@@ -1,591 +1,733 @@
 {% extends "layout.html" %}
 {% block title %}{{ app_heading }}{% endblock %}
 
+{% block extra_head %}
+{% set _fs_pg = get_font_sizes() %}
+{% if _fs_pg.list_page %}<style>:root { --fs-base: {{ _fs_pg.list_page }}px; }</style>{% endif %}
+{% endblock %}
+
 {% block content %}
   <div class="page-header">
     <div class="page-header-text">
       <h1 class="page-title">{{ app_heading }}</h1>
-      <p class="page-subtitle">
-        Search, review, and print labels for everything in the bunker.
-      </p>
-    </div>
-    <div class="page-header-actions">
-        <a class="btn btn-primary" href="{{ url_for('new_item') }}">
-          <span class="btn-icon-left">＋</span>
-          <span>New Item</span>
-        </a>
-      <a class="btn btn-secondary" href="{{ url_for('admin') }}">
-        Manage Categories &amp; Bins
-      </a>
-      <a class="btn btn-secondary" href="{{ url_for('depleted_items') }}">
-        View Depleted
-      </a>
+      <p class="page-subtitle">Search, review, and print labels for everything in the bunker.</p>
     </div>
   </div>
 
-<div class="filter-toggle-row">
-  <button type="button" class="btn btn-secondary" id="toggle-filters">Show filters &amp; search</button>
-</div>
-
 <form method="get" class="search-and-filters" id="filter-panel">
-    <!-- TOP SEARCH BAR -->
     <div class="search-row">
-        <input
-            type="text"
-            name="q"
-            class="filter-input search-input"
-            placeholder="Search name / serial / barcode / tags / notes / location / bin / etc…"
-            value="{{ q }}"
-            list="search-suggestions"
-        >
-        <button class="btn-primary" type="submit">Search</button>
+        <input type="text" name="q" class="filter-input search-input"
+               placeholder="Search name, serial, tags, location, bin…"
+               value="{{ q }}" list="search-suggestions" autocomplete="off">
+        <button class="btn btn-primary" type="submit">Search</button>
+        <button class="btn btn-secondary" type="button" id="adv-filter-toggle" aria-expanded="false">⚙ Filters</button>
         <datalist id="search-suggestions">
-          {% for s in search_suggestions %}
-            <option value="{{ s }}">
-          {% endfor %}
+          {% for s in search_suggestions %}<option value="{{ s }}">{% endfor %}
         </datalist>
     </div>
-
-    <!-- FILTER GRID -->
-    <div class="filters-row">
-
-        <div class="filter-group">
-            <label>Category</label>
-            <select name="category" class="filter-input">
-                <option value="">(Any)</option>
-                {% for c in cats %}
-                    <option value="{{ c }}" {% if category == c %}selected{% endif %}>{{ c }}</option>
-                {% endfor %}
+    <div id="adv-filters-body" hidden>
+      <div class="filters-row">
+          <div class="filter-group">
+              <label>Category</label>
+              <select name="category" class="filter-input">
+                  <option value="">(Any)</option>
+                  {% for c in cats %}<option value="{{ c }}" {% if category == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
+              </select>
+          </div>
+          <div class="filter-group">
+              <label>Location</label>
+              <select name="location" class="filter-input">
+                  <option value="">(Any)</option>
+                  {% for l in locations %}<option value="{{ l }}" {% if location == l %}selected{% endif %}>{{ l }}</option>{% endfor %}
+              </select>
+          </div>
+          <div class="filter-group">
+              <label>Bin</label>
+              <select name="bin_number" class="filter-input">
+                  <option value="">(Any)</option>
+                  {% for b in bins %}<option value="{{ b }}" {% if bin_number == b %}selected{% endif %}>{{ b }}</option>{% endfor %}
+              </select>
+          </div>
+          <div class="filter-group">
+              <label>Cook date</label>
+              <input type="date" name="cook_date" class="filter-input" value="{{ cook_date }}">
+          </div>
+          <div class="filter-group">
+              <label>Use-by date</label>
+              <input type="date" name="use_by_date" class="filter-input" value="{{ use_by_date }}">
+          </div>
+          <div class="filter-group">
+              <label>Tags (contains)</label>
+              <input type="text" name="tags" class="filter-input" placeholder="e.g. beef, freezer" value="{{ tags }}">
+          </div>
+          <div class="filter-group">
+            <label>Depletion reason</label>
+            <select name="depleted_reason" class="filter-input">
+              <option value="">(Any)</option>
+              {% for r in DEPLETION_REASONS %}<option value="{{ r }}" {% if request.query_params.get('depleted_reason') == r %}selected{% endif %}>{{ r }}</option>{% endfor %}
             </select>
-        </div>
-
-        <div class="filter-group">
-            <label>Location</label>
-            <select name="location" class="filter-input">
-                <option value="">(Any)</option>
-                {% for l in locations %}
-                    <option value="{{ l }}" {% if location == l %}selected{% endif %}>{{ l }}</option>
-                {% endfor %}
-            </select>
-        </div>
-
-        <div class="filter-group">
-            <label>Bin</label>
-            <select name="bin_number" class="filter-input">
-                <option value="">(Any)</option>
-                {% for b in bins %}
-                    <option value="{{ b }}" {% if bin_number == b %}selected{% endif %}>{{ b }}</option>
-                {% endfor %}
-            </select>
-        </div>
-
-        <div class="filter-group">
-            <label>Cook date</label>
-            <input type="date" name="cook_date" class="filter-input"
-                   value="{{ cook_date }}">
-        </div>
-
-        <div class="filter-group">
-            <label>Use-by date</label>
-            <input type="date" name="use_by_date" class="filter-input"
-                   value="{{ use_by_date }}">
-        </div>
-
-        <div class="filter-group">
-            <label>Tags (contains)</label>
-            <input type="text" name="tags" class="filter-input"
-                   placeholder="e.g. beef, freezer"
-                   value="{{ tags }}">
-        </div>
-        <div class="filter-group">
-          <label>Depletion reason</label>
-          <select name="depleted_reason" class="filter-input">
-            <option value="">(Any)</option>
-            {% for r in DEPLETION_REASONS %}
-              <option value="{{ r }}" {% if request.query_params.get('depleted_reason') == r %}selected{% endif %}>{{ r }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="filter-group">
-          <label>&nbsp;</label>
-          <label style="display:flex; align-items:center; gap:6px; font-size:13px;">
-            <input type="checkbox" name="include_depleted" value="1" {% if include_depleted %}checked{% endif %}>
-            Include depleted
-          </label>
-        </div>
-
-    </div>
-
-    <!-- ACTION BUTTONS -->
-    <div class="filters-actions">
-        <button class="btn-primary" type="submit">Apply filters</button>
-        <a class="btn-clear-filters" href="{{ url_for('index') }}">Clear</a>
+          </div>
+          <div class="filter-group">
+            <label>&nbsp;</label>
+            <label style="display:flex; align-items:center; gap:6px; font-size:13px;">
+              <input type="checkbox" name="include_depleted" value="1" {% if include_depleted %}checked{% endif %}>
+              Include depleted
+            </label>
+          </div>
+      </div>
+      <div class="filters-actions">
+          <button class="btn-primary" type="submit">Apply filters</button>
+          <a class="btn-clear-filters" href="{{ url_for('index') }}">Clear</a>
+      </div>
     </div>
 </form>
 
-<div class="quick-filters row">
-  <div class="chip-row">
-    <span class="chip-label">Quick filters · Categories:</span>
-    {% for c in categories %}
-      {% set is_active = category == c %}
-      <a class="chip {% if is_active %}chip-active{% endif %}"
-         href="?category={{ '' if is_active else c | urlencode }}&location={{ location | urlencode }}&bin={{ bin | urlencode }}&cook_date={{ cook_date | urlencode }}&use_by_date={{ use_by_date | urlencode }}&tags={{ tags | urlencode }}&q={{ q | urlencode }}&include_depleted={{ 1 if include_depleted else '' }}">
-        {{ c }} <span class="chip-count">{{ cat_counts.get(c, 0) }}</span>
-      </a>
-    {% else %}
-      <span class="admin-section-help">None yet</span>
-    {% endfor %}
-  </div>
-  <div class="chip-row">
-    <span class="chip-label">Quick filters · Locations:</span>
-    {% for l in locations %}
-      {% set is_active = location == l %}
-      <a class="chip {% if is_active %}chip-active{% endif %}"
-         href="?category={{ category | urlencode }}&location={{ '' if is_active else l | urlencode }}&bin={{ bin | urlencode }}&cook_date={{ cook_date | urlencode }}&use_by_date={{ use_by_date | urlencode }}&tags={{ tags | urlencode }}&q={{ q | urlencode }}&include_depleted={{ 1 if include_depleted else '' }}">
-        {{ l }} <span class="chip-count">{{ loc_counts.get(l, 0) }}</span>
-      </a>
-    {% else %}
-      <span class="admin-section-help">None yet</span>
-    {% endfor %}
+{# View toggle bar #}
+<div class="view-toggle-bar">
+  <button class="btn btn-small" id="chips-toggle" title="Show/hide quick filters">⊟ Filters</button>
+  <div class="view-toggle-btns">
+    <button class="btn btn-small" data-view-toggle="list" title="List view">☰ List</button>
+    <button class="btn btn-small" data-view-toggle="grid" title="Grid view">⊞ Grid</button>
   </div>
 </div>
 
-  {% if items %}
-  <div class="table-wrap">
-    <table class="table table-inventory">
-      <thead>
-        <tr>
-          <th class="sortable" data-sort-index="0" data-sort-type="text">Name</th>
-          {% set base_sort_index = 1 %}
-          {% for col in display_fields %}
-            <th
-              class="sortable"
-              data-sort-index="{{ base_sort_index + loop.index0 }}"
-              data-sort-type="{{ col.sort_type }}"
-            >
-              {{ col.label }}
-            </th>
-          {% endfor %}
-          <th class="right">Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for item in items %}
-        <tr>
-          {# Name (clickable to open details) #}
-          <td class="col-name">
-            <a class="link name-link" href="{{ url_for('show_item', item_id=item.id) }}">
-              {{ item.name }}
-            </a>
-            {% if item.depleted_at %}
-              <span class="pill pill-danger">Depleted</span>
-            {% endif %}
-            {% if item.expiry_info and item.expiry_info.days <= 30 %}
-              <span class="pill {{ item.expiry_info.severity }}"> {{ item.expiry_info.badge }} </span>
-            {% endif %}
-            {% if item.depleted_reason %}
-              <span class="pill pill-neutral"> {{ item.depleted_reason }} </span>
-            {% endif %}
-          </td>
+{# Results region — swapped by AJAX #}
+<div id="results-region">
+  {% include "_results_partial.html" %}
+</div>
 
-          {% for col in display_fields %}
-            {% set val = item|attr(col.key) %}
-            <td class="col-{{ col.key }}">
-              {% if col.key == "quantity" %}
-                {% if item.depleted_at %}
-                  <span class="muted">0</span>
-                  {% if item.depleted_qty is not none %}
-                    <span class="muted" style="font-size:11px;">(was {{ item.depleted_qty }})</span>
-                  {% endif %}
-                {% else %}
-                  {% set unit_lower = (item.unit or '')|lower %}
-                  {% set qty_clickable = unit_lower in (adjustable_units|default([])) %}
-                  {% if qty_clickable %}
-                    <div class="qty-inline">
-                      <form method="post" action="{{ url_for('adjust_qty', item_id=item.id) }}">
-                        <input type="hidden" name="delta" value="-1">
-                        <input type="hidden" name="redirect_to" value="{{ request.url }}">
-                        <button class="qty-btn dec" type="submit" title="Decrease">−</button>
-                      </form>
-                      <span class="qty-value">{{ val }}</span>
-                      <form method="post" action="{{ url_for('adjust_qty', item_id=item.id) }}">
-                        <input type="hidden" name="delta" value="1">
-                        <input type="hidden" name="redirect_to" value="{{ request.url }}">
-                        <button class="qty-btn inc" type="submit" title="Increase">+</button>
-                      </form>
-                    </div>
-                  {% else %}
-                    {{ val }}
-                  {% endif %}
-                {% endif %}
-              {% elif col.key in ["cook_date", "use_by_date", "last_audit_date"] %}
-                {{ val or "—" }}
-              {% elif col.key == "notes" %}
-                <span class="wrap">{{ val or "—" }}</span>
-              {% else %}
-                {{ val or "—" }}
-              {% endif %}
-            </td>
-          {% endfor %}
-
-          {# Actions (unchanged) #}
-          <td class="right col-actions">
-            <div class="btn-group">
-              <a
-                class="btn btn-small btn-ghost"
-                href="{{ url_for('show_item', item_id=item.id) }}"
-                title="Open details"
-              >
-                Open
-              </a>
-
-              <a
-                class="btn btn-small btn-ghost"
-                href="{{ url_for('label_png', item_id=item.id) }}"
-                target="_blank"
-                rel="noopener"
-                title="Preview label"
-              >
-                Preview
-              </a>
-
-              <a
-                class="btn btn-small btn-ghost"
-                href="{{ url_for('print_label_get', item_id=item.id) }}"
-                title="Send label to printer"
-              >
-                Print
-              </a>
-
-              <button
-                type="button"
-                class="btn btn-small btn-accent js-edit"
-                data-edit-url="{{ url_for('edit_item_form', item_id=item.id) }}?partial=1"
-                title="Edit item"
-              >
-                Edit
-              </button>
-
-              <form
-                method="post"
-                action="{{ url_for('delete_item', item_id=item.id) }}"
-                style="display:inline"
-                onsubmit="return confirm('Delete this item permanently?');"
-              >
-                <button type="submit" class="btn btn-small btn-danger" title="Delete item">
-                  {{ 'Delete Permanently' if item.depleted_at else 'Delete' }}
-                </button>
-              </form>
-            </div>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+{# Deplete dialog #}
+{% set reasons_list = DEPLETION_REASONS if DEPLETION_REASONS is defined else [
+  "Consumed/Used", "Discarded (expired/spoiled)", "Discarded (damaged)",
+  "Donated/Returned", "Lost/Missing", "Restocked/Replaced (new batch)", "Other"
+] %}
+<dialog id="deplete-dialog" class="modal-card">
+  <h3 style="margin:0 0 12px 0;">Mark as depleted</h3>
+  <div class="field" style="margin-bottom:10px;">
+    <label class="kv-label" for="deplete-date">Date &amp; time depleted</label>
+    <input id="deplete-date" class="input" type="datetime-local" style="width:100%;">
   </div>
-  <div class="pagination">
-    {% set total_pages = ((total_count + per_page - 1) // per_page) %}
-    <div class="pagination-info">Page {{ page }} of {{ total_pages }} ({{ total_count }} items)</div>
-    <div class="pagination-controls">
-      {% if page > 1 %}
-        <a class="btn" href="{{ request.url_for('index').include_query_params(page=page-1, q=q, category=category, location=location, bin=bin, cook_date=cook_date, use_by_date=use_by_date, tags=tags, include_depleted=1 if include_depleted else 0) }}">← Prev</a>
-      {% endif %}
-      {% if page < total_pages %}
-        <a class="btn" href="{{ request.url_for('index').include_query_params(page=page+1, q=q, category=category, location=location, bin=bin, cook_date=cook_date, use_by_date=use_by_date, tags=tags, include_depleted=1 if include_depleted else 0) }}">Next →</a>
-      {% endif %}
-    </div>
+  <div class="field" style="margin-bottom:10px;">
+    <label class="kv-label" for="deplete-reason">Reason</label>
+    <select id="deplete-reason" class="input" style="width:100%;">
+      <option value="">(None)</option>
+      {% for r in reasons_list %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
+      <option value="Other">Other</option>
+    </select>
   </div>
-  {% else %}
-    <p class="muted">
-      No items yet.
-      <a class="link" href="{{ url_for('new_item') }}">Create one</a>.
-    </p>
-  {% endif %}
-</section>
+  <div class="field" data-other-wrap style="display:none; margin-bottom:10px;">
+    <label class="kv-label" for="deplete-reason-other">Other reason</label>
+    <input id="deplete-reason-other" class="input" type="text" placeholder="Enter reason">
+  </div>
+  <div style="display:flex; gap:8px; justify-content:flex-end;">
+    <button class="btn btn-secondary" type="button" id="deplete-cancel">Cancel</button>
+    <button class="btn btn-danger" type="button" id="deplete-confirm">Mark Depleted</button>
+  </div>
+</dialog>
 
 <script>
-// Edit modal wiring (unchanged)
+// ─── Swipe action config (from admin settings) ─────────────────────
+const SWIPE_RIGHT_ACTION = "{{ (swipe_actions or {}).get('right', 'edit') }}";
+const SWIPE_LEFT_ACTION  = "{{ (swipe_actions or {}).get('left', 'deplete') }}";
+
+// ─── Deplete dialog ────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  const dlg = document.getElementById('deplete-dialog');
+  if (!dlg) return;
+  let pendingForm = null;
+  const select = dlg.querySelector('#deplete-reason');
+  const otherWrap = dlg.querySelector('[data-other-wrap]');
+  const otherInput = dlg.querySelector('#deplete-reason-other');
+  const dateInput = dlg.querySelector('#deplete-date');
+  const confirmBtn = dlg.querySelector('#deplete-confirm');
+  const cancelBtn = dlg.querySelector('#deplete-cancel');
+
+  function nowLocalISO() {
+    const d = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  select?.addEventListener('change', () => {
+    if (!otherWrap || !otherInput) return;
+    if (select.value === 'Other') { otherWrap.style.display = 'block'; otherInput.focus(); }
+    else { otherWrap.style.display = 'none'; otherInput.value = ''; }
+  });
+
+  document.addEventListener('click', (e) => {
+    const form = e.target.closest('.js-deplete-form');
+    if (!form) return;
+    e.preventDefault();
+    pendingForm = form;
+    if (dateInput) dateInput.value = nowLocalISO();
+    if (select) select.value = '';
+    if (otherWrap) otherWrap.style.display = 'none';
+    if (otherInput) otherInput.value = '';
+    if (typeof dlg.showModal === 'function') dlg.showModal();
+    else { dlg.setAttribute('open', 'open'); dlg.style.display = 'block'; }
+  });
+
+  confirmBtn?.addEventListener('click', () => {
+    if (!pendingForm) return;
+    const reason = select?.value || '';
+    const other = otherInput?.value || '';
+    pendingForm.querySelector('input[name="reason"]').value = reason === 'Other' ? other : reason;
+    pendingForm.querySelector('input[name="depleted_at_input"]').value = dateInput?.value || '';
+    if (typeof dlg.close === 'function') dlg.close();
+    dlg.removeAttribute('open'); dlg.style.display = 'none';
+    pendingForm.submit();
+  });
+
+  cancelBtn?.addEventListener('click', () => {
+    if (typeof dlg.close === 'function') dlg.close();
+    dlg.removeAttribute('open'); dlg.style.display = 'none';
+    pendingForm = null;
+  });
+});
+
+// ─── Row / card dropdown menus ──────────────────────────────────────
+document.addEventListener('click', (e) => {
+  const toggleBtn = e.target.closest('.row-menu-toggle');
+  if (toggleBtn) {
+    e.stopPropagation();
+    const dropdown = toggleBtn.closest('.row-menu').querySelector('.row-menu-dropdown');
+    const isOpen = !dropdown.hidden;
+    // Close all open dropdowns first
+    document.querySelectorAll('.row-menu-dropdown:not([hidden])').forEach(d => d.hidden = true);
+    if (!isOpen) dropdown.hidden = false;
+    return;
+  }
+  // Click outside → close all
+  if (!e.target.closest('.row-menu-dropdown')) {
+    document.querySelectorAll('.row-menu-dropdown:not([hidden])').forEach(d => d.hidden = true);
+  }
+});
+
+// ─── Edit modal wiring ─────────────────────────────────────────────
 document.addEventListener('click', (e) => {
   const btn = e.target.closest('.js-edit');
   if (!btn) return;
   const url = btn.getAttribute('data-edit-url');
-  if (window.openModal && url) {
-    openModal(url);
-  } else {
-    console.error("openModal() not available or URL missing.");
-  }
+  if (window.openModal && url) openModal(url);
 });
 
-// Table sorting + arrow indicators
-document.addEventListener("DOMContentLoaded", () => {
-  const table = document.querySelector(".table-inventory");
+// ─── Inline quantity adjust ────────────────────────────────────────
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('.qty-btn');
+  if (!btn) return;
+  const form = btn.closest('form');
+  if (!form) return;
+  e.preventDefault();
+  const wrap = form.closest('.qty-inline');
+  const valueEl = wrap?.querySelector('.qty-value');
+  fetch(form.action, {
+    method: 'POST', body: new FormData(form),
+    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+  }).then(r => r.json()).then(data => {
+    if (data && data.ok && valueEl) valueEl.textContent = data.quantity;
+  }).catch(err => console.error('qty update failed', err));
+});
+
+// ─── Table sort ────────────────────────────────────────────────────
+function initTableSort() {
+  const table = document.querySelector('.table-inventory');
   if (!table) return;
+  const tbody = table.querySelector('tbody');
+  const originalRows = Array.from(tbody.querySelectorAll('tr'));
+  const headers = table.querySelectorAll('th.sortable');
+  const actionHeader = table.querySelector('th.right');
 
-  const tbody = table.querySelector("tbody");
-  const originalRows = Array.from(tbody.querySelectorAll("tr"));
-  const headers = table.querySelectorAll("th.sortable");
-  const actionHeader = table.querySelector("th.right");
-
-  headers.forEach((th) => {
-    th.addEventListener("click", () => {
+  headers.forEach(th => {
+    th.addEventListener('click', () => {
       const index = parseInt(th.dataset.sortIndex, 10);
-      const type = th.dataset.sortType || "text";
-
-      // Toggle direction
-      const newDir = th.dataset.sortDir === "asc" ? "desc" : "asc";
-
-      // Clear sort arrows on all headers
-      headers.forEach(h => {
-        h.dataset.sortDir = "";
-        h.querySelector(".sort-arrow")?.remove();
-      });
-
-      // Apply arrow
+      const type = th.dataset.sortType || 'text';
+      const newDir = th.dataset.sortDir === 'asc' ? 'desc' : 'asc';
+      headers.forEach(h => { h.dataset.sortDir = ''; h.querySelector('.sort-arrow')?.remove(); });
       th.dataset.sortDir = newDir;
-      const arrow = document.createElement("span");
-      arrow.className = "sort-arrow";
-      arrow.textContent = newDir === "asc" ? "▲" : "▼";
+      const arrow = document.createElement('span');
+      arrow.className = 'sort-arrow';
+      arrow.textContent = newDir === 'asc' ? '▲' : '▼';
       th.appendChild(arrow);
-
-      // Sort rows
-      const rows = Array.from(tbody.querySelectorAll("tr"));
+      const rows = Array.from(tbody.querySelectorAll('tr'));
       rows.sort((a, b) => {
-        const aText = (a.children[index]?.innerText || "").trim();
-        const bText = (b.children[index]?.innerText || "").trim();
-
-        let cmp;
-        if (type === "number") {
-          cmp = (parseFloat(aText) || 0) - (parseFloat(bText) || 0);
-        } else {
-          cmp = aText.localeCompare(bText, undefined, {
-            numeric: true,
-            sensitivity: "base",
-          });
-        }
-
-        return newDir === "asc" ? cmp : -cmp;
+        const aText = (a.children[index]?.innerText || '').trim();
+        const bText = (b.children[index]?.innerText || '').trim();
+        let cmp = type === 'number'
+          ? (parseFloat(aText) || 0) - (parseFloat(bText) || 0)
+          : aText.localeCompare(bText, undefined, { numeric: true, sensitivity: 'base' });
+        return newDir === 'asc' ? cmp : -cmp;
       });
-
-      rows.forEach((row) => tbody.appendChild(row));
+      rows.forEach(row => tbody.appendChild(row));
     });
   });
 
-  // Hidden reset: click Actions header to restore default order and clear sort arrows
   if (actionHeader) {
-    actionHeader.style.cursor = "pointer";
-    actionHeader.addEventListener("click", () => {
-      headers.forEach(h => {
-        h.dataset.sortDir = "";
-        h.querySelector(".sort-arrow")?.remove();
-      });
+    actionHeader.style.cursor = 'pointer';
+    actionHeader.addEventListener('click', () => {
+      headers.forEach(h => { h.dataset.sortDir = ''; h.querySelector('.sort-arrow')?.remove(); });
       originalRows.forEach(row => tbody.appendChild(row));
     });
   }
-});
+}
 
-// Inline quantity adjust without page reload
-document.addEventListener("click", (e) => {
-  const btn = e.target.closest(".qty-btn");
-  if (!btn) return;
-  const form = btn.closest("form");
-  if (!form) return;
-  e.preventDefault();
-  const wrap = form.closest(".qty-inline");
-  const valueEl = wrap?.querySelector(".qty-value");
-  const fd = new FormData(form);
-  fetch(form.action, {
-    method: "POST",
-    body: fd,
-    headers: { "X-Requested-With": "XMLHttpRequest" }
-  })
-    .then((res) => res.json())
-    .then((data) => {
-      if (data && data.ok && valueEl) {
-        valueEl.textContent = data.quantity;
-      }
-    })
-    .catch((err) => console.error("qty update failed", err));
-});
-
-// Column resize handles
-document.addEventListener("DOMContentLoaded", () => {
-  const table = document.querySelector(".table-inventory");
+// ─── Column resize ────────────────────────────────────────────────
+function initColumnResize() {
+  const table = document.querySelector('.table-inventory');
   if (!table) return;
-
-  const headers = Array.from(table.querySelectorAll("thead th"));
+  const headers = Array.from(table.querySelectorAll('thead th'));
   const MIN_WIDTH = 80;
-
   headers.forEach((th, idx) => {
-    // Skip the last header (Actions) to keep buttons tight
     if (idx === headers.length - 1) return;
-    const handle = document.createElement("span");
-    handle.className = "col-resize-handle";
-    handle.title = "Drag to resize column";
+    if (th.querySelector('.col-resize-handle')) return;
+    const handle = document.createElement('span');
+    handle.className = 'col-resize-handle';
+    handle.title = 'Drag to resize column';
     th.appendChild(handle);
-
-    handle.addEventListener("mousedown", (e) => {
-      e.preventDefault();
-      e.stopPropagation(); // avoid triggering sort
-
-      const startX = e.pageX;
-      const startWidth = th.offsetWidth;
-      document.body.classList.add("is-resizing");
-
-      const onMove = (moveEvent) => {
-        const delta = moveEvent.pageX - startX;
-        const newWidth = Math.max(MIN_WIDTH, startWidth + delta);
-        th.style.width = `${newWidth}px`;
-        th.style.minWidth = `${newWidth}px`;
-
-        const colIndex = idx + 1;
-        table.querySelectorAll(`tbody tr td:nth-child(${colIndex})`).forEach((td) => {
-          td.style.width = `${newWidth}px`;
-          td.style.minWidth = `${newWidth}px`;
+    handle.addEventListener('mousedown', (e) => {
+      e.preventDefault(); e.stopPropagation();
+      const startX = e.pageX, startWidth = th.offsetWidth;
+      document.body.classList.add('is-resizing');
+      const onMove = (ev) => {
+        const newWidth = Math.max(MIN_WIDTH, startWidth + ev.pageX - startX);
+        th.style.width = `${newWidth}px`; th.style.minWidth = `${newWidth}px`;
+        table.querySelectorAll(`tbody tr td:nth-child(${idx + 1})`).forEach(td => {
+          td.style.width = `${newWidth}px`; td.style.minWidth = `${newWidth}px`;
         });
       };
-
       const onUp = () => {
-        document.body.classList.remove("is-resizing");
-        document.removeEventListener("mousemove", onMove);
-        document.removeEventListener("mouseup", onUp);
+        document.body.classList.remove('is-resizing');
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
       };
-
-      document.addEventListener("mousemove", onMove);
-      document.addEventListener("mouseup", onUp);
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
     });
   });
+}
+
+// ─── Swipe on cards (touch + desktop pointer drag) ─────────────────
+function initSwipe() {
+  const THRESHOLD = 80;
+  const ACTION_META = {
+    edit:    { icon: '✏️',  label: 'Edit' },
+    deplete: { icon: '📦', label: 'Deplete' },
+    open:    { icon: '👁',  label: 'Open' },
+    print:   { icon: '🖨️', label: 'Print' },
+  };
+
+  function execCardAction(action, card) {
+    if (!action || action === 'none') return;
+    if (action === 'edit')    { card.querySelector('.js-edit')?.click(); return; }
+    if (action === 'deplete') { card.querySelector('.js-deplete-form button[type="submit"]')?.click(); return; }
+    if (action === 'open')    { const u = card.dataset.itemUrl; if (u) location.href = u; return; }
+    if (action === 'print')   { const a = card.querySelector('a.row-menu-item[href*="print"]'); if (a) location.href = a.href; return; }
+  }
+
+  // ── Grid cards ──
+  document.querySelectorAll('.item-card').forEach(card => {
+    if (card.dataset.swipeInit) return;
+    card.dataset.swipeInit = '1';
+
+    // Wrap children in translatable inner div
+    const inner = document.createElement('div');
+    inner.className = 'swipe-inner';
+    while (card.firstChild) inner.appendChild(card.firstChild);
+    card.appendChild(inner);
+
+    // Left overlay (swipe right reveals it)
+    if (SWIPE_RIGHT_ACTION && SWIPE_RIGHT_ACTION !== 'none' && ACTION_META[SWIPE_RIGHT_ACTION]) {
+      const m = ACTION_META[SWIPE_RIGHT_ACTION];
+      const lo = document.createElement('div');
+      lo.className = 'swipe-action swipe-action-left';
+      lo.innerHTML = `<span class="swipe-icon">${m.icon}</span><span class="swipe-label">${m.label}</span>`;
+      card.prepend(lo);
+    }
+    // Right overlay (swipe left reveals it)
+    if (SWIPE_LEFT_ACTION && SWIPE_LEFT_ACTION !== 'none' && ACTION_META[SWIPE_LEFT_ACTION]) {
+      const m = ACTION_META[SWIPE_LEFT_ACTION];
+      const ro = document.createElement('div');
+      ro.className = 'swipe-action swipe-action-right';
+      ro.innerHTML = `<span class="swipe-icon">${m.icon}</span><span class="swipe-label">${m.label}</span>`;
+      card.appendChild(ro);
+    }
+
+    let sx, sy, dx = 0, axis = null, activePtr = null;
+
+    function cardMoveUpdate() {
+      inner.style.transform = `translateX(${Math.max(-120, Math.min(120, dx))}px)`;
+      card.querySelector('.swipe-action-left')?.classList.toggle('swipe-active', dx > 30);
+      card.querySelector('.swipe-action-right')?.classList.toggle('swipe-active', dx < -30);
+    }
+    function cardReset(fire) {
+      inner.style.transition = 'transform 0.2s ease';
+      inner.style.transform = '';
+      card.querySelector('.swipe-action-left')?.classList.remove('swipe-active');
+      card.querySelector('.swipe-action-right')?.classList.remove('swipe-active');
+      if (fire) {
+        if (dx > THRESHOLD)  execCardAction(SWIPE_RIGHT_ACTION, card);
+        else if (dx < -THRESHOLD) execCardAction(SWIPE_LEFT_ACTION, card);
+      }
+      sx = undefined; activePtr = null;
+    }
+
+    // Touch
+    inner.addEventListener('touchstart', (e) => {
+      if (e.target.closest('button, a, input, select')) return;
+      sx = e.touches[0].clientX; sy = e.touches[0].clientY;
+      dx = 0; axis = null;
+      inner.style.transition = 'none';
+    }, { passive: true });
+    inner.addEventListener('touchmove', (e) => {
+      if (sx === undefined) return;
+      dx = e.touches[0].clientX - sx;
+      const dy = e.touches[0].clientY - sy;
+      if (!axis) axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+      if (axis !== 'x') return;
+      e.preventDefault();
+      cardMoveUpdate();
+    }, { passive: false });
+    inner.addEventListener('touchend', () => {
+      if (sx === undefined || axis !== 'x') { sx = undefined; return; }
+      cardReset(true);
+    });
+
+    // Pointer (mouse/pen desktop drag)
+    inner.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'touch') return;
+      if (e.button !== 0) return;
+      if (e.target.closest('button, a, input, select')) return;
+      inner.setPointerCapture(e.pointerId);
+      activePtr = e.pointerId;
+      sx = e.clientX; sy = e.clientY;
+      dx = 0; axis = null;
+      inner.style.transition = 'none';
+      inner.style.cursor = 'grabbing';
+    });
+    inner.addEventListener('pointermove', (e) => {
+      if (e.pointerType === 'touch' || activePtr !== e.pointerId) return;
+      dx = e.clientX - sx;
+      const dy = e.clientY - sy;
+      if (!axis) axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+      if (axis !== 'x') return;
+      cardMoveUpdate();
+    });
+    inner.addEventListener('pointerup', (e) => {
+      if (e.pointerType === 'touch' || activePtr !== e.pointerId) return;
+      inner.style.cursor = '';
+      if (axis !== 'x') { sx = undefined; activePtr = null; return; }
+      cardReset(true);
+    });
+    inner.addEventListener('pointercancel', (e) => {
+      if (e.pointerType === 'touch') return;
+      inner.style.cursor = '';
+      cardReset(false);
+    });
+  });
+
+  // ── List rows: fixed-position overlay (tr can't contain divs) ──
+  // Shared overlay div anchored over the active row via getBoundingClientRect
+  function _getRowHint() {
+    let h = document.getElementById('row-swipe-hint');
+    if (!h) {
+      h = document.createElement('div');
+      h.id = 'row-swipe-hint';
+      h.innerHTML = '<div class="rsh-left"></div><div class="rsh-right"></div>';
+      document.body.appendChild(h);
+    }
+    return h;
+  }
+  function _updateRowHint(row, dir) {
+    const h = _getRowHint();
+    const rect = row.getBoundingClientRect();
+    h.style.top    = rect.top + 'px';
+    h.style.left   = rect.left + 'px';
+    h.style.width  = rect.width + 'px';
+    h.style.height = rect.height + 'px';
+    const lEl = h.querySelector('.rsh-left');
+    const rEl = h.querySelector('.rsh-right');
+    const buildInner = (action) => {
+      const m = ACTION_META[action];
+      return m ? `<span class="swipe-icon">${m.icon}</span><span class="swipe-label">${m.label}</span>` : '';
+    };
+    lEl.innerHTML = buildInner(SWIPE_RIGHT_ACTION);
+    rEl.innerHTML = buildInner(SWIPE_LEFT_ACTION);
+    lEl.classList.toggle('rsh-active', dir === 'right');
+    rEl.classList.toggle('rsh-active', dir === 'left');
+  }
+  function _hideRowHint() {
+    const h = document.getElementById('row-swipe-hint');
+    if (!h) return;
+    h.querySelector('.rsh-left')?.classList.remove('rsh-active');
+    h.querySelector('.rsh-right')?.classList.remove('rsh-active');
+  }
+
+  document.querySelectorAll('.table-inventory tbody tr[data-item-url]').forEach(row => {
+    if (row.dataset.swipeInit) return;
+    row.dataset.swipeInit = '1';
+
+    function execRowAction(action) {
+      if (!action || action === 'none') return;
+      if (action === 'edit')    { row.querySelector('.js-edit')?.click(); return; }
+      if (action === 'deplete') { row.querySelector('.js-deplete-form button[type="submit"]')?.click(); return; }
+      if (action === 'open')    { const u = row.dataset.itemUrl; if (u) location.href = u; return; }
+      if (action === 'print')   { const a = row.querySelector('a.row-menu-item[href*="print"]'); if (a) location.href = a.href; return; }
+    }
+
+    let sx, sy, dx = 0, axis = null, activePtr = null;
+
+    function rowUpdate() {
+      const dir = dx > 30 ? 'right' : dx < -30 ? 'left' : '';
+      row.dataset.swipeDir = dir;
+      if (dir) _updateRowHint(row, dir); else _hideRowHint();
+    }
+    function rowReset(fire) {
+      row.dataset.swipeDir = '';
+      _hideRowHint();
+      if (fire) {
+        if (dx > THRESHOLD)  execRowAction(SWIPE_RIGHT_ACTION);
+        else if (dx < -THRESHOLD) execRowAction(SWIPE_LEFT_ACTION);
+      }
+      sx = undefined; activePtr = null;
+    }
+
+    // Touch
+    row.addEventListener('touchstart', (e) => {
+      if (e.target.closest('button, a, input, select')) return;
+      sx = e.touches[0].clientX; sy = e.touches[0].clientY;
+      dx = 0; axis = null;
+    }, { passive: true });
+    row.addEventListener('touchmove', (e) => {
+      if (sx === undefined) return;
+      dx = e.touches[0].clientX - sx;
+      const dy = e.touches[0].clientY - sy;
+      if (!axis) axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+      if (axis !== 'x') return;
+      e.preventDefault();
+      rowUpdate();
+    }, { passive: false });
+    row.addEventListener('touchend', () => {
+      if (sx === undefined || axis !== 'x') { sx = undefined; return; }
+      rowReset(true);
+    });
+
+    // Pointer (desktop)
+    row.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'touch') return;
+      if (e.button !== 0) return;
+      if (e.target.closest('button, a, input, select')) return;
+      row.setPointerCapture(e.pointerId);
+      activePtr = e.pointerId;
+      sx = e.clientX; sy = e.clientY;
+      dx = 0; axis = null;
+    });
+    row.addEventListener('pointermove', (e) => {
+      if (e.pointerType === 'touch' || activePtr !== e.pointerId) return;
+      dx = e.clientX - sx;
+      const dy = e.clientY - sy;
+      if (!axis) axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+      if (axis !== 'x') return;
+      rowUpdate();
+    });
+    row.addEventListener('pointerup', (e) => {
+      if (e.pointerType === 'touch' || activePtr !== e.pointerId) return;
+      if (axis !== 'x') { sx = undefined; activePtr = null; return; }
+      rowReset(true);
+    });
+    row.addEventListener('pointercancel', (e) => {
+      if (e.pointerType === 'touch') return;
+      rowReset(false);
+    });
+  });
+}
+
+// ─── View toggle ──────────────────────────────────────────────────
+function applyView(view) {
+  const container = document.getElementById('items-container');
+  if (container) container.setAttribute('data-view', view);
+  document.querySelectorAll('[data-view-toggle]').forEach(b => {
+    b.classList.toggle('active', b.dataset.viewToggle === view);
+  });
+}
+
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-view-toggle]');
+  if (!btn) return;
+  const view = btn.dataset.viewToggle;
+  localStorage.setItem('items_view', view);
+  applyView(view);
 });
 
-// Filter panel toggle
-document.addEventListener("DOMContentLoaded", () => {
-  const panel = document.getElementById("filter-panel");
-  const toggle = document.getElementById("toggle-filters");
-  if (!panel || !toggle) return;
-  let collapsed = true;
-  function sync() {
-    if (collapsed) {
-      panel.classList.add("collapsed");
-      toggle.textContent = "Show filters & search";
-    } else {
-      panel.classList.remove("collapsed");
-      toggle.textContent = "Hide filters & search";
+// ─── Quick-filter chips toggle ─────────────────────────────────────
+function applyChipsVisibility() {
+  const wrap = document.getElementById('quick-filters-wrap');
+  const btn = document.getElementById('chips-toggle');
+  const hidden = localStorage.getItem('chips_hidden') === '1';
+  if (wrap) wrap.classList.toggle('hidden', hidden);
+  if (btn) {
+    btn.textContent = hidden ? '⊞ Filters' : '⊟ Filters';
+    btn.classList.toggle('active', !hidden);
+  }
+}
+
+document.getElementById('chips-toggle')?.addEventListener('click', () => {
+  const hidden = localStorage.getItem('chips_hidden') === '1';
+  localStorage.setItem('chips_hidden', hidden ? '0' : '1');
+  applyChipsVisibility();
+});
+
+// ─── AJAX search & filter ─────────────────────────────────────────
+const pantrSearch = (function () {
+  const region = document.getElementById('results-region');
+  if (!region) return { fetchResults: () => {} };
+
+  let abortCtrl = null;
+
+  async function fetchResults(urlOrString) {
+    if (abortCtrl) abortCtrl.abort();
+    abortCtrl = new AbortController();
+    region.classList.add('is-loading');
+
+    try {
+      const url = new URL(String(urlOrString), window.location.href);
+      url.searchParams.set('partial', '1');
+      const res = await fetch(url.toString(), {
+        signal: abortCtrl.signal,
+        headers: { 'X-Requested-With': 'fetch' }
+      });
+      if (!res.ok) return;
+      const html = await res.text();
+      region.innerHTML = html;
+      // Re-init JS that attaches directly to DOM elements
+      initTableSort();
+      initColumnResize();
+      initSwipe();
+      // Restore current view and chips visibility
+      const savedView = localStorage.getItem('items_view') || 'list';
+      applyView(savedView);
+      applyChipsVisibility();
+    } catch (e) {
+      if (e.name !== 'AbortError') console.error('Search failed:', e);
+    } finally {
+      region.classList.remove('is-loading');
     }
   }
-  toggle.addEventListener("click", () => {
-    collapsed = !collapsed;
-    sync();
+
+  // Intercept filter form submit
+  const filterForm = document.getElementById('filter-panel');
+  if (filterForm) {
+    filterForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const params = new URLSearchParams(new FormData(filterForm));
+      const url = new URL(window.location.href);
+      params.forEach((v, k) => v ? url.searchParams.set(k, v) : url.searchParams.delete(k));
+      url.searchParams.set('page', '1');
+      history.pushState(null, '', url.toString());
+      fetchResults(url.toString());
+    });
+  }
+
+  // Debounced search-as-you-type
+  const searchInput = document.querySelector('input[name="q"]');
+  if (searchInput) {
+    let debounceTimer;
+    searchInput.addEventListener('input', () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        const params = new URLSearchParams(new FormData(filterForm));
+        const url = new URL(window.location.href);
+        params.forEach((v, k) => v ? url.searchParams.set(k, v) : url.searchParams.delete(k));
+        url.searchParams.set('page', '1');
+        history.pushState(null, '', url.toString());
+        fetchResults(url.toString());
+      }, 300);
+    });
+  }
+
+  // Chip links and pagination links inside results-region → AJAX
+  region.addEventListener('click', (e) => {
+    const link = e.target.closest('a[href].chip, .pagination a[href]');
+    if (!link) return;
+    // Don't intercept external links (depleted_items page)
+    const href = link.getAttribute('href');
+    if (!href || href.startsWith('/') && !href.startsWith('/?') && href !== '/') return;
+    e.preventDefault();
+    const url = new URL(link.href, window.location.href);
+    history.pushState(null, '', url.toString());
+    fetchResults(url.toString());
   });
-  sync();
+
+  // Browser back/forward
+  window.addEventListener('popstate', () => fetchResults(window.location.href));
+
+  return { fetchResults };
+})();
+
+// ─── Advanced filters toggle ───────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  const body = document.getElementById('adv-filters-body');
+  const btn = document.getElementById('adv-filter-toggle');
+  if (!body || !btn) return;
+  const params = new URLSearchParams(window.location.search);
+  const advKeys = ['category', 'location', 'bin_number', 'cook_date', 'use_by_date', 'tags', 'depleted_reason', 'include_depleted'];
+  if (advKeys.some(k => params.get(k))) {
+    body.removeAttribute('hidden');
+    btn.setAttribute('aria-expanded', 'true');
+    btn.textContent = '✕ Filters';
+  }
+  btn.addEventListener('click', () => {
+    const open = body.hasAttribute('hidden');
+    body.toggleAttribute('hidden', !open);
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    btn.textContent = open ? '✕ Filters' : '⚙ Filters';
+  });
 });
-</script>
-<script>
-  (function () {
-    // -------------------------------
-    // 1) Handle #serial=... → ?serial=...
-    // -------------------------------
-    const params = new URLSearchParams(window.location.search);
-    if (!params.has("serial")) {
-      const hash = window.location.hash || "";
-      if (hash.startsWith("#serial=")) {
-        const serial = decodeURIComponent(hash.slice("#serial=".length));
-        if (serial) {
-          const path = window.location.pathname || "/";
-          const newUrl = path + "?serial=" + encodeURIComponent(serial);
-          // Drop the hash to avoid re-triggering
-          window.location.replace(newUrl);
-          return; // stop here; we’re navigating
-        }
+
+// ─── Init on first load ────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  initTableSort();
+  initColumnResize();
+  initSwipe();
+  const savedView = localStorage.getItem('items_view') || 'list';
+  applyView(savedView);
+  applyChipsVisibility();
+});
+
+// ─── URL hash → serial redirect ────────────────────────────────────
+(function () {
+  const params = new URLSearchParams(window.location.search);
+  if (!params.has('serial')) {
+    const hash = window.location.hash || '';
+    if (hash.startsWith('#serial=')) {
+      const serial = decodeURIComponent(hash.slice('#serial='.length));
+      if (serial) {
+        window.location.replace(window.location.pathname + '?serial=' + encodeURIComponent(serial));
+        return;
       }
     }
+  }
+})();
 
-    // -------------------------------
-    // 2) Tiny debug panel for location info
-    //    - Only shows if ?debug=1 is present
-    // -------------------------------
-    const debugParams = new URLSearchParams(window.location.search);
-    if (!debugParams.has("debug")) {
-      return; // no debug requested, bail out
-    }
-
-    // Create a minimal debug box in the bottom-left
-    const panel = document.createElement("div");
-    panel.id = "debug-location-panel";
-    panel.style.position = "fixed";
-    panel.style.bottom = "10px";
-    panel.style.left = "10px";
-    panel.style.zIndex = "9999";
-    panel.style.background = "rgba(0,0,0,0.8)";
-    panel.style.color = "#fff";
-    panel.style.padding = "8px 10px";
-    panel.style.fontFamily = "monospace";
-    panel.style.fontSize = "11px";
-    panel.style.borderRadius = "6px";
-    panel.style.maxWidth = "360px";
-    panel.style.maxHeight = "40vh";
-    panel.style.overflow = "auto";
-    panel.style.boxShadow = "0 2px 6px rgba(0,0,0,0.4)";
-
-    const closeBtn = document.createElement("button");
-    closeBtn.textContent = "×";
-    closeBtn.style.float = "right";
-    closeBtn.style.marginLeft = "8px";
-    closeBtn.style.border = "none";
-    closeBtn.style.background = "transparent";
-    closeBtn.style.color = "#fff";
-    closeBtn.style.cursor = "pointer";
-    closeBtn.style.fontSize = "13px";
-    closeBtn.onclick = () => panel.remove();
-
-    const title = document.createElement("div");
-    title.textContent = "Location debug";
-    title.style.fontWeight = "bold";
-    title.style.marginBottom = "4px";
-
-    const pre = document.createElement("pre");
-    pre.style.whiteSpace = "pre-wrap";
-    pre.style.margin = "0";
-
-    const info = {
-      href: window.location.href,
-      origin: window.location.origin,
-      pathname: window.location.pathname,
-      search: window.location.search,
-      hash: window.location.hash,
-    };
-
-    pre.textContent = JSON.stringify(info, null, 2);
-
-    panel.appendChild(closeBtn);
-    panel.appendChild(title);
-    panel.appendChild(pre);
-    document.body.appendChild(panel);
-  })();
-</script>
-
-<script>
-  (function () {
-    const POLL_INTERVAL = 7000;
-    const endpoint = "{{ url_for('items_updated_at') }}";
-    let lastToken = "{{ db_updated_at }}";
-
-    async function poll() {
-      try {
-        const res = await fetch(endpoint, { cache: "no-store" });
-        if (res.ok) {
-          const data = await res.json();
-          const nextToken = String(data.updated_at || "");
-          if (nextToken && nextToken !== lastToken) {
-            window.location.reload();
-            return;
-          }
+// ─── Auto-refresh poll ─────────────────────────────────────────────
+(function () {
+  const POLL_INTERVAL = 7000;
+  const endpoint = "{{ url_for('items_updated_at') }}";
+  let lastToken = "{{ db_updated_at }}";
+  async function poll() {
+    try {
+      const res = await fetch(endpoint, { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        const nextToken = String(data.updated_at || '');
+        if (nextToken && nextToken !== lastToken) {
+          lastToken = nextToken;
+          pantrSearch.fetchResults(window.location.href);
+          return;
         }
-      } catch (err) {
-        console.warn("Auto-refresh poll failed", err);
       }
-      setTimeout(poll, POLL_INTERVAL);
-    }
-
+    } catch (err) { console.warn('Auto-refresh poll failed', err); }
     setTimeout(poll, POLL_INTERVAL);
-  })();
+  }
+  setTimeout(poll, POLL_INTERVAL);
+})();
 </script>
 {% endblock %}

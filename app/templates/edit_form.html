@@ -204,22 +204,19 @@
 
       <!-- Photo upload -->
       <div class="field field--full">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <label class="kv-label" for="photos">Add photos</label>
-          <small class="muted">You can add multiple; originals are compressed.</small>
+        <label class="kv-label">Add photos</label>
+        <div class="photo-input-row">
+          <label class="file-input">
+            <span class="file-btn">📷 Take photo</span>
+            <input class="input" type="file" name="photos" accept="image/*" capture="environment">
+            <span class="file-name">Camera</span>
+          </label>
+          <label class="file-input">
+            <span class="file-btn">🖼 Choose file</span>
+            <input class="input" id="photos" name="photos" type="file" accept="image/*" multiple>
+            <span class="file-name">Select one or more files</span>
+          </label>
         </div>
-        <label class="file-input">
-          <span class="file-btn">Choose photos</span>
-          <input
-            class="input"
-            id="photos"
-            name="photos"
-            type="file"
-            accept="image/*"
-            multiple
-          >
-          <span class="file-name">Select one or more files</span>
-        </label>
       </div>
     </div>
 
@@ -250,6 +247,11 @@
             <form method="post" action="{{ url_for('delete_photo', photo_id=p.id) }}" style="position:absolute; top:2px; right:2px;">
               <button class="btn btn-danger btn-small" type="submit" title="Delete photo" style="padding:2px 6px;">×</button>
             </form>
+            <button class="btn btn-small js-set-thumbnail {% if item.photo_path and item.photo_path == p.path %}thumb-primary{% endif %}"
+                    type="button"
+                    data-url="{{ url_for('set_primary_photo', item_id=item.id, photo_id=p.id) }}"
+                    title="Set as thumbnail"
+                    style="position:absolute; bottom:2px; left:2px; padding:2px 5px; font-size:11px;">★</button>
           </div>
         {% endfor %}
       </div>

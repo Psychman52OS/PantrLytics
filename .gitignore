@@ -17,3 +17,7 @@ env/
 # Editor/OS junk
 .DS_Store
 Thumbs.db
+
+# Claude Code collaboration files (local only)
+CLAUDE.md
+.claude/

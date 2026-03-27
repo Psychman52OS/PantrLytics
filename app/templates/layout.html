@@ -26,6 +26,9 @@
       href="{{ (rootp ~ '/assets/styles.css?v=' ~ css_version) | replace('//','/') }}">
   <link rel="icon" type="image/png" href="{{ (rootp ~ '/assets/icon.png') | replace('//','/') }}">
   <link rel="alternate icon" type="image/svg+xml" href="{{ (rootp ~ '/assets/icon.svg') | replace('//','/') }}">
+  {% set _fs = get_font_sizes() %}
+  <style>:root { --fs-base: {{ _fs.base }}px; }</style>
+  {% block extra_head %}{% endblock %}
 </head>
 <body>
   <script>
@@ -47,16 +50,17 @@
           <img src="{{ (request.scope.get('root_path','') ~ '/assets/icon.png') | replace('//','/') }}" alt="PantrLytics icon" width="100" height="100" style="display:block; border-radius:16px;">
         </a>
       </div>
-      <div style="grid-row:1 / 2; grid-column:2 / 3;">
+      <div style="grid-row:1 / 2; grid-column:2 / 3; display:flex; align-items:center; justify-content:space-between; gap:10px;">
         <h1 class="app-title" style="margin:0;">
           <a href="{{ url_for('index') }}" style="display:inline-flex; align-items:baseline; gap:10px; text-decoration:none;">
             Pantrlytics
             <span style="font-size:14px; font-style:italic; color: var(--muted);">Your Mise en Place, Digitized.</span>
           </a>
         </h1>
+        <button class="nav-toggle" id="nav-toggle" aria-label="Open menu" aria-expanded="false">☰</button>
       </div>
-      <div style="grid-row:2 / 3; grid-column:2 / 3;">
-        <nav class="nav" style="flex-wrap:wrap; gap:22px; padding-left:0; font-size:17px;">
+      <div class="nav-container" style="grid-row:2 / 3; grid-column:2 / 3;">
+        <nav class="nav" id="main-nav" style="flex-wrap:wrap; gap:22px; padding-left:0; font-size:17px;">
           <a href="{{ url_for('index') }}">All Items</a>
           <a href="{{ url_for('new_item') }}">New Item</a>
           <a href="{{ url_for('label_designer') }}">Designer</a>
@@ -81,6 +85,44 @@
       <div id="app-modal-body" class="modal-card"></div>
     </dialog>
   </main>
+
+  <!-- Bottom tab bar (mobile only) -->
+  <nav class="bottom-nav" aria-label="Main navigation">
+    <div class="bottom-nav-inner">
+      <a class="bottom-nav-item" href="{{ url_for('index') }}">
+        <span class="bottom-nav-icon">🏠</span>
+        <span class="bottom-nav-label">Items</span>
+      </a>
+      <a class="bottom-nav-item" href="{{ url_for('new_item') }}">
+        <span class="bottom-nav-icon">＋</span>
+        <span class="bottom-nav-label">New</span>
+      </a>
+      <a class="bottom-nav-item" href="{{ url_for('label_designer') }}">
+        <span class="bottom-nav-icon">🏷</span>
+        <span class="bottom-nav-label">Designer</span>
+      </a>
+      <a class="bottom-nav-item" href="{{ url_for('reports') }}">
+        <span class="bottom-nav-icon">📊</span>
+        <span class="bottom-nav-label">Reports</span>
+      </a>
+      <button class="bottom-nav-item" type="button" id="bottom-more-btn">
+        <span class="bottom-nav-icon">⋯</span>
+        <span class="bottom-nav-label">More</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- More sheet -->
+  <div class="bottom-sheet" id="bottom-sheet" aria-hidden="true">
+    <div class="bottom-sheet-backdrop" id="bottom-sheet-backdrop"></div>
+    <div class="bottom-sheet-content">
+      <div class="bottom-sheet-handle"></div>
+      <a class="bottom-sheet-item" href="{{ url_for('admin') }}">⚙ Admin &amp; Settings</a>
+      <a class="bottom-sheet-item" href="{{ url_for('backup_page') }}">💾 Backup</a>
+      <a class="bottom-sheet-item" href="{{ url_for('depleted_items') }}">📦 Depleted Items</a>
+    </div>
+  </div>
+
 <script>
   const dlg  = document.getElementById('app-modal');
   const body = document.getElementById('app-modal-body');
@@ -228,6 +270,71 @@
     }
     const names = files.slice(0,3).map(f => f.name).join(', ');
     label.textContent = files.length > 3 ? `${files.length} files selected (${names}…)` : names;
+  });
+
+  // Hamburger nav toggle (desktop fallback, hidden on mobile)
+  (function () {
+    const toggle = document.getElementById('nav-toggle');
+    const nav = document.getElementById('main-nav');
+    if (!toggle || !nav) return;
+    toggle.addEventListener('click', () => {
+      const open = nav.classList.toggle('nav-open');
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      toggle.textContent = open ? '✕' : '☰';
+    });
+  })();
+
+  // Bottom nav: highlight active tab
+  (function () {
+    const path = window.location.pathname.replace(/\/+$/, '') || '/';
+    document.querySelectorAll('.bottom-nav-item[href]').forEach(item => {
+      const href = (item.getAttribute('href') || '').split('?')[0].replace(/\/+$/, '') || '/';
+      if (path === href || (href !== '/' && path.startsWith(href + '/'))) {
+        item.classList.add('active');
+      }
+    });
+  })();
+
+  // Bottom nav: More sheet
+  (function () {
+    const btn = document.getElementById('bottom-more-btn');
+    const sheet = document.getElementById('bottom-sheet');
+    const backdrop = document.getElementById('bottom-sheet-backdrop');
+    if (!btn || !sheet || !backdrop) return;
+    function open() { sheet.classList.add('open'); sheet.setAttribute('aria-hidden', 'false'); }
+    function close() { sheet.classList.remove('open'); sheet.setAttribute('aria-hidden', 'true'); }
+    btn.addEventListener('click', open);
+    backdrop.addEventListener('click', close);
+  })();
+
+  // ── Set-thumbnail star button (delegated — works inside modals loaded via innerHTML) ──
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.js-set-thumbnail');
+    if (!btn) return;
+    e.preventDefault();
+    let url = btn.dataset.url;
+    if (!url) return;
+    // Use pathname only so the fetch is always same-origin (avoids HA ingress scheme mismatch)
+    try { url = new URL(url, window.location.href).pathname; } catch (_) {}
+    btn.disabled = true;
+    fetch(url, { method: 'POST' })
+      .then(r => r.ok ? r.json() : Promise.reject('HTTP ' + r.status))
+      .then(data => {
+        if (data.ok) {
+          document.querySelectorAll('.js-set-thumbnail').forEach(b => {
+            b.classList.remove('thumb-primary');
+            b.title = 'Set as thumbnail';
+            b.textContent = '★';
+          });
+          btn.classList.add('thumb-primary');
+          btn.title = 'Current thumbnail ✓';
+          btn.textContent = '✓';
+          // Reload so the grid cards reflect the new thumbnail
+          setTimeout(() => { window.location.reload(); }, 600);
+        }
+      })
+      .catch((err) => { console.error('set-thumbnail failed', err); })
+      .finally(() => { btn.disabled = false; });
   });
 </script>
 </body>

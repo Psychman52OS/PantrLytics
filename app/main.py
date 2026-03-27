@@ -2,6 +2,9 @@ import os, io, subprocess, tempfile, hashlib
 import zipfile
 import threading
 import time
+import signal
+import asyncio
+import sys
 import datetime as dt
 import uuid
 import shutil
@@ -68,6 +71,7 @@ DATA_DIR = os.environ.get("DATA_DIR", "/data")
 PHOTOS_DIR = os.path.join(DATA_DIR, "photos")
 MAX_PHOTO_BYTES = 5 * 1024 * 1024  # 5MB safety limit
 BACKUP_DIR = os.path.join(DATA_DIR, "backups")
+DEFAULT_ITEM_ICON_PATH = os.path.join(DATA_DIR, "default_item_icon.jpg")
 ADDON_OPTIONS_PATH = os.environ.get(
     "ADDON_OPTIONS_PATH", os.path.join(DATA_DIR, "options.json")
 )
@@ -873,6 +877,64 @@ def save_theme(session: Session, theme: str):
     _set_setting(session, "theme", theme)
 
 
+FONT_SIZE_MIN = 12
+FONT_SIZE_MAX = 22
+FONT_SIZE_DEFAULT_BASE = 15
+
+
+def get_font_sizes(session: Session) -> dict:
+    """Return font size settings. list_page/show_page=0 means inherit global base."""
+    def _clamp(val, default):
+        try:
+            v = int(val)
+            return max(FONT_SIZE_MIN, min(FONT_SIZE_MAX, v)) if v else 0
+        except (ValueError, TypeError):
+            return default
+
+    base_raw = _get_setting(session, "font_size_base", str(FONT_SIZE_DEFAULT_BASE))
+    list_raw = _get_setting(session, "font_size_list", "0")
+    show_raw = _get_setting(session, "font_size_show", "0")
+    base = max(FONT_SIZE_MIN, min(FONT_SIZE_MAX, int(base_raw))) if base_raw else FONT_SIZE_DEFAULT_BASE
+    return {
+        "base": base,
+        "list_page": _clamp(list_raw, 0),
+        "show_page": _clamp(show_raw, 0),
+    }
+
+
+def save_font_sizes(session: Session, base: int, list_page: int, show_page: int):
+    _set_setting(session, "font_size_base", str(max(FONT_SIZE_MIN, min(FONT_SIZE_MAX, base))))
+    _set_setting(session, "font_size_list", str(list_page) if list_page else "0")
+    _set_setting(session, "font_size_show", str(show_page) if show_page else "0")
+    # Bust the in-memory cache so the new value applies immediately
+    global _fs_cache_exp
+    _fs_cache_exp = 0.0
+
+
+SWIPE_ACTION_OPTIONS = ["edit", "deplete", "open", "print", "none"]
+SWIPE_ACTION_DEFAULTS = {"right": "edit", "left": "deplete"}
+
+
+def get_swipe_actions(session: Session) -> dict:
+    """Return swipe action config: {"right": action, "left": action}."""
+    right = _get_setting(session, "swipe_right_action", SWIPE_ACTION_DEFAULTS["right"])
+    left  = _get_setting(session, "swipe_left_action",  SWIPE_ACTION_DEFAULTS["left"])
+    if right not in SWIPE_ACTION_OPTIONS:
+        right = SWIPE_ACTION_DEFAULTS["right"]
+    if left not in SWIPE_ACTION_OPTIONS:
+        left = SWIPE_ACTION_DEFAULTS["left"]
+    return {"right": right, "left": left}
+
+
+def save_swipe_actions(session: Session, right: str, left: str):
+    if right not in SWIPE_ACTION_OPTIONS:
+        right = SWIPE_ACTION_DEFAULTS["right"]
+    if left not in SWIPE_ACTION_OPTIONS:
+        left = SWIPE_ACTION_DEFAULTS["left"]
+    _set_setting(session, "swipe_right_action", right)
+    _set_setting(session, "swipe_left_action", left)
+
+
 def _export_csv_bytes(session: Session, fields: list[str] | None = None) -> bytes:
     import csv
     items = session.exec(select(Item)).all()
@@ -978,7 +1040,16 @@ def create_backup_zip(opts: dict, session: Session, target_dir: str | None = Non
         zf.writestr("backup_info.json", json.dumps(info, indent=2))
 
         if opts.get("include_db") and os.path.isfile(DB_PATH):
-            zf.write(DB_PATH, arcname="inventory.db")
+            # Use VACUUM INTO to produce a clean, WAL-free snapshot so the backup
+            # always contains every committed write regardless of WAL state.
+            _vacuum_path = DB_PATH + ".vacuumtmp"
+            try:
+                with engine.connect() as _conn:
+                    _conn.exec_driver_sql(f"VACUUM INTO '{_vacuum_path}';")
+                zf.write(_vacuum_path, arcname="inventory.db")
+            finally:
+                if os.path.isfile(_vacuum_path):
+                    os.remove(_vacuum_path)
 
         if opts.get("include_photos") and os.path.isdir(PHOTOS_DIR):
             for root, dirs, files in os.walk(PHOTOS_DIR):
@@ -997,40 +1068,110 @@ def create_backup_zip(opts: dict, session: Session, target_dir: str | None = Non
     return fpath, fname
 
 
+def _push_options_to_supervisor(options_json_path: str):
+    """Push restored options to the HA Supervisor API so the config tab reflects them.
+
+    Requires hassio_api: true in config.yaml and the SUPERVISOR_TOKEN env var.
+    Silently skips if not running inside Home Assistant.
+    Uses urllib so no external tools (curl) are required.
+    """
+    import urllib.request as _urlreq
+    token = os.environ.get("SUPERVISOR_TOKEN")
+    if not token:
+        print("[RESTORE] No SUPERVISOR_TOKEN — skipping Supervisor options update")
+        return
+    try:
+        with open(options_json_path, "r") as f:
+            opts = json.load(f)
+        # Only forward keys defined in the add-on schema; drop internal-only keys
+        allowed = {"base_url", "ipp_host", "ipp_printer", "serial_prefix"}
+        payload = json.dumps({"options": {k: v for k, v in opts.items() if k in allowed}}).encode()
+        req = _urlreq.Request(
+            "http://supervisor/addons/self/options",
+            data=payload,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        with _urlreq.urlopen(req, timeout=10) as resp:
+            body = resp.read().decode()
+        print(f"[RESTORE] Supervisor options update: {body.strip()}")
+    except Exception as e:
+        print(f"[RESTORE] Could not push options to Supervisor: {e}")
+
+
 def restore_backup(zip_path: str) -> dict:
-    """Restore DB/photos/options from a backup zip. Returns a summary dict."""
+    """Restore DB/photos/options from a backup zip. Returns a summary dict.
+
+    Handles both flat zips (files at root) and macOS-style zips where all
+    files are nested inside a single top-level subdirectory.
+    """
     summary = {"db": False, "photos": 0, "options": False}
 
     with tempfile.TemporaryDirectory() as tmpdir:
         with zipfile.ZipFile(zip_path, "r") as zf:
-            for member in zf.namelist():
+            members = zf.namelist()
+
+            # Detect a single top-level subdirectory wrapper (macOS zip behaviour).
+            # If every non-__MACOSX entry sits under one common folder, strip it.
+            real_members = [m for m in members if not m.startswith("__MACOSX")]
+            prefix = ""
+            top_dirs = {m.split("/")[0] for m in real_members if m.split("/")[0]}
+            if len(top_dirs) == 1:
+                candidate = next(iter(top_dirs)) + "/"
+                if all(m.startswith(candidate) or m == candidate for m in real_members):
+                    prefix = candidate
+
+            for member in members:
+                # Skip macOS metadata files
+                if member.startswith("__MACOSX"):
+                    continue
                 if member.startswith("/") or ".." in member.split("/"):
                     continue  # skip unsafe entries
 
-                if member == "inventory.db":
-                    target = os.path.join(tmpdir, "inventory.db")
+                # Strip the subdirectory prefix if present
+                logical = member[len(prefix):] if prefix and member.startswith(prefix) else member
+                if not logical or logical.endswith("/"):
+                    continue
+
+                if logical == "inventory.db":
                     zf.extract(member, path=tmpdir)
-                    # backup existing db
+                    target = os.path.join(tmpdir, member)
                     try:
                         if os.path.isfile(DB_PATH):
                             shutil.copyfile(DB_PATH, DB_PATH + ".bak")
                         shutil.copyfile(target, DB_PATH)
+                        # Remove stale WAL/SHM files — they belong to the old DB
+                        # and will corrupt the restored one if left on disk
+                        for _wal_suffix in ("-wal", "-shm"):
+                            _wal_path = DB_PATH + _wal_suffix
+                            if os.path.isfile(_wal_path):
+                                os.remove(_wal_path)
+                                print(f"[RESTORE] Removed stale WAL file: {_wal_path}")
+                        engine.dispose()   # drop pooled connections so next request reads restored DB
                         summary["db"] = True
                     except Exception as e:
                         print("[RESTORE] DB restore error", e)
 
-                elif member.startswith("photos/"):
+                elif logical.startswith("photos/"):
                     zf.extract(member, path=tmpdir)
-                    rel_path = member[len("photos/") :]
+                    rel_path = logical[len("photos/"):]
+                    if not rel_path:
+                        continue
                     dest = os.path.join(PHOTOS_DIR, rel_path)
                     os.makedirs(os.path.dirname(dest), exist_ok=True)
                     shutil.copyfile(os.path.join(tmpdir, member), dest)
                     summary["photos"] += 1
 
-                elif member == "options.json":
+                elif logical == "options.json":
                     zf.extract(member, path=tmpdir)
                     try:
-                        shutil.copyfile(os.path.join(tmpdir, member), ADDON_OPTIONS_PATH)
+                        src = os.path.join(tmpdir, member)
+                        shutil.copyfile(src, ADDON_OPTIONS_PATH)
+                        # Also push to the HA Supervisor API so the config tab updates
+                        _push_options_to_supervisor(src)
                         summary["options"] = True
                     except Exception as e:
                         print("[RESTORE] options restore error", e)
@@ -1133,6 +1274,73 @@ templates.env.globals["format_datetime"] = format_datetime  # <-- global for Jin
 templates.env.globals["BASE_URL"] = BASE_URL
 templates.env.globals["app_version"] = APP_VERSION
 templates.env.globals["max_label_copies"] = MAX_LABEL_COPIES
+
+
+# ── Lightweight TTL caches for settings read on every page ──────────────────
+_fs_cache: dict | None = None
+_fs_cache_exp: float = 0.0
+
+
+def _jinja_get_font_sizes():
+    global _fs_cache, _fs_cache_exp
+    now = time.monotonic()
+    if _fs_cache is not None and now < _fs_cache_exp:
+        return _fs_cache
+    with Session(engine) as _s:
+        result = get_font_sizes(_s)
+    _fs_cache = result
+    _fs_cache_exp = now + 15.0
+    return result
+
+
+_icon_exists_cache: bool | None = None
+_icon_exists_cache_exp: float = 0.0
+
+
+def _invalidate_icon_cache():
+    global _icon_exists_cache_exp
+    _icon_exists_cache_exp = 0.0
+
+
+def _jinja_default_icon_exists():
+    global _icon_exists_cache, _icon_exists_cache_exp
+    now = time.monotonic()
+    if _icon_exists_cache is not None and now < _icon_exists_cache_exp:
+        return _icon_exists_cache
+    result = os.path.isfile(DEFAULT_ITEM_ICON_PATH)
+    _icon_exists_cache = result
+    _icon_exists_cache_exp = now + 30.0
+    return result
+
+
+_emoji_cache: str | None = None
+_emoji_cache_exp: float = 0.0
+DEFAULT_ITEM_EMOJI = "📦"
+
+
+def _invalidate_emoji_cache():
+    global _emoji_cache_exp
+    _emoji_cache_exp = 0.0
+
+
+def _jinja_get_default_emoji():
+    global _emoji_cache, _emoji_cache_exp
+    now = time.monotonic()
+    if _emoji_cache is not None and now < _emoji_cache_exp:
+        return _emoji_cache
+    with Session(engine) as _s:
+        val = _get_setting(_s, "default_icon_emoji", DEFAULT_ITEM_EMOJI)
+    _emoji_cache = val or DEFAULT_ITEM_EMOJI
+    _emoji_cache_exp = now + 30.0
+    return _emoji_cache
+
+
+templates.env.globals["get_font_sizes"] = _jinja_get_font_sizes
+templates.env.globals["default_item_icon_exists"] = _jinja_default_icon_exists
+templates.env.globals["get_default_item_emoji"] = _jinja_get_default_emoji
+
+import hashlib as _hashlib
+templates.env.filters["photo_ver"] = lambda p: _hashlib.md5((p or "").encode()).hexdigest()[:8] if p else "0"
 
 
 class PrefixFromHeaders(BaseHTTPMiddleware):
@@ -1826,10 +2034,19 @@ def deplete_item(
     request: Request,
     item_id: int,
     reason: str = Form(""),
+    depleted_at_input: str = Form(""),
 ):
     reason_clean = _norm(reason) or ""
     if reason_clean and reason_clean not in DEPLETION_REASONS:
         reason_clean = "Other"
+    # Use submitted datetime if valid, otherwise fall back to now
+    depleted_iso = dt.datetime.utcnow().isoformat()
+    if depleted_at_input:
+        try:
+            parsed = dt.datetime.fromisoformat(depleted_at_input)
+            depleted_iso = parsed.isoformat()
+        except ValueError:
+            pass
     with Session(engine) as session:
         item = session.get(Item, item_id)
         if not item:
@@ -1839,8 +2056,7 @@ def deplete_item(
                 url=str(request.url_for("show_item", item_id=item_id)),
                 status_code=303,
             )
-        now_iso = dt.datetime.utcnow().isoformat()
-        item.depleted_at = now_iso
+        item.depleted_at = depleted_iso
         item.depleted_reason = reason_clean
         item.depleted_qty = item.quantity
         item.quantity = 0
@@ -1884,9 +2100,26 @@ def recover_item(
     return RedirectResponse(url=target, status_code=303)
 
 
+@app.post("/item/{item_id}/set-primary-photo/{photo_id}", name="set_primary_photo")
+def set_primary_photo(request: Request, item_id: int, photo_id: int):
+    with Session(engine) as session:
+        item = session.get(Item, item_id)
+        photo = session.get(ItemPhoto, photo_id)
+        if not item or not photo or photo.item_id != item_id:
+            return JSONResponse({"ok": False}, status_code=404)
+        item.photo_path = photo.path
+        session.add(item)
+        session.commit()
+    return JSONResponse({"ok": True})
+
+
 @app.post("/import/csv")
 async def import_csv(request: Request, file: UploadFile = File(...)):
-    """Import items from a CSV whose columns match the export."""
+    """Import items from a CSV whose columns match the export.
+
+    Accepts both label-based headers (e.g. "Name", "Serial number") produced by
+    the app's own export, and key-based headers (e.g. "name", "serial_number").
+    """
     import csv
 
     if not file or not file.filename:
@@ -1908,6 +2141,26 @@ async def import_csv(request: Request, file: UploadFile = File(...)):
         print(f"[csv import] redirect -> {target}")
         return RedirectResponse(url=target, status_code=303)
 
+    # Build a mapping from whatever header the CSV uses → internal key.
+    # Supports both label headers ("Name", "Serial number") and key headers ("name").
+    label_to_key = {f["label"].lower(): f["key"] for f in EXPORTABLE_FIELDS}
+    key_set = {f["key"] for f in EXPORTABLE_FIELDS}
+    header_map = {}
+    for col in reader.fieldnames:
+        col_lower = col.strip().lower()
+        if col_lower in label_to_key:
+            header_map[col] = label_to_key[col_lower]
+        elif col_lower in key_set:
+            header_map[col] = col_lower
+    print(f"[csv import] header map: {header_map}")
+
+    def _val(row: dict, key: str):
+        """Look up a field by its internal key, regardless of which header style was used."""
+        for col, mapped_key in header_map.items():
+            if mapped_key == key:
+                return _norm(row.get(col)) or None
+        return None
+
     created = 0
     skipped = 0
 
@@ -1918,23 +2171,23 @@ async def import_csv(request: Request, file: UploadFile = File(...)):
         for row in reader:
             if not row:
                 continue
-            name = _clean(row.get("name"))
+            name = _val(row, "name")
             if not name:
                 skipped += 1
                 continue
 
-            qty_raw = _clean(row.get("quantity"))
+            qty_raw = _val(row, "quantity")
             try:
                 qty = int(qty_raw) if qty_raw is not None else 1
             except Exception:
                 qty = 1
-            depleted_qty_raw = _clean(row.get("depleted_qty"))
+            depleted_qty_raw = _val(row, "depleted_qty")
             try:
                 depleted_qty = int(depleted_qty_raw) if depleted_qty_raw is not None else None
             except Exception:
                 depleted_qty = None
 
-            serial = _clean(row.get("serial_number"))
+            serial = _val(row, "serial_number")
             if serial:
                 existing = session.exec(
                     select(Item).where(Item.serial_number == serial)
@@ -1946,25 +2199,25 @@ async def import_csv(request: Request, file: UploadFile = File(...)):
             item = Item(
                 serial_number=serial,
                 name=name,
-                category=_clean(row.get("category")),
-                tags=_clean(row.get("tags")),
-                location=_clean(row.get("location")),
-                bin_number=_clean(row.get("bin_number")),
-            quantity=qty,
-            unit=_clean(row.get("unit")) or "each",
-            barcode=_clean(row.get("barcode")),
-            second_serial_number=_clean(row.get("second_serial_number")),
-            condition=_clean(row.get("condition")),
-                cook_date=_clean(row.get("cook_date")),
-                use_by_date=_clean(row.get("use_by_date")),
-                use_within=_clean(row.get("use_within")),
-                notes=_clean(row.get("notes")),
-                photo_path=_clean(row.get("photo_path")),
-                last_audit_date=_clean(row.get("last_audit_date")),
-                depleted_at=_clean(row.get("depleted_at")),
-                depleted_reason=_clean(row.get("depleted_reason")),
+                category=_val(row, "category"),
+                tags=_val(row, "tags"),
+                location=_val(row, "location"),
+                bin_number=_val(row, "bin_number"),
+                quantity=qty,
+                unit=_val(row, "unit") or "each",
+                barcode=_val(row, "barcode"),
+                second_serial_number=_val(row, "second_serial_number"),
+                condition=_val(row, "condition"),
+                cook_date=_val(row, "cook_date"),
+                use_by_date=_val(row, "use_by_date"),
+                use_within=_val(row, "use_within"),
+                notes=_val(row, "notes"),
+                photo_path=_val(row, "photo_path"),
+                last_audit_date=_val(row, "last_audit_date"),
+                depleted_at=_val(row, "depleted_at"),
+                depleted_reason=_val(row, "depleted_reason"),
                 depleted_qty=depleted_qty,
-                created_at=_clean(row.get("created_at")) or dt.datetime.utcnow().isoformat(),
+                created_at=_val(row, "created_at") or dt.datetime.utcnow().isoformat(),
             )
             session.add(item)
             created += 1
@@ -1982,13 +2235,192 @@ async def import_csv(request: Request, file: UploadFile = File(...)):
     return RedirectResponse(url=target, status_code=303)
 
 
+def _restore_restart_html() -> str:
+    """Return a fun HTML page that polls /ping until the app is back up, then redirects.
+
+    Uses the browser's own URL to derive the correct ingress root — no server-side
+    URL generation needed, so it works correctly behind HA ingress.
+    """
+    return """<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>PantrLytics — Restoring Your Pantry</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #e8f5e9 0%, #f0f4f8 50%, #e3f2fd 100%);
+    }
+
+    .card {
+      background: white;
+      border-radius: 20px;
+      padding: 2.5rem 3rem;
+      box-shadow: 0 8px 40px rgba(0,0,0,.12);
+      text-align: center;
+      max-width: 460px;
+      width: 90%;
+      animation: fadeIn .5s ease;
+    }
+
+    @keyframes fadeIn { from { opacity:0; transform: translateY(16px); } to { opacity:1; transform: translateY(0); } }
+
+    .icon-row {
+      font-size: 2.8rem;
+      letter-spacing: .15em;
+      margin-bottom: 1.2rem;
+      animation: bounce 2s infinite;
+    }
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50%       { transform: translateY(-6px); }
+    }
+
+    h2 {
+      color: #1b5e20;
+      font-size: 1.5rem;
+      margin-bottom: .5rem;
+    }
+
+    .subtitle {
+      color: #666;
+      font-size: .95rem;
+      margin-bottom: 1.6rem;
+      line-height: 1.5;
+    }
+
+    /* Progress bar */
+    .bar-wrap {
+      background: #e8f5e9;
+      border-radius: 99px;
+      height: 10px;
+      overflow: hidden;
+      margin-bottom: 1.4rem;
+    }
+    .bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #43a047, #66bb6a);
+      border-radius: 99px;
+      transition: width .4s ease;
+    }
+
+    /* Rotating fun messages */
+    #fun-msg {
+      font-size: .9rem;
+      color: #388e3c;
+      font-weight: 500;
+      min-height: 1.4em;
+      margin-bottom: 1.2rem;
+      transition: opacity .3s;
+    }
+
+    #status {
+      font-size: .8rem;
+      color: #aaa;
+    }
+
+    .ready-msg {
+      color: #1b5e20 !important;
+      font-size: 1.1rem !important;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon-row">&#127829; &#10024; &#128218;</div>
+    <h2>Restore Complete!</h2>
+    <p class="subtitle">Your pantry data is back. The app is reloading&mdash;<br>
+      hang tight while we stock the shelves.</p>
+
+    <div class="bar-wrap"><div class="bar-fill" id="bar"></div></div>
+    <p id="fun-msg">Counting the cans&hellip;</p>
+    <p id="status">Checking if the app is ready&hellip;</p>
+  </div>
+
+  <script>
+    var pingUrl = window.location.href.replace(/\\/backup(\\/restore.*)?$/, '/ping');
+    var rootUrl = window.location.href.replace(/\\/backup(\\/restore.*)?$/, '/');
+
+    var msgs = [
+      'Counting the cans\u2026',
+      'Alphabetising the spices\u2026',
+      'Checking the expiry dates\u2026',
+      'Restocking the freezer\u2026',
+      'Labelling everything neatly\u2026',
+      'Rotating the stock\u2026',
+      'Making sure nothing expired\u2026',
+      'Organising the bins\u2026',
+      'Brewing a quick coffee while we wait\u2026',
+      'Almost there, promise\u2026',
+    ];
+
+    var attempts  = 0;
+    var maxWait   = 120;
+    var msgIndex  = 0;
+    var barEl     = document.getElementById('bar');
+    var funEl     = document.getElementById('fun-msg');
+    var statusEl  = document.getElementById('status');
+
+    function nextMsg() {
+      funEl.style.opacity = 0;
+      setTimeout(function() {
+        msgIndex = (msgIndex + 1) % msgs.length;
+        funEl.textContent = msgs[msgIndex];
+        funEl.style.opacity = 1;
+      }, 300);
+    }
+    setInterval(nextMsg, 3500);
+
+    function tryRedirect() {
+      attempts++;
+      var pct = Math.min(90, attempts * 3);
+      barEl.style.width = pct + '%';
+      statusEl.textContent = 'Attempt ' + attempts + '\u2026';
+
+      fetch(pingUrl, { cache: 'no-store' })
+        .then(function(r) {
+          if (r.ok) {
+            barEl.style.width = '100%';
+            funEl.textContent = '\u2705 All stocked up!';
+            statusEl.className = 'ready-msg';
+            statusEl.textContent = 'Taking you home\u2026';
+            setTimeout(function() { window.location.href = rootUrl; }, 800);
+          } else {
+            schedule();
+          }
+        })
+        .catch(function() { schedule(); });
+    }
+
+    function schedule() {
+      if (attempts < maxWait) setTimeout(tryRedirect, 3000);
+      else {
+        funEl.textContent = '\u26a0\ufe0f Timed out';
+        statusEl.textContent = 'Please refresh the page manually.';
+      }
+    }
+
+    setTimeout(tryRedirect, 5000);
+  </script>
+</body>
+</html>"""
+
+
 @app.post("/backup/restore")
 async def backup_restore(request: Request, file: UploadFile = File(...)):
     if not file or not file.filename:
         target = str(request.url_for("backup_page")) + "?err=No+file+uploaded"
         print(f"[backup restore upload] redirect -> {target}")
         return RedirectResponse(url=target, status_code=303)
-    # Save uploaded file to temp and restore
+
     with tempfile.NamedTemporaryFile(delete=False, suffix=".zip") as tmp:
         tmp.write(await file.read())
         tmp_path = tmp.name
@@ -2002,12 +2434,17 @@ async def backup_restore(request: Request, file: UploadFile = File(...)):
             msg_parts.append(f"Photos:{summary['photos']}")
         if summary.get("options"):
             msg_parts.append("Options")
-        msg = "+".join(msg_parts) or "Restored"
-        target = str(request.url_for("backup_page")) + f"?msg=Restore+ok:+{msg}"
-        print(f"[backup restore upload] redirect -> {target}")
-        return RedirectResponse(url=target, status_code=303)
+        print(f"[backup restore upload] success: {msg_parts} — scheduling restart")
+
+        async def _restart():
+            await asyncio.sleep(2)
+            print("[backup restore] restarting process to reload database")
+            os.execv(sys.executable, [sys.executable] + sys.argv)
+
+        asyncio.create_task(_restart())
+        return HTMLResponse(_restore_restart_html())
     except Exception as e:
-        target = str(request.url_for("backup_page")) + f"?err=Restore+failed"
+        target = str(request.url_for("backup_page")) + "?err=Restore+failed"
         print(f"[backup restore upload] redirect -> {target} err={e}")
         return RedirectResponse(url=target, status_code=303)
     finally:
@@ -2026,7 +2463,7 @@ def backup_file(filename: str):
 
 
 @app.post("/backup/restore/file")
-def backup_restore_file(request: Request, filename: str = Form(...)):
+async def backup_restore_file(request: Request, filename: str = Form(...)):
     path = _safe_backup_path(filename)
     if not path:
         target = str(request.url_for("backup_page")) + "?err=Backup+not+found"
@@ -2041,10 +2478,15 @@ def backup_restore_file(request: Request, filename: str = Form(...)):
             msg_parts.append(f"Photos:{summary['photos']}")
         if summary.get("options"):
             msg_parts.append("Options")
-        msg = "+".join(msg_parts) or "Restored"
-        target = str(request.url_for("backup_page")) + f"?msg=Restore+ok:+{msg}"
-        print(f"[backup restore file] redirect -> {target}")
-        return RedirectResponse(url=target, status_code=303)
+        print(f"[backup restore file] success: {msg_parts} — scheduling restart")
+
+        async def _restart():
+            await asyncio.sleep(2)
+            print("[backup restore] restarting process to reload database")
+            os.execv(sys.executable, [sys.executable] + sys.argv)
+
+        asyncio.create_task(_restart())
+        return HTMLResponse(_restore_restart_html())
     except Exception as e:
         target = str(request.url_for("backup_page")) + "?err=Restore+failed"
         print(f"[backup restore file] redirect -> {target} err={e}")
@@ -2083,9 +2525,49 @@ def delete_all_items(request: Request):
     return RedirectResponse(url=target, status_code=303)
 
 
+@app.post("/backup/repair-db")
+def repair_db(request: Request):
+    """Remove stale WAL/SHM files and reconnect the engine.
+
+    Use this if the app shows 'database disk image is malformed' after a restore.
+    """
+    print("[repair-db] starting")
+    removed = []
+    for _suffix in ("-wal", "-shm"):
+        _path = DB_PATH + _suffix
+        if os.path.isfile(_path):
+            try:
+                os.remove(_path)
+                removed.append(_suffix)
+                print(f"[repair-db] removed {_path}")
+            except Exception as e:
+                print(f"[repair-db] could not remove {_path}: {e}")
+    engine.dispose()
+    # verify the database is readable after cleanup
+    try:
+        with engine.connect() as conn:
+            result = conn.exec_driver_sql("PRAGMA integrity_check;").fetchone()
+            status = result[0] if result else "unknown"
+        print(f"[repair-db] integrity_check: {status}")
+        msg = f"DB+repaired+(integrity:+{status})"
+        if removed:
+            msg += f"+removed+WAL:+{'+'.join(removed)}"
+    except Exception as e:
+        print(f"[repair-db] integrity check failed: {e}")
+        msg = f"Repair+attempted+but+DB+still+has+errors:+{e}"
+    target = str(request.url_for("backup_page")) + f"?msg={msg}"
+    return RedirectResponse(url=target, status_code=303)
+
+
 # -----------------------------
 # Routes
 # -----------------------------
+@app.get("/ping")
+def ping():
+    """Lightweight health check — no DB access. Used by the restore page to detect restart."""
+    return {"status": "ok"}
+
+
 @app.get("/", response_class=HTMLResponse)
 def index(
     request: Request,
@@ -2099,6 +2581,7 @@ def index(
     page: int = 1,
     include_depleted: bool | str = False,
     depleted_reason: str = "",
+    partial: int = 0,
 ):
     # Defaults to avoid unbound locals if something goes wrong
     items = []
@@ -2212,7 +2695,7 @@ def index(
             )
         }
         tag_suggestions = set()
-        for i in session.exec(select(Item.tags)).all():
+        for i in session.exec(select(Item.tags).limit(500)).all():
             if not i:
                 continue
             for t in str(i).split(","):
@@ -2222,8 +2705,36 @@ def index(
         search_suggestions = list({*cats, *bins, *locations, *tag_suggestions})
         app_heading = get_app_heading(session)
         adjustable_units = sorted(get_adjustable_unit_names(session))
+        swipe_actions = get_swipe_actions(session)
 
     db_updated_at = _inventory_update_token()
+
+    if partial:
+        return templates.TemplateResponse("_results_partial.html", {
+            "request": request,
+            "items": items if 'items' in locals() else [],
+            "q": q or "",
+            "category": category or "",
+            "location": location or "",
+            "bin": bin or "",
+            "cook_date": cook_date or "",
+            "use_by_date": use_by_date or "",
+            "tags": tags or "",
+            "depleted_reason": depleted_reason or "",
+            "categories": cats,
+            "locations": locations,
+            "bins": bins,
+            "DEPLETION_REASONS": DEPLETION_REASONS,
+            "display_fields": display_fields,
+            "page": page,
+            "per_page": per_page,
+            "total_count": total_count,
+            "cat_counts": cat_counts,
+            "loc_counts": loc_counts,
+            "adjustable_units": adjustable_units,
+            "include_depleted": include_depleted,
+            "swipe_actions": swipe_actions,
+        })
 
     return templates.TemplateResponse(
         "index.html",
@@ -2255,6 +2766,7 @@ def index(
             "app_heading": app_heading,
             "db_updated_at": db_updated_at,
             "adjustable_units": adjustable_units,
+            "swipe_actions": swipe_actions,
         },
 )
 
@@ -2536,14 +3048,21 @@ def reports(
     }
     total_items: list[Item] = []
 
-    def parse_use_within(v: Optional[str]) -> Optional[int]:
-        if not v:
-            return None
-        try:
-            num = int(str(v).split()[0])
-            return num
-        except Exception:
-            return None
+    # Health score components (global — no horizon/category/location filter)
+    health_all_active = 0
+    health_with_date = 0
+    health_noncompliant_global = 0
+    health_audited_30d = 0
+
+    # Category / location compliance tables (respects cat/loc filter, no horizon)
+    cat_table: dict[str, dict] = {}
+    loc_table: dict[str, dict] = {}
+
+    # Waste tracking and consumption velocity
+    waste_count = 0
+    total_depleted_with_date = 0
+    consumed_names: dict[str, int] = {}
+    all_depleted_dates: list[dt.date] = []
 
     noncompliant = 0
     compliant_total = 0
@@ -2553,6 +3072,28 @@ def reports(
         items = session.exec(select(Item)).all()
         for it in items:
             object.__setattr__(it, "expiry_info", _expiry_info(it))
+
+            # --- GLOBAL METRICS (before any filter) ---
+            if not it.depleted_at:
+                health_all_active += 1
+                if it.use_by_date:
+                    health_with_date += 1
+                if it.expiry_info and it.expiry_info["days"] < 0:
+                    health_noncompliant_global += 1
+                if it.last_audit_date:
+                    audit_d = _parse_date(it.last_audit_date)
+                    if audit_d and (today - audit_d).days <= 30:
+                        health_audited_30d += 1
+            else:
+                consumed_names[it.name] = consumed_names.get(it.name, 0) + 1
+                dep_d_g = _parse_date(it.depleted_at)
+                if dep_d_g:
+                    all_depleted_dates.append(dep_d_g)
+                    ub_g = _parse_date(it.use_by_date)
+                    if ub_g:
+                        total_depleted_with_date += 1
+                        if dep_d_g > ub_g:
+                            waste_count += 1
 
             # Filters
             if category and (it.category or "") != category:
@@ -2586,6 +3127,23 @@ def reports(
                 category_counts[it.category] = category_counts.get(it.category, 0) + 1
             if it.location:
                 location_counts[it.location] = location_counts.get(it.location, 0) + 1
+
+            # Category / location compliance tables (no horizon filter)
+            cat_key = it.category or "Uncategorized"
+            cat_table.setdefault(cat_key, {"total": 0, "expired": 0, "no_date": 0})
+            cat_table[cat_key]["total"] += 1
+            if not it.use_by_date:
+                cat_table[cat_key]["no_date"] += 1
+            elif it.expiry_info and it.expiry_info["days"] < 0:
+                cat_table[cat_key]["expired"] += 1
+
+            loc_key = it.location or "Unassigned"
+            loc_table.setdefault(loc_key, {"total": 0, "expired": 0, "no_date": 0})
+            loc_table[loc_key]["total"] += 1
+            if not it.use_by_date:
+                loc_table[loc_key]["no_date"] += 1
+            elif it.expiry_info and it.expiry_info["days"] < 0:
+                loc_table[loc_key]["expired"] += 1
 
             info = it.expiry_info
             if info and horizon_days is not None and info["days"] > horizon_days:
@@ -2622,12 +3180,11 @@ def reports(
                 heatmap.setdefault(cat, {})
                 heatmap[cat][loc] = heatmap[cat].get(loc, 0) + 1
 
-            # Aging waterfall + use-within compliance
+            # Aging waterfall
             created = _parse_date(it.created_at)
             days_on_hand = (today - created).days if created else None
             aging_basis = days_until_expiry if days_until_expiry is not None else days_on_hand
             if aging_basis is not None:
-                # Group by days-until-expiry when available, otherwise by days on hand
                 if aging_basis <= 0:
                     aging_buckets["expired"] += 1
                 elif aging_basis <= 7:
@@ -2640,7 +3197,6 @@ def reports(
                     aging_buckets["31-60"] += 1
                 else:
                     aging_buckets["61+"] += 1
-            # Use-by compliance: only flag items that are expired but not depleted.
             if days_until_expiry is not None and days_until_expiry <= 0:
                 noncompliant += 1
 
@@ -2682,6 +3238,106 @@ def reports(
     )
     depletion_reason_max = max((len(v) for v in depletion_reason_map.values()), default=0)
 
+    # --- Health score (0–100) ---
+    compliance_component = (
+        round(100 * (1 - health_noncompliant_global / health_all_active))
+        if health_all_active else 0
+    )
+    coverage_component = (
+        round(100 * health_with_date / health_all_active) if health_all_active else 0
+    )
+    audit_component = (
+        round(100 * health_audited_30d / health_all_active) if health_all_active else 0
+    )
+    health_score: Optional[int] = None
+    health_grade: Optional[str] = None
+    if health_all_active > 0:
+        health_score = round(
+            compliance_component * 0.5
+            + coverage_component * 0.3
+            + audit_component * 0.2
+        )
+        if health_score >= 90:
+            health_grade = "A"
+        elif health_score >= 80:
+            health_grade = "B"
+        elif health_score >= 70:
+            health_grade = "C"
+        elif health_score >= 60:
+            health_grade = "D"
+        else:
+            health_grade = "F"
+
+    # --- Waste rate ---
+    waste_rate: Optional[int] = None
+    if total_depleted_with_date > 0:
+        waste_rate = round(100 * waste_count / total_depleted_with_date)
+
+    # --- Category compliance table (worst first) ---
+    cat_compliance_rows = []
+    for cat_k, data in sorted(cat_table.items()):
+        total_c = data["total"]
+        expired_c = data["expired"]
+        no_date_c = data["no_date"]
+        pct = round(100 * (total_c - expired_c) / total_c) if total_c else 0
+        cat_compliance_rows.append(
+            {"name": cat_k, "total": total_c, "expired": expired_c, "no_date": no_date_c, "pct": pct}
+        )
+    cat_compliance_rows.sort(key=lambda r: r["pct"])
+
+    # --- Location compliance table (worst first) ---
+    loc_compliance_rows = []
+    for loc_k, data in sorted(loc_table.items()):
+        total_l = data["total"]
+        expired_l = data["expired"]
+        no_date_l = data["no_date"]
+        pct_l = round(100 * (total_l - expired_l) / total_l) if total_l else 0
+        loc_compliance_rows.append(
+            {"name": loc_k, "total": total_l, "expired": expired_l, "no_date": no_date_l, "pct": pct_l}
+        )
+    loc_compliance_rows.sort(key=lambda r: r["pct"])
+
+    # --- Depletion velocity trend (last 12 weeks) ---
+    monday = today - dt.timedelta(days=today.weekday())
+    velocity_weeks = []
+    velocity_counts = []
+    for weeks_ago in range(11, -1, -1):
+        week_start = monday - dt.timedelta(weeks=weeks_ago)
+        week_end = week_start + dt.timedelta(days=6)
+        label = week_start.strftime("%-m/%-d")
+        count = sum(1 for d in all_depleted_dates if week_start <= d <= week_end)
+        velocity_weeks.append(label)
+        velocity_counts.append(count)
+
+    # --- Top consumed items (top 10 by name frequency) ---
+    top_consumed = sorted(consumed_names.items(), key=lambda kv: kv[1], reverse=True)[:10]
+
+    # --- Action items ---
+    action_items = []
+    n_expired = summary["overdue"]
+    n_expiring_7d = summary["d7"]
+    g_no_date = health_all_active - health_with_date
+    if n_expired > 0:
+        action_items.append({
+            "severity": "danger",
+            "text": f"{n_expired} item{'s' if n_expired != 1 else ''} expired and still in stock",
+        })
+    if n_expiring_7d > 0:
+        action_items.append({
+            "severity": "warn",
+            "text": f"{n_expiring_7d} item{'s' if n_expiring_7d != 1 else ''} expire{'s' if n_expiring_7d == 1 else ''} within 7 days",
+        })
+    if g_no_date > 0:
+        action_items.append({
+            "severity": "info",
+            "text": f"{g_no_date} item{'s' if g_no_date != 1 else ''} {'has' if g_no_date == 1 else 'have'} no use-by date set",
+        })
+    if waste_rate is not None and waste_rate > 20:
+        action_items.append({
+            "severity": "warn",
+            "text": f"{waste_rate}% of tracked depletions were past their use-by date",
+        })
+
     return templates.TemplateResponse(
         "reports.html",
         {
@@ -2705,16 +3361,112 @@ def reports(
             "bucket_items": bucket_items,
             "total_items": total_items,
             "display_fields": display_fields,
+            # New analytics
+            "health_score": health_score,
+            "health_grade": health_grade,
+            "coverage_component": coverage_component,
+            "audit_component": audit_component,
+            "action_items": action_items,
+            "cat_compliance_rows": cat_compliance_rows,
+            "loc_compliance_rows": loc_compliance_rows,
+            "waste_rate": waste_rate,
+            "waste_count": waste_count,
+            "total_depleted_with_date": total_depleted_with_date,
+            "velocity_weeks": velocity_weeks,
+            "velocity_counts": velocity_counts,
+            "top_consumed": [{"name": n, "count": c} for n, c in top_consumed],
+            "compliance_chart": {
+                "compliant": max(0, compliant_total - noncompliant),
+                "expired": noncompliant,
+            },
+            "aging_chart": aging_buckets,
         },
+    )
+
+
+@app.post("/reports/bulk-deplete-expired", name="bulk_deplete_expired")
+async def bulk_deplete_expired(request: Request):
+    today_ts = dt.datetime.utcnow().isoformat()
+    with Session(engine) as session:
+        items = session.exec(select(Item)).all()
+        count = 0
+        for it in items:
+            if it.depleted_at:
+                continue
+            days = _days_until(it.use_by_date)
+            if days is not None and days < 0:
+                it.depleted_at = today_ts
+                it.depleted_reason = "Expired"
+                session.add(it)
+                count += 1
+        session.commit()
+    return RedirectResponse(url=f"/reports?bulk_depleted={count}", status_code=303)
+
+
+@app.get("/reports/export.csv", name="reports_export_csv")
+def reports_export_csv(
+    request: Request,
+    horizon: str = "60",
+    category: str = "",
+    location: str = "",
+):
+    import csv as _csv
+    horizon_map = {"7": 7, "14": 14, "30": 30, "60": 60, "all": None}
+    horizon_days = horizon_map.get(horizon, 60)
+    today = dt.date.today()
+
+    rows = []
+    with Session(engine) as session:
+        items = session.exec(select(Item)).all()
+        for it in items:
+            if it.depleted_at:
+                continue
+            if category and (it.category or "") != category:
+                continue
+            if location and (it.location or "") != location:
+                continue
+            info = _expiry_info(it)
+            if info and horizon_days is not None and info["days"] > horizon_days:
+                continue
+            days_val = info["days"] if info else ""
+            status = info["badge"] if info else "No date"
+            rows.append([
+                it.name,
+                it.serial_number,
+                it.category or "",
+                it.location or "",
+                it.bin_number or "",
+                it.quantity,
+                it.unit or "",
+                it.use_by_date or "",
+                days_val,
+                status,
+                it.condition or "",
+                it.notes or "",
+            ])
+
+    output = io.StringIO()
+    writer = _csv.writer(output)
+    writer.writerow([
+        "Name", "Serial", "Category", "Location", "Bin",
+        "Quantity", "Unit", "Use-by Date", "Days Remaining", "Status",
+        "Condition", "Notes",
+    ])
+    writer.writerows(rows)
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="pantrlytics-report.csv"'},
     )
 
 
 def _resolve_photo_path(session: Session, item_id: int, prefer_photo_id: int | None = None):
     """Return (path, photo_id) for an item's photo.
 
-    Prioritizes an explicitly requested photo id, otherwise returns the most
-    recent photo file that still exists on disk before falling back to legacy
-    `photo_path`.
+    Priority order:
+    1. An explicitly requested photo_id (prefer_photo_id param)
+    2. The item's designated primary photo (item.photo_path)
+    3. Newest-to-oldest photo that still exists on disk
     """
     photos = get_item_photos(session, item_id)
 
@@ -2723,21 +3475,25 @@ def _resolve_photo_path(session: Session, item_id: int, prefer_photo_id: int | N
             if p.id == prefer_photo_id and os.path.isfile(p.path):
                 return p.path, p.id
 
-    # Prefer newest-to-oldest so we skip stale DB rows pointing at deleted files.
+    item = session.get(Item, item_id)
+
+    # Prefer the item's designated primary photo_path
+    if item and item.photo_path and os.path.isfile(item.photo_path):
+        for p in photos:
+            if p.path == item.photo_path:
+                return p.path, p.id
+        return item.photo_path, None
+
+    # Fall back: newest-to-oldest, skipping stale DB rows
     for p in reversed(photos):
         if os.path.isfile(p.path):
             return p.path, p.id
 
-    item = session.get(Item, item_id)
-    if item and item.photo_path and os.path.isfile(item.photo_path):
-        return item.photo_path, None
     return None, None
 
 
 def _photo_response(item_id: int, path: str):
-    exists = os.path.isfile(path)
-    print(f"PHOTO: item {item_id} -> path='{path}' exists={exists}")
-    if not exists:
+    if not os.path.isfile(path):
         return Response(status_code=404)
     lower = path.lower()
     if lower.endswith(".png"):
@@ -2746,7 +3502,7 @@ def _photo_response(item_id: int, path: str):
         mt = "image/jpeg"
     else:
         mt = "application/octet-stream"
-    return FileResponse(path, media_type=mt)
+    return FileResponse(path, media_type=mt, headers={"Cache-Control": "public, max-age=86400"})
 
 
 @app.get("/photo/{item_id}", name="photo")
@@ -2755,7 +3511,6 @@ def photo(item_id: int):
     with Session(engine) as session:
         path, _pid = _resolve_photo_path(session, item_id)
         if not path:
-            print(f"PHOTO: item {item_id} has no photo")
             return Response(status_code=404)
     return _photo_response(item_id, path)
 
@@ -2767,6 +3522,50 @@ def photo_by_id(photo_id: int):
         if not photo:
             return Response(status_code=404)
     return _photo_response(photo.item_id, photo.path)
+
+
+@app.get("/assets/default-item-icon", name="default_item_icon")
+def serve_default_item_icon():
+    if not os.path.isfile(DEFAULT_ITEM_ICON_PATH):
+        return Response(status_code=404)
+    return FileResponse(
+        DEFAULT_ITEM_ICON_PATH,
+        media_type="image/jpeg",
+        headers={"Cache-Control": "public, max-age=3600"},
+    )
+
+
+@app.post("/admin/default-icon/upload", name="upload_default_item_icon")
+async def upload_default_item_icon(
+    request: Request,
+    icon: UploadFile = File(...),
+):
+    with Session(engine) as session:
+        stored_hash = get_admin_password_hash(session)
+    if request.cookies.get("admin_auth", "") != stored_hash:
+        return RedirectResponse(url=str(request.url_for("admin")), status_code=303)
+    content = await icon.read(MAX_PHOTO_BYTES + 1)
+    if len(content) > MAX_PHOTO_BYTES:
+        return RedirectResponse(url=str(request.url_for("admin")), status_code=303)
+    try:
+        img = Image.open(io.BytesIO(content)).convert("RGB")
+        img.save(DEFAULT_ITEM_ICON_PATH, "JPEG", quality=85)
+    except Exception:
+        return RedirectResponse(url=str(request.url_for("admin")), status_code=303)
+    _invalidate_icon_cache()
+    return RedirectResponse(url=str(request.url_for("admin")) + "#default-icon-section", status_code=303)
+
+
+@app.post("/admin/default-icon/delete", name="delete_default_item_icon")
+def delete_default_item_icon(request: Request):
+    with Session(engine) as session:
+        stored_hash = get_admin_password_hash(session)
+    if request.cookies.get("admin_auth", "") != stored_hash:
+        return RedirectResponse(url=str(request.url_for("admin")), status_code=303)
+    if os.path.isfile(DEFAULT_ITEM_ICON_PATH):
+        os.remove(DEFAULT_ITEM_ICON_PATH)
+    _invalidate_icon_cache()
+    return RedirectResponse(url=str(request.url_for("admin")) + "#default-icon-section", status_code=303)
 
 
 @app.get("/export.csv")
@@ -3792,6 +4591,30 @@ async def admin(request: Request, response: Response):
                 theme = form.get("theme") or THEME_DEFAULT
                 save_theme(session, theme)
 
+            elif form.get("font_size_action") == "save":
+                def _parse_size(val, default):
+                    try:
+                        v = int((val or "").strip())
+                        return max(FONT_SIZE_MIN, min(FONT_SIZE_MAX, v)) if v else 0
+                    except (ValueError, TypeError):
+                        return default
+                fs_base = _parse_size(form.get("font_size_base"), FONT_SIZE_DEFAULT_BASE)
+                fs_list = _parse_size(form.get("font_size_list"), 0)
+                fs_show = _parse_size(form.get("font_size_show"), 0)
+                save_font_sizes(session, fs_base, fs_list, fs_show)
+
+            elif form.get("default_icon_emoji_action") == "save":
+                val = (form.get("default_icon_emoji") or "").strip() or DEFAULT_ITEM_EMOJI
+                _set_setting(session, "default_icon_emoji", val)
+                _invalidate_emoji_cache()
+
+            elif form.get("swipe_action_action") == "save":
+                save_swipe_actions(
+                    session,
+                    right=form.get("swipe_right_action", SWIPE_ACTION_DEFAULTS["right"]),
+                    left=form.get("swipe_left_action", SWIPE_ACTION_DEFAULTS["left"]),
+                )
+
             elif form.get("usewithin_order_action") == "save":
                 order_str = form.get("usewithin_order", "")
                 try:
@@ -3846,6 +4669,9 @@ async def admin(request: Request, response: Response):
         required_field_defs = REQUIRED_FIELD_OPTIONS
         selected_required_fields = get_required_field_keys(session)
         current_theme = get_theme(session)
+        admin_font_sizes = get_font_sizes(session)
+        admin_default_emoji = _get_setting(session, "default_icon_emoji", DEFAULT_ITEM_EMOJI) or DEFAULT_ITEM_EMOJI
+        admin_swipe_actions = get_swipe_actions(session)
         health = {
             "ipp_status": check_ipp_status(),
             "disk": get_disk_usage(DATA_DIR),
@@ -3866,6 +4692,12 @@ async def admin(request: Request, response: Response):
             "required_field_defs": required_field_defs,
             "selected_required_fields": selected_required_fields,
             "current_theme": current_theme,
+            "admin_font_sizes": admin_font_sizes,
+            "font_size_min": FONT_SIZE_MIN,
+            "font_size_max": FONT_SIZE_MAX,
+            "admin_default_emoji": admin_default_emoji,
+            "admin_swipe_actions": admin_swipe_actions,
+            "swipe_action_options": SWIPE_ACTION_OPTIONS,
             "health": health,
             "app_heading": app_heading,
             "pass_error": pass_error,
@@ -3891,20 +4723,14 @@ async def admin(request: Request, response: Response):
 @app.get("/assets/styles.css", include_in_schema=False)
 def serve_styles_css():
     css_path = os.path.join(STATIC_DIR, "styles.css")
-    exists = os.path.isfile(css_path)
-    print(f"DEBUG CSS route hit: path={css_path} exists={exists}")
-
-    if not exists:
+    if not os.path.isfile(css_path):
         return Response(
             f"CSS file not found on server. Expected at: {css_path}",
             status_code=404,
             media_type="text/plain",
         )
-
-    resp = FileResponse(css_path, media_type="text/css")
-    # Encourage caching but allow busting via version param in link
-    resp.headers["Cache-Control"] = "public, max-age=86400"
-    return resp
+    return FileResponse(css_path, media_type="text/css",
+                        headers={"Cache-Control": "public, max-age=86400"})
 
 
 @app.get("/assets/icon.png", include_in_schema=False)
@@ -3958,8 +4784,6 @@ def whoami(request: Request):
 
 @app.get("/{_catch:path}", response_class=HTMLResponse)
 def catchall(_catch: str, request: Request):
-    print(f"DEBUG catchall hit: _catch={_catch}")
-
     if _catch.startswith(
         ("static/", "assets/", "label/", "photo/", "health", "whoami", "item/")
     ):
