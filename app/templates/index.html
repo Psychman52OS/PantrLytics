@@ -1,6 +1,11 @@
 {% extends "layout.html" %}
 {% block title %}{{ app_heading }}{% endblock %}
 
+{% block extra_head %}
+{% set _fs_pg = get_font_sizes() %}
+{% if _fs_pg.list_page %}<style>:root { --fs-base: {{ _fs_pg.list_page }}px; }</style>{% endif %}
+{% endblock %}
+
 {% block content %}
   <div class="page-header">
     <div class="page-header-text">

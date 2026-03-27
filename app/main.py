@@ -71,6 +71,7 @@ DATA_DIR = os.environ.get("DATA_DIR", "/data")
 PHOTOS_DIR = os.path.join(DATA_DIR, "photos")
 MAX_PHOTO_BYTES = 5 * 1024 * 1024  # 5MB safety limit
 BACKUP_DIR = os.path.join(DATA_DIR, "backups")
+DEFAULT_ITEM_ICON_PATH = os.path.join(DATA_DIR, "default_item_icon.jpg")
 ADDON_OPTIONS_PATH = os.environ.get(
     "ADDON_OPTIONS_PATH", os.path.join(DATA_DIR, "options.json")
 )
@@ -876,6 +877,40 @@ def save_theme(session: Session, theme: str):
     _set_setting(session, "theme", theme)
 
 
+FONT_SIZE_MIN = 12
+FONT_SIZE_MAX = 22
+FONT_SIZE_DEFAULT_BASE = 15
+
+
+def get_font_sizes(session: Session) -> dict:
+    """Return font size settings. list_page/show_page=0 means inherit global base."""
+    def _clamp(val, default):
+        try:
+            v = int(val)
+            return max(FONT_SIZE_MIN, min(FONT_SIZE_MAX, v)) if v else 0
+        except (ValueError, TypeError):
+            return default
+
+    base_raw = _get_setting(session, "font_size_base", str(FONT_SIZE_DEFAULT_BASE))
+    list_raw = _get_setting(session, "font_size_list", "0")
+    show_raw = _get_setting(session, "font_size_show", "0")
+    base = max(FONT_SIZE_MIN, min(FONT_SIZE_MAX, int(base_raw))) if base_raw else FONT_SIZE_DEFAULT_BASE
+    return {
+        "base": base,
+        "list_page": _clamp(list_raw, 0),
+        "show_page": _clamp(show_raw, 0),
+    }
+
+
+def save_font_sizes(session: Session, base: int, list_page: int, show_page: int):
+    _set_setting(session, "font_size_base", str(max(FONT_SIZE_MIN, min(FONT_SIZE_MAX, base))))
+    _set_setting(session, "font_size_list", str(list_page) if list_page else "0")
+    _set_setting(session, "font_size_show", str(show_page) if show_page else "0")
+    # Bust the in-memory cache so the new value applies immediately
+    global _fs_cache_exp
+    _fs_cache_exp = 0.0
+
+
 def _export_csv_bytes(session: Session, fields: list[str] | None = None) -> bytes:
     import csv
     items = session.exec(select(Item)).all()
@@ -1215,6 +1250,47 @@ templates.env.globals["format_datetime"] = format_datetime  # <-- global for Jin
 templates.env.globals["BASE_URL"] = BASE_URL
 templates.env.globals["app_version"] = APP_VERSION
 templates.env.globals["max_label_copies"] = MAX_LABEL_COPIES
+
+
+# ── Lightweight TTL caches for settings read on every page ──────────────────
+_fs_cache: dict | None = None
+_fs_cache_exp: float = 0.0
+
+
+def _jinja_get_font_sizes():
+    global _fs_cache, _fs_cache_exp
+    now = time.monotonic()
+    if _fs_cache is not None and now < _fs_cache_exp:
+        return _fs_cache
+    with Session(engine) as _s:
+        result = get_font_sizes(_s)
+    _fs_cache = result
+    _fs_cache_exp = now + 15.0
+    return result
+
+
+_icon_exists_cache: bool | None = None
+_icon_exists_cache_exp: float = 0.0
+
+
+def _invalidate_icon_cache():
+    global _icon_exists_cache_exp
+    _icon_exists_cache_exp = 0.0
+
+
+def _jinja_default_icon_exists():
+    global _icon_exists_cache, _icon_exists_cache_exp
+    now = time.monotonic()
+    if _icon_exists_cache is not None and now < _icon_exists_cache_exp:
+        return _icon_exists_cache
+    result = os.path.isfile(DEFAULT_ITEM_ICON_PATH)
+    _icon_exists_cache = result
+    _icon_exists_cache_exp = now + 30.0
+    return result
+
+
+templates.env.globals["get_font_sizes"] = _jinja_get_font_sizes
+templates.env.globals["default_item_icon_exists"] = _jinja_default_icon_exists
 
 
 class PrefixFromHeaders(BaseHTTPMiddleware):
@@ -2569,7 +2645,7 @@ def index(
             )
         }
         tag_suggestions = set()
-        for i in session.exec(select(Item.tags)).all():
+        for i in session.exec(select(Item.tags).limit(500)).all():
             if not i:
                 continue
             for t in str(i).split(","):
@@ -3118,9 +3194,7 @@ def _resolve_photo_path(session: Session, item_id: int, prefer_photo_id: int | N
 
 
 def _photo_response(item_id: int, path: str):
-    exists = os.path.isfile(path)
-    print(f"PHOTO: item {item_id} -> path='{path}' exists={exists}")
-    if not exists:
+    if not os.path.isfile(path):
         return Response(status_code=404)
     lower = path.lower()
     if lower.endswith(".png"):
@@ -3129,7 +3203,7 @@ def _photo_response(item_id: int, path: str):
         mt = "image/jpeg"
     else:
         mt = "application/octet-stream"
-    return FileResponse(path, media_type=mt)
+    return FileResponse(path, media_type=mt, headers={"Cache-Control": "public, max-age=86400"})
 
 
 @app.get("/photo/{item_id}", name="photo")
@@ -3138,7 +3212,6 @@ def photo(item_id: int):
     with Session(engine) as session:
         path, _pid = _resolve_photo_path(session, item_id)
         if not path:
-            print(f"PHOTO: item {item_id} has no photo")
             return Response(status_code=404)
     return _photo_response(item_id, path)
 
@@ -3150,6 +3223,50 @@ def photo_by_id(photo_id: int):
         if not photo:
             return Response(status_code=404)
     return _photo_response(photo.item_id, photo.path)
+
+
+@app.get("/assets/default-item-icon", name="default_item_icon")
+def serve_default_item_icon():
+    if not os.path.isfile(DEFAULT_ITEM_ICON_PATH):
+        return Response(status_code=404)
+    return FileResponse(
+        DEFAULT_ITEM_ICON_PATH,
+        media_type="image/jpeg",
+        headers={"Cache-Control": "public, max-age=3600"},
+    )
+
+
+@app.post("/admin/default-icon/upload", name="upload_default_item_icon")
+async def upload_default_item_icon(
+    request: Request,
+    icon: UploadFile = File(...),
+):
+    with Session(engine) as session:
+        stored_hash = get_admin_password_hash(session)
+    if request.cookies.get("admin_auth", "") != stored_hash:
+        return RedirectResponse(url=str(request.url_for("admin")), status_code=303)
+    content = await icon.read(MAX_PHOTO_BYTES + 1)
+    if len(content) > MAX_PHOTO_BYTES:
+        return RedirectResponse(url=str(request.url_for("admin")), status_code=303)
+    try:
+        img = Image.open(io.BytesIO(content)).convert("RGB")
+        img.save(DEFAULT_ITEM_ICON_PATH, "JPEG", quality=85)
+    except Exception:
+        return RedirectResponse(url=str(request.url_for("admin")), status_code=303)
+    _invalidate_icon_cache()
+    return RedirectResponse(url=str(request.url_for("admin")) + "#default-icon-section", status_code=303)
+
+
+@app.post("/admin/default-icon/delete", name="delete_default_item_icon")
+def delete_default_item_icon(request: Request):
+    with Session(engine) as session:
+        stored_hash = get_admin_password_hash(session)
+    if request.cookies.get("admin_auth", "") != stored_hash:
+        return RedirectResponse(url=str(request.url_for("admin")), status_code=303)
+    if os.path.isfile(DEFAULT_ITEM_ICON_PATH):
+        os.remove(DEFAULT_ITEM_ICON_PATH)
+    _invalidate_icon_cache()
+    return RedirectResponse(url=str(request.url_for("admin")) + "#default-icon-section", status_code=303)
 
 
 @app.get("/export.csv")
@@ -4175,6 +4292,18 @@ async def admin(request: Request, response: Response):
                 theme = form.get("theme") or THEME_DEFAULT
                 save_theme(session, theme)
 
+            elif form.get("font_size_action") == "save":
+                def _parse_size(val, default):
+                    try:
+                        v = int((val or "").strip())
+                        return max(FONT_SIZE_MIN, min(FONT_SIZE_MAX, v)) if v else 0
+                    except (ValueError, TypeError):
+                        return default
+                fs_base = _parse_size(form.get("font_size_base"), FONT_SIZE_DEFAULT_BASE)
+                fs_list = _parse_size(form.get("font_size_list"), 0)
+                fs_show = _parse_size(form.get("font_size_show"), 0)
+                save_font_sizes(session, fs_base, fs_list, fs_show)
+
             elif form.get("usewithin_order_action") == "save":
                 order_str = form.get("usewithin_order", "")
                 try:
@@ -4229,6 +4358,7 @@ async def admin(request: Request, response: Response):
         required_field_defs = REQUIRED_FIELD_OPTIONS
         selected_required_fields = get_required_field_keys(session)
         current_theme = get_theme(session)
+        admin_font_sizes = get_font_sizes(session)
         health = {
             "ipp_status": check_ipp_status(),
             "disk": get_disk_usage(DATA_DIR),
@@ -4249,6 +4379,9 @@ async def admin(request: Request, response: Response):
             "required_field_defs": required_field_defs,
             "selected_required_fields": selected_required_fields,
             "current_theme": current_theme,
+            "admin_font_sizes": admin_font_sizes,
+            "font_size_min": FONT_SIZE_MIN,
+            "font_size_max": FONT_SIZE_MAX,
             "health": health,
             "app_heading": app_heading,
             "pass_error": pass_error,
@@ -4274,20 +4407,14 @@ async def admin(request: Request, response: Response):
 @app.get("/assets/styles.css", include_in_schema=False)
 def serve_styles_css():
     css_path = os.path.join(STATIC_DIR, "styles.css")
-    exists = os.path.isfile(css_path)
-    print(f"DEBUG CSS route hit: path={css_path} exists={exists}")
-
-    if not exists:
+    if not os.path.isfile(css_path):
         return Response(
             f"CSS file not found on server. Expected at: {css_path}",
             status_code=404,
             media_type="text/plain",
         )
-
-    resp = FileResponse(css_path, media_type="text/css")
-    # Encourage caching but allow busting via version param in link
-    resp.headers["Cache-Control"] = "public, max-age=86400"
-    return resp
+    return FileResponse(css_path, media_type="text/css",
+                        headers={"Cache-Control": "public, max-age=86400"})
 
 
 @app.get("/assets/icon.png", include_in_schema=False)
@@ -4341,8 +4468,6 @@ def whoami(request: Request):
 
 @app.get("/{_catch:path}", response_class=HTMLResponse)
 def catchall(_catch: str, request: Request):
-    print(f"DEBUG catchall hit: _catch={_catch}")
-
     if _catch.startswith(
         ("static/", "assets/", "label/", "photo/", "health", "whoami", "item/")
     ):

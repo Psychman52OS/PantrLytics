@@ -269,22 +269,6 @@
 {% endif %}
 
 <script>
-// Set thumbnail via AJAX
-document.addEventListener('click', (e) => {
-  const btn = e.target.closest('.js-set-thumbnail');
-  if (!btn) return;
-  e.preventDefault();
-  fetch(btn.dataset.url, { method: 'POST' })
-    .then(r => r.json())
-    .then(data => {
-      if (data.ok) {
-        document.querySelectorAll('.js-set-thumbnail').forEach(b => b.classList.remove('thumb-primary'));
-        btn.classList.add('thumb-primary');
-      }
-    })
-    .catch(err => console.error('Set thumbnail failed', err));
-});
-
 // Simple dropdown assist that always shows all options when clicking the chip
 (function(){
   const inputs = document.querySelectorAll('.js-suggest');

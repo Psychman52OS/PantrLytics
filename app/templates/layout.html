@@ -26,6 +26,9 @@
       href="{{ (rootp ~ '/assets/styles.css?v=' ~ css_version) | replace('//','/') }}">
   <link rel="icon" type="image/png" href="{{ (rootp ~ '/assets/icon.png') | replace('//','/') }}">
   <link rel="alternate icon" type="image/svg+xml" href="{{ (rootp ~ '/assets/icon.svg') | replace('//','/') }}">
+  {% set _fs = get_font_sizes() %}
+  <style>:root { --fs-base: {{ _fs.base }}px; }</style>
+  {% block extra_head %}{% endblock %}
 </head>
 <body>
   <script>
@@ -303,6 +306,32 @@
     btn.addEventListener('click', open);
     backdrop.addEventListener('click', close);
   })();
+
+  // ── Set-thumbnail star button (delegated — works inside modals loaded via innerHTML) ──
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.js-set-thumbnail');
+    if (!btn) return;
+    e.preventDefault();
+    const url = btn.dataset.url;
+    if (!url) return;
+    btn.disabled = true;
+    fetch(url, { method: 'POST' })
+      .then(r => r.json())
+      .then(data => {
+        if (data.ok) {
+          document.querySelectorAll('.js-set-thumbnail').forEach(b => {
+            b.classList.remove('thumb-primary');
+            b.title = 'Set as thumbnail';
+            b.textContent = '★';
+          });
+          btn.classList.add('thumb-primary');
+          btn.title = 'Current thumbnail ✓';
+          btn.textContent = '✓';
+        }
+      })
+      .catch(() => {})
+      .finally(() => { btn.disabled = false; });
+  });
 </script>
 </body>
 </html>

@@ -1,4 +1,5 @@
 :root{
+  --fs-base: 14px;
   --bg: #0b0b0d;
   --card: #1b1d22;
   --text: #e5e7eb;
@@ -46,7 +47,9 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 14px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  font-size: var(--fs-base);
+  line-height: 1.5;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
 }
 
 /* links */
@@ -286,14 +289,18 @@ button.btn { -webkit-appearance: none; appearance: none; }
 
 /* ── Item detail sidebar layout ─────────────────────────────────── */
 .item-layout {
-  display: grid;
-  grid-template-columns: 1fr 220px;
+  display: flex;
+  flex-direction: row;
   gap: 24px;
-  align-items: center;
   margin-top: 16px;
 }
-.item-main { min-width: 0; }
+.item-main {
+  flex: 1 1 0%;
+  min-width: 0;
+}
 .item-sidebar {
+  flex-shrink: 0;
+  width: 220px;
   align-self: center;
   background: color-mix(in oklab, var(--card), var(--bg) 20%);
   border: 1px solid var(--border);
@@ -416,7 +423,12 @@ button.btn { -webkit-appearance: none; appearance: none; }
   overflow: hidden;
   border-bottom: 1px solid var(--border);
   border-radius: var(--radius) var(--radius) 0 0;
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+  transition: opacity 0.15s;
 }
+.item-card-thumb:hover { opacity: 0.88; }
 .item-card-thumb img {
   width: 100%;
   height: 100%;
@@ -452,7 +464,12 @@ button.btn { -webkit-appearance: none; appearance: none; }
   border-top: 1px solid var(--border);
 }
 .item-card-actions-btn { width: 100%; }
-.thumb-primary { background: var(--accent) !important; color: var(--bg) !important; }
+.thumb-primary {
+  background: var(--accent) !important;
+  color: var(--bg) !important;
+  font-weight: 700 !important;
+  box-shadow: 0 0 0 2px var(--accent) !important;
+}
 
 /* Show/hide by view mode */
 #items-container[data-view="list"] .view-grid-only { display: none; }
@@ -1264,10 +1281,10 @@ dialog#app-modal::backdrop {
     justify-content: flex-start;
   }
   .item-layout {
-    grid-template-columns: 1fr;
+    flex-direction: column;
   }
   .item-sidebar {
-    position: static;
+    width: 100%;
   }
 }
 
@@ -1545,10 +1562,10 @@ dialog#app-modal::backdrop {
 
   /* Item sidebar: stack below main on mobile */
   .item-layout {
-    grid-template-columns: 1fr;
+    flex-direction: column;
   }
   .item-sidebar {
-    position: static;
+    width: 100%;
   }
   .sidebar-print-form {
     display: grid;

@@ -1,6 +1,11 @@
 {% extends "layout.html" %}
 {% block title %}{{ item.name }} · Pantrlytics{% endblock %}
 
+{% block extra_head %}
+{% set _fs_pg = get_font_sizes() %}
+{% if _fs_pg.show_page %}<style>:root { --fs-base: {{ _fs_pg.show_page }}px; }</style>{% endif %}
+{% endblock %}
+
 {% block content %}
 <section class="card">
 

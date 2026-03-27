@@ -141,6 +141,90 @@
     </form>
   </section>
 
+  <!-- Font sizes -->
+  <section class="admin-section" id="font-size-section">
+    <div class="admin-section-header">
+      <h2>Font sizes</h2>
+      <p class="admin-section-help">
+        Set base font size for all pages, with optional overrides for the item list and item detail pages.
+        Leave a page override at 0 to inherit the global size. Range: {{ font_size_min }}–{{ font_size_max }} px.
+        Changes apply immediately on next page load.
+      </p>
+    </div>
+    <form method="post" style="display:flex; flex-direction:column; gap:12px; max-width:360px;">
+      <input type="hidden" name="font_size_action" value="save">
+      <div class="field">
+        <label class="kv-label" for="fs-base">Global base size (px) — all pages</label>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <input id="fs-base" name="font_size_base" type="number"
+                 min="{{ font_size_min }}" max="{{ font_size_max }}" step="1"
+                 value="{{ admin_font_sizes.base }}"
+                 class="input input-small" style="width:72px;">
+          <span class="muted" style="font-size:12px;">px (default: 15)</span>
+        </div>
+      </div>
+      <div class="field">
+        <label class="kv-label" for="fs-list">Item list page override (px) — 0 = use global</label>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <input id="fs-list" name="font_size_list" type="number"
+                 min="0" max="{{ font_size_max }}" step="1"
+                 value="{{ admin_font_sizes.list_page }}"
+                 class="input input-small" style="width:72px;">
+          <span class="muted" style="font-size:12px;">px (0 = inherit global)</span>
+        </div>
+      </div>
+      <div class="field">
+        <label class="kv-label" for="fs-show">Item detail page override (px) — 0 = use global</label>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <input id="fs-show" name="font_size_show" type="number"
+                 min="0" max="{{ font_size_max }}" step="1"
+                 value="{{ admin_font_sizes.show_page }}"
+                 class="input input-small" style="width:72px;">
+          <span class="muted" style="font-size:12px;">px (0 = inherit global)</span>
+        </div>
+      </div>
+      <button class="btn btn-accent" type="submit" style="width:fit-content;">Save font sizes</button>
+    </form>
+  </section>
+
+  <!-- Default item icon -->
+  <section class="admin-section" id="default-icon-section">
+    <div class="admin-section-header">
+      <h2>Default item icon</h2>
+      <p class="admin-section-help">
+        The image shown on cards when an item has no photo uploaded.
+        Upload any JPG/PNG (max 5 MB). Delete to restore the default 📦 emoji.
+      </p>
+    </div>
+    <div style="display:flex; flex-wrap:wrap; gap:16px; align-items:flex-start;">
+      <div style="flex-shrink:0;">
+        {% if default_item_icon_exists() %}
+          <img src="{{ url_for('default_item_icon') }}" alt="Current default icon"
+               style="width:80px; height:80px; object-fit:cover; border-radius:10px; border:1px solid var(--border);">
+        {% else %}
+          <div style="width:80px; height:80px; border-radius:10px; border:1px solid var(--border);
+                      background: color-mix(in oklab, var(--card), var(--bg) 30%);
+                      display:flex; align-items:center; justify-content:center; font-size:36px; opacity:0.5;">📦</div>
+        {% endif %}
+      </div>
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        <form method="post" enctype="multipart/form-data"
+              action="{{ url_for('upload_default_item_icon') }}" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          <label class="file-btn" style="cursor:pointer; padding:6px 12px; background:var(--btn-bg); border:1px solid var(--btn-border); border-radius:8px;">
+            Choose image
+            <input type="file" name="icon" accept="image/*" style="display:none;" onchange="this.form.submit()">
+          </label>
+          <span class="muted" style="font-size:12px;">JPG or PNG, max 5 MB — auto-saves on selection</span>
+        </form>
+        {% if default_item_icon_exists() %}
+          <form method="post" action="{{ url_for('delete_default_item_icon') }}" style="display:contents">
+            <button class="btn btn-danger btn-small" type="submit">Remove custom icon</button>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
   <!-- Admin password -->
   <section class="admin-section" id="admin-password">
     <div class="admin-section-header">
