@@ -3048,14 +3048,21 @@ def reports(
     }
     total_items: list[Item] = []
 
-    def parse_use_within(v: Optional[str]) -> Optional[int]:
-        if not v:
-            return None
-        try:
-            num = int(str(v).split()[0])
-            return num
-        except Exception:
-            return None
+    # Health score components (global — no horizon/category/location filter)
+    health_all_active = 0
+    health_with_date = 0
+    health_noncompliant_global = 0
+    health_audited_30d = 0
+
+    # Category / location compliance tables (respects cat/loc filter, no horizon)
+    cat_table: dict[str, dict] = {}
+    loc_table: dict[str, dict] = {}
+
+    # Waste tracking and consumption velocity
+    waste_count = 0
+    total_depleted_with_date = 0
+    consumed_names: dict[str, int] = {}
+    all_depleted_dates: list[dt.date] = []
 
     noncompliant = 0
     compliant_total = 0
@@ -3065,6 +3072,28 @@ def reports(
         items = session.exec(select(Item)).all()
         for it in items:
             object.__setattr__(it, "expiry_info", _expiry_info(it))
+
+            # --- GLOBAL METRICS (before any filter) ---
+            if not it.depleted_at:
+                health_all_active += 1
+                if it.use_by_date:
+                    health_with_date += 1
+                if it.expiry_info and it.expiry_info["days"] < 0:
+                    health_noncompliant_global += 1
+                if it.last_audit_date:
+                    audit_d = _parse_date(it.last_audit_date)
+                    if audit_d and (today - audit_d).days <= 30:
+                        health_audited_30d += 1
+            else:
+                consumed_names[it.name] = consumed_names.get(it.name, 0) + 1
+                dep_d_g = _parse_date(it.depleted_at)
+                if dep_d_g:
+                    all_depleted_dates.append(dep_d_g)
+                    ub_g = _parse_date(it.use_by_date)
+                    if ub_g:
+                        total_depleted_with_date += 1
+                        if dep_d_g > ub_g:
+                            waste_count += 1
 
             # Filters
             if category and (it.category or "") != category:
@@ -3098,6 +3127,23 @@ def reports(
                 category_counts[it.category] = category_counts.get(it.category, 0) + 1
             if it.location:
                 location_counts[it.location] = location_counts.get(it.location, 0) + 1
+
+            # Category / location compliance tables (no horizon filter)
+            cat_key = it.category or "Uncategorized"
+            cat_table.setdefault(cat_key, {"total": 0, "expired": 0, "no_date": 0})
+            cat_table[cat_key]["total"] += 1
+            if not it.use_by_date:
+                cat_table[cat_key]["no_date"] += 1
+            elif it.expiry_info and it.expiry_info["days"] < 0:
+                cat_table[cat_key]["expired"] += 1
+
+            loc_key = it.location or "Unassigned"
+            loc_table.setdefault(loc_key, {"total": 0, "expired": 0, "no_date": 0})
+            loc_table[loc_key]["total"] += 1
+            if not it.use_by_date:
+                loc_table[loc_key]["no_date"] += 1
+            elif it.expiry_info and it.expiry_info["days"] < 0:
+                loc_table[loc_key]["expired"] += 1
 
             info = it.expiry_info
             if info and horizon_days is not None and info["days"] > horizon_days:
@@ -3134,12 +3180,11 @@ def reports(
                 heatmap.setdefault(cat, {})
                 heatmap[cat][loc] = heatmap[cat].get(loc, 0) + 1
 
-            # Aging waterfall + use-within compliance
+            # Aging waterfall
             created = _parse_date(it.created_at)
             days_on_hand = (today - created).days if created else None
             aging_basis = days_until_expiry if days_until_expiry is not None else days_on_hand
             if aging_basis is not None:
-                # Group by days-until-expiry when available, otherwise by days on hand
                 if aging_basis <= 0:
                     aging_buckets["expired"] += 1
                 elif aging_basis <= 7:
@@ -3152,7 +3197,6 @@ def reports(
                     aging_buckets["31-60"] += 1
                 else:
                     aging_buckets["61+"] += 1
-            # Use-by compliance: only flag items that are expired but not depleted.
             if days_until_expiry is not None and days_until_expiry <= 0:
                 noncompliant += 1
 
@@ -3194,6 +3238,106 @@ def reports(
     )
     depletion_reason_max = max((len(v) for v in depletion_reason_map.values()), default=0)
 
+    # --- Health score (0–100) ---
+    compliance_component = (
+        round(100 * (1 - health_noncompliant_global / health_all_active))
+        if health_all_active else 0
+    )
+    coverage_component = (
+        round(100 * health_with_date / health_all_active) if health_all_active else 0
+    )
+    audit_component = (
+        round(100 * health_audited_30d / health_all_active) if health_all_active else 0
+    )
+    health_score: Optional[int] = None
+    health_grade: Optional[str] = None
+    if health_all_active > 0:
+        health_score = round(
+            compliance_component * 0.5
+            + coverage_component * 0.3
+            + audit_component * 0.2
+        )
+        if health_score >= 90:
+            health_grade = "A"
+        elif health_score >= 80:
+            health_grade = "B"
+        elif health_score >= 70:
+            health_grade = "C"
+        elif health_score >= 60:
+            health_grade = "D"
+        else:
+            health_grade = "F"
+
+    # --- Waste rate ---
+    waste_rate: Optional[int] = None
+    if total_depleted_with_date > 0:
+        waste_rate = round(100 * waste_count / total_depleted_with_date)
+
+    # --- Category compliance table (worst first) ---
+    cat_compliance_rows = []
+    for cat_k, data in sorted(cat_table.items()):
+        total_c = data["total"]
+        expired_c = data["expired"]
+        no_date_c = data["no_date"]
+        pct = round(100 * (total_c - expired_c) / total_c) if total_c else 0
+        cat_compliance_rows.append(
+            {"name": cat_k, "total": total_c, "expired": expired_c, "no_date": no_date_c, "pct": pct}
+        )
+    cat_compliance_rows.sort(key=lambda r: r["pct"])
+
+    # --- Location compliance table (worst first) ---
+    loc_compliance_rows = []
+    for loc_k, data in sorted(loc_table.items()):
+        total_l = data["total"]
+        expired_l = data["expired"]
+        no_date_l = data["no_date"]
+        pct_l = round(100 * (total_l - expired_l) / total_l) if total_l else 0
+        loc_compliance_rows.append(
+            {"name": loc_k, "total": total_l, "expired": expired_l, "no_date": no_date_l, "pct": pct_l}
+        )
+    loc_compliance_rows.sort(key=lambda r: r["pct"])
+
+    # --- Depletion velocity trend (last 12 weeks) ---
+    monday = today - dt.timedelta(days=today.weekday())
+    velocity_weeks = []
+    velocity_counts = []
+    for weeks_ago in range(11, -1, -1):
+        week_start = monday - dt.timedelta(weeks=weeks_ago)
+        week_end = week_start + dt.timedelta(days=6)
+        label = week_start.strftime("%-m/%-d")
+        count = sum(1 for d in all_depleted_dates if week_start <= d <= week_end)
+        velocity_weeks.append(label)
+        velocity_counts.append(count)
+
+    # --- Top consumed items (top 10 by name frequency) ---
+    top_consumed = sorted(consumed_names.items(), key=lambda kv: kv[1], reverse=True)[:10]
+
+    # --- Action items ---
+    action_items = []
+    n_expired = summary["overdue"]
+    n_expiring_7d = summary["d7"]
+    g_no_date = health_all_active - health_with_date
+    if n_expired > 0:
+        action_items.append({
+            "severity": "danger",
+            "text": f"{n_expired} item{'s' if n_expired != 1 else ''} expired and still in stock",
+        })
+    if n_expiring_7d > 0:
+        action_items.append({
+            "severity": "warn",
+            "text": f"{n_expiring_7d} item{'s' if n_expiring_7d != 1 else ''} expire{'s' if n_expiring_7d == 1 else ''} within 7 days",
+        })
+    if g_no_date > 0:
+        action_items.append({
+            "severity": "info",
+            "text": f"{g_no_date} item{'s' if g_no_date != 1 else ''} {'has' if g_no_date == 1 else 'have'} no use-by date set",
+        })
+    if waste_rate is not None and waste_rate > 20:
+        action_items.append({
+            "severity": "warn",
+            "text": f"{waste_rate}% of tracked depletions were past their use-by date",
+        })
+
     return templates.TemplateResponse(
         "reports.html",
         {
@@ -3217,7 +3361,102 @@ def reports(
             "bucket_items": bucket_items,
             "total_items": total_items,
             "display_fields": display_fields,
+            # New analytics
+            "health_score": health_score,
+            "health_grade": health_grade,
+            "coverage_component": coverage_component,
+            "audit_component": audit_component,
+            "action_items": action_items,
+            "cat_compliance_rows": cat_compliance_rows,
+            "loc_compliance_rows": loc_compliance_rows,
+            "waste_rate": waste_rate,
+            "waste_count": waste_count,
+            "total_depleted_with_date": total_depleted_with_date,
+            "velocity_weeks": velocity_weeks,
+            "velocity_counts": velocity_counts,
+            "top_consumed": [{"name": n, "count": c} for n, c in top_consumed],
+            "compliance_chart": {
+                "compliant": max(0, compliant_total - noncompliant),
+                "expired": noncompliant,
+            },
+            "aging_chart": aging_buckets,
         },
+    )
+
+
+@app.post("/reports/bulk-deplete-expired", name="bulk_deplete_expired")
+async def bulk_deplete_expired(request: Request):
+    today_ts = dt.datetime.utcnow().isoformat()
+    with Session(engine) as session:
+        items = session.exec(select(Item)).all()
+        count = 0
+        for it in items:
+            if it.depleted_at:
+                continue
+            days = _days_until(it.use_by_date)
+            if days is not None and days < 0:
+                it.depleted_at = today_ts
+                it.depleted_reason = "Expired"
+                session.add(it)
+                count += 1
+        session.commit()
+    return RedirectResponse(url=f"/reports?bulk_depleted={count}", status_code=303)
+
+
+@app.get("/reports/export.csv", name="reports_export_csv")
+def reports_export_csv(
+    request: Request,
+    horizon: str = "60",
+    category: str = "",
+    location: str = "",
+):
+    import csv as _csv
+    horizon_map = {"7": 7, "14": 14, "30": 30, "60": 60, "all": None}
+    horizon_days = horizon_map.get(horizon, 60)
+    today = dt.date.today()
+
+    rows = []
+    with Session(engine) as session:
+        items = session.exec(select(Item)).all()
+        for it in items:
+            if it.depleted_at:
+                continue
+            if category and (it.category or "") != category:
+                continue
+            if location and (it.location or "") != location:
+                continue
+            info = _expiry_info(it)
+            if info and horizon_days is not None and info["days"] > horizon_days:
+                continue
+            days_val = info["days"] if info else ""
+            status = info["badge"] if info else "No date"
+            rows.append([
+                it.name,
+                it.serial_number,
+                it.category or "",
+                it.location or "",
+                it.bin_number or "",
+                it.quantity,
+                it.unit or "",
+                it.use_by_date or "",
+                days_val,
+                status,
+                it.condition or "",
+                it.notes or "",
+            ])
+
+    output = io.StringIO()
+    writer = _csv.writer(output)
+    writer.writerow([
+        "Name", "Serial", "Category", "Location", "Bin",
+        "Quantity", "Unit", "Use-by Date", "Days Remaining", "Status",
+        "Condition", "Notes",
+    ])
+    writer.writerows(rows)
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="pantrlytics-report.csv"'},
     )
 
 

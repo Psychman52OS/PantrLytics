@@ -6,26 +6,20 @@
   <header class="page-header">
     <div class="page-header-text">
       <h1 class="page-title">Reports</h1>
-      <p class="page-subtitle">Expiration risk, aging, and compliance at a glance.</p>
+      <p class="page-subtitle">Inventory health, expiration risk, and consumption analytics.</p>
     </div>
-    <form method="get" class="reports-filters">
+    <form method="get" class="reports-filters" id="reports-filter-form">
       <div class="field">
         <label>Horizon</label>
-        <select class="input" name="horizon">
-          {% for key,label in [
-            ('7','Next 7d'),
-            ('14','Next 14d'),
-            ('30','Next 30d'),
-            ('60','Next 60d'),
-            ('all','All')
-          ] %}
+        <select class="input" name="horizon" onchange="this.form.submit()">
+          {% for key,label in [('7','Next 7d'),('14','Next 14d'),('30','Next 30d'),('60','Next 60d'),('all','All')] %}
             <option value="{{ key }}" {% if horizon==key %}selected{% endif %}>{{ label }}</option>
           {% endfor %}
         </select>
       </div>
       <div class="field">
         <label>Category</label>
-        <select class="input" name="category">
+        <select class="input" name="category" onchange="this.form.submit()">
           <option value="">All</option>
           {% for c in categories %}
             <option value="{{ c }}" {% if category==c %}selected{% endif %}>{{ c }}</option>
@@ -34,17 +28,61 @@
       </div>
       <div class="field">
         <label>Location</label>
-        <select class="input" name="location">
+        <select class="input" name="location" onchange="this.form.submit()">
           <option value="">All</option>
           {% for l in locations %}
             <option value="{{ l }}" {% if location==l %}selected{% endif %}>{{ l }}</option>
           {% endfor %}
         </select>
       </div>
-      <button class="btn btn-primary" type="submit">Apply</button>
+      <a class="btn btn-secondary" href="/reports/export.csv?horizon={{ horizon }}&category={{ category }}&location={{ location }}">Export CSV</a>
     </form>
   </header>
 
+  {# ── Health Score + Action Items ──────────────────────────────── #}
+  <div class="health-row">
+    {% if health_score is not none %}
+    <div class="health-score-card grade-{{ health_grade | lower }}">
+      <div class="health-score-number">{{ health_score }}</div>
+      <div class="health-score-grade">{{ health_grade }}</div>
+      <div class="health-score-label">Inventory Health</div>
+      <div class="health-score-breakdown">
+        <span title="Compliance (50%)">✓ Compliance: 50%</span>
+        <span title="Date coverage (30%)">📅 {{ coverage_component }}% dated</span>
+        <span title="Audit freshness (20%)">🔍 {{ audit_component }}% audited 30d</span>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="action-items-panel">
+      <div class="action-items-header">
+        <h3>What Needs Attention</h3>
+        {% set n_expired_local = summary.overdue %}
+        {% if n_expired_local > 0 %}
+        <form method="post" action="/reports/bulk-deplete-expired" style="display:inline;">
+          <button class="btn btn-danger btn-sm" type="submit"
+            onclick="return confirm('Mark all {{ n_expired_local }} expired item{{ 's' if n_expired_local != 1 else '' }} as depleted?')">
+            Mark all expired depleted
+          </button>
+        </form>
+        {% endif %}
+      </div>
+      {% if action_items %}
+        <ul class="action-list">
+          {% for ai in action_items %}
+            <li class="action-item action-{{ ai.severity }}">
+              {% if ai.severity == 'danger' %}⚠{% elif ai.severity == 'warn' %}⚡{% else %}ℹ{% endif %}
+              {{ ai.text }}
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="action-all-clear">✓ Everything looks good — no immediate actions needed.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── KPI Cards ────────────────────────────────────────────────── #}
   <div class="kpi-grid">
     <div class="kpi-card danger js-bucket" data-bucket="overdue">
       <div class="kpi-label">Expired</div>
@@ -72,66 +110,141 @@
     </div>
   </div>
 
-  <div class="reports-grid">
-    <section class="report-card">
+  {# ── Charts Row ───────────────────────────────────────────────── #}
+  <div class="charts-row">
+    <section class="report-card chart-card">
       <div class="report-head">
-        <h3>Use-by compliance</h3>
-        <p class="muted">Items past their use-by date that are not depleted.</p>
+        <h3>Compliance</h3>
+        <p class="muted">Active items with a use-by date.</p>
+      </div>
+      <div class="chart-wrap chart-wrap-sm">
+        <canvas id="complianceChart"></canvas>
       </div>
       {% if compliance_rate is not none %}
-        <div class="kpi-large">
-          <div class="kpi-value">{{ compliance_rate }}%</div>
-          <div class="kpi-label">Compliant</div>
-        </div>
+        <div class="chart-stat">{{ compliance_rate }}% compliant</div>
       {% else %}
-        <div class="muted">Not enough data yet.</div>
+        <div class="muted" style="margin-top:8px;">No use-by data yet.</div>
       {% endif %}
+    </section>
 
-      <div class="report-head" style="margin-top:16px;">
-        <h3>Aging waterfall</h3>
+    <section class="report-card chart-card chart-card-lg">
+      <div class="report-head">
+        <h3>Aging Distribution</h3>
+        <p class="muted">Active items by days until expiry.</p>
       </div>
-      <div class="bar-chart">
-        {% set _max = aging.values() | max | default(0) %}
-        {% set max_count = _max if _max > 0 else 1 %}
-        {% for label, count in aging.items() %}
-          <div class="bar">
-            <div class="bar-label">{{ label }}</div>
-            <div class="bar-track">
-              <span class="bar-fill" style="width: {{ ((count or 0) / max_count * 100) | int }}%;"></span>
-            </div>
-            <div class="bar-value">{{ count }}</div>
-          </div>
-        {% endfor %}
+      <div class="chart-wrap">
+        <canvas id="agingChart"></canvas>
       </div>
     </section>
 
+    <section class="report-card chart-card chart-card-lg">
+      <div class="report-head">
+        <h3>Depletion Trend</h3>
+        <p class="muted">Items consumed per week (last 12 weeks).</p>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="trendChart"></canvas>
+      </div>
+    </section>
+  </div>
+
+  {# ── Compliance Tables ─────────────────────────────────────────── #}
+  <div class="compliance-tables-row">
+    {% if cat_compliance_rows %}
     <section class="report-card">
       <div class="report-head">
-        <h3>Heatmap (Category x Location)</h3>
-        <p class="muted">Where upcoming expirations are concentrated.</p>
+        <h3>Compliance by Category</h3>
+        <p class="muted">Worst performers first. Excludes depleted items.</p>
       </div>
-      <div class="heatmap">
-        {% for cat, locs in heatmap.items() %}
-          <div class="heat-row">
-            <div class="heat-cat">{{ cat }}</div>
-            <div class="heat-cells">
-              {% for loc,val in locs.items() %}
-                <div class="heat-cell">
-                  <div class="heat-loc">{{ loc }}</div>
-                  <div class="heat-val">{{ val }}</div>
+      <div class="table-wrap">
+        <table class="table compliance-table">
+          <thead>
+            <tr>
+              <th>Category</th>
+              <th class="num">Total</th>
+              <th class="num">Expired</th>
+              <th class="num">No Date</th>
+              <th>Compliance</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in cat_compliance_rows %}
+            <tr>
+              <td>{{ row.name }}</td>
+              <td class="num">{{ row.total }}</td>
+              <td class="num {% if row.expired > 0 %}text-danger{% endif %}">{{ row.expired }}</td>
+              <td class="num text-muted">{{ row.no_date }}</td>
+              <td>
+                <div class="pct-bar-wrap">
+                  <div class="pct-bar" style="width:{{ row.pct }}%; background: {% if row.pct >= 90 %}#63e6be{% elif row.pct >= 70 %}#ffd43b{% else %}#ff6b6b{% endif %};"></div>
+                  <span class="pct-label">{{ row.pct }}%</span>
                 </div>
-              {% endfor %}
-            </div>
-          </div>
-        {% else %}
-          <div class="muted">No expiring items to map.</div>
-        {% endfor %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
       </div>
     </section>
+    {% endif %}
 
+    {% if loc_compliance_rows %}
     <section class="report-card">
       <div class="report-head">
-        <h3>Depletions</h3>
+        <h3>Compliance by Location</h3>
+        <p class="muted">Worst performers first. Excludes depleted items.</p>
+      </div>
+      <div class="table-wrap">
+        <table class="table compliance-table">
+          <thead>
+            <tr>
+              <th>Location</th>
+              <th class="num">Total</th>
+              <th class="num">Expired</th>
+              <th class="num">No Date</th>
+              <th>Compliance</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in loc_compliance_rows %}
+            <tr>
+              <td>{{ row.name }}</td>
+              <td class="num">{{ row.total }}</td>
+              <td class="num {% if row.expired > 0 %}text-danger{% endif %}">{{ row.expired }}</td>
+              <td class="num text-muted">{{ row.no_date }}</td>
+              <td>
+                <div class="pct-bar-wrap">
+                  <div class="pct-bar" style="width:{{ row.pct }}%; background: {% if row.pct >= 90 %}#63e6be{% elif row.pct >= 70 %}#ffd43b{% else %}#ff6b6b{% endif %};"></div>
+                  <span class="pct-label">{{ row.pct }}%</span>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+    {% endif %}
+  </div>
+
+  {# ── Top Consumed ──────────────────────────────────────────────── #}
+  {% if top_consumed %}
+  <section class="report-card" style="margin-top:14px;">
+    <div class="report-head">
+      <h3>Most Consumed Items</h3>
+      <p class="muted">Top items by depletion events (all time, all categories).</p>
+    </div>
+    <div class="chart-wrap chart-wrap-consumed">
+      <canvas id="consumedChart"></canvas>
+    </div>
+  </section>
+  {% endif %}
+
+  {# ── Depletion Section ─────────────────────────────────────────── #}
+  <div class="reports-grid" style="margin-top:14px;">
+    <section class="report-card">
+      <div class="report-head">
+        <h3>Depletion Summary</h3>
         <p class="muted">Items marked as depleted within this horizon.</p>
       </div>
       <div class="kpi-grid" style="margin-top:0;">
@@ -143,10 +256,22 @@
           <div class="kpi-label">Avg days on hand</div>
           <div class="kpi-value">{{ depleted_avg_doh if depleted_avg_doh is not none else "—" }}</div>
         </div>
+        {% if waste_rate is not none %}
+        <div class="kpi-card {% if waste_rate > 20 %}hot{% elif waste_rate > 10 %}warn{% else %}calm{% endif %}">
+          <div class="kpi-label">Waste rate</div>
+          <div class="kpi-value">{{ waste_rate }}%</div>
+        </div>
+        {% endif %}
       </div>
-      <div class="report-head" style="margin-top:12px;">
+      {% if waste_rate is not none %}
+      <p class="muted" style="font-size:12px; margin-top:6px;">
+        {{ waste_count }} of {{ total_depleted_with_date }} tracked depletions were after the use-by date.
+      </p>
+      {% endif %}
+
+      <div class="report-head" style="margin-top:16px;">
         <h3>By reason</h3>
-        <p class="muted">Click a reason to drill into the items.</p>
+        <p class="muted">Click a reason to drill into items.</p>
       </div>
       {% if depletion_reasons %}
         <div class="bar-chart reason-chart">
@@ -164,7 +289,14 @@
       {% else %}
         <div class="muted">No depleted items in this horizon.</div>
       {% endif %}
-      <div class="report-list" style="margin-top:12px;">
+    </section>
+
+    <section class="report-card">
+      <div class="report-head">
+        <h3>Recent depletions</h3>
+        <p class="muted">Newest first, within this horizon.</p>
+      </div>
+      <div class="report-list">
         {% if depleted_recent %}
           {% for rec in depleted_recent %}
             {% set it = rec.item %}
@@ -192,6 +324,7 @@
     </section>
   </div>
 
+  {# ── Upcoming Risk Top 25 ──────────────────────────────────────── #}
   <section class="report-card" style="margin-top:14px;">
     <div class="report-head">
       <h3>Upcoming risk (top 25)</h3>
@@ -223,6 +356,7 @@
   </section>
 </section>
 
+{# ── Bucket Drill-down Modal ───────────────────────────────────── #}
 {% set bucket_defs = [
   ('overdue', 'Expired', bucket_items.get('overdue', [])),
   ('d7', 'Expires ≤7d', bucket_items.get('d7', [])),
@@ -256,9 +390,7 @@
                   {% for item in items_list %}
                     <tr>
                       <td class="col-name">
-                        <a class="link name-link" href="{{ url_for('show_item', item_id=item.id) }}">
-                          {{ item.name }}
-                        </a>
+                        <a class="link name-link" href="{{ url_for('show_item', item_id=item.id) }}">{{ item.name }}</a>
                         {% if item.expiry_info %}
                           <span class="pill {{ item.expiry_info.severity }}"> {{ item.expiry_info.badge }} </span>
                         {% endif %}
@@ -266,15 +398,10 @@
                       {% for col in display_fields %}
                         {% set val = item|attr(col.key) %}
                         <td class="col-{{ col.key }}">
-                          {% if col.key == "quantity" %}
-                            {{ val }}
-                          {% elif col.key in ["cook_date", "use_by_date", "last_audit_date"] %}
-                            {{ val or "—" }}
-                          {% elif col.key == "notes" %}
-                            <span class="wrap">{{ val or "—" }}</span>
-                          {% else %}
-                            {{ val or "—" }}
-                          {% endif %}
+                          {% if col.key == "quantity" %}{{ val }}
+                          {% elif col.key in ["cook_date","use_by_date","last_audit_date"] %}{{ val or "—" }}
+                          {% elif col.key == "notes" %}<span class="wrap">{{ val or "—" }}</span>
+                          {% else %}{{ val or "—" }}{% endif %}
                         </td>
                       {% endfor %}
                     </tr>
@@ -291,6 +418,7 @@
   </div>
 </div>
 
+{# ── Reason Drill-down Modal ──────────────────────────────────────#}
 <div id="reason-overlay" class="bucket-overlay" hidden>
   <div class="modal-card bucket-dialog">
     <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:10px;">
@@ -304,21 +432,14 @@
             <div class="table-wrap" style="overflow-x: visible;">
               <table class="table table-inventory" style="table-layout:auto; width:100%;">
                 <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Reason</th>
-                    <th>Depleted on</th>
-                    <th>Days on hand</th>
-                  </tr>
+                  <tr><th>Name</th><th>Reason</th><th>Depleted on</th><th>Days on hand</th></tr>
                 </thead>
                 <tbody>
                   {% for rec in recs %}
                     {% set it = rec.item %}
                     <tr>
                       <td class="col-name">
-                        <a class="link name-link" href="{{ url_for('show_item', item_id=it.id) }}">
-                          {{ it.name }}
-                        </a>
+                        <a class="link name-link" href="{{ url_for('show_item', item_id=it.id) }}">{{ it.name }}</a>
                       </td>
                       <td>{{ it.depleted_reason or "Unspecified" }}</td>
                       <td>{{ rec.depleted_date }}</td>
@@ -337,88 +458,160 @@
   </div>
 </div>
 
+{# ── Chart.js + Page Scripts ──────────────────────────────────────#}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script>
-  document.addEventListener('DOMContentLoaded', () => {
-    const bucketOverlay = document.getElementById('bucket-overlay');
-    if (bucketOverlay) {
-      const dlg = bucketOverlay.querySelector('.bucket-dialog');
-      const titleEl = bucketOverlay.querySelector('[data-bucket-title]');
-      const panels = Array.from(bucketOverlay.querySelectorAll('[data-bucket-panel]'));
-      const closeBtn = bucketOverlay.querySelector('#bucket-close');
-      const labels = {
-        overdue: 'Expired',
-        d7: 'Expires ≤7d',
-        d14: 'Expires ≤14d',
-        d30: 'Expires ≤30d',
-        d60: 'Expires ≤60d',
-        total: 'All in view',
-      };
+(function () {
+  'use strict';
 
-      function closeDlg() {
-        bucketOverlay.classList.remove('open');
-        bucketOverlay.setAttribute('hidden', 'hidden');
-        bucketOverlay.style.display = 'none';
-      }
+  const complianceData = {{ compliance_chart | tojson }};
+  const agingData      = {{ aging_chart | tojson }};
+  const velocityWeeks  = {{ velocity_weeks | tojson }};
+  const velocityCounts = {{ velocity_counts | tojson }};
+  const topConsumed    = {{ top_consumed | tojson }};
 
-      function showBucket(bucket) {
-        panels.forEach(p => {
-          p.style.display = (p.dataset.bucketPanel === bucket) ? 'block' : 'none';
-        });
-        if (titleEl) titleEl.textContent = labels[bucket] || 'Items';
-        bucketOverlay.removeAttribute('hidden');
-        bucketOverlay.classList.add('open');
-        bucketOverlay.style.display = 'flex';
-      }
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    || (!document.documentElement.getAttribute('data-theme')
+        && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  const textColor = isDark ? '#c9d1d9' : '#555';
+  const gridColor = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)';
 
-      closeBtn?.addEventListener('click', closeDlg);
-      bucketOverlay.addEventListener('click', (e) => {
-        if (e.target === bucketOverlay) closeDlg();
-      });
+  // Compliance donut
+  const compCtx = document.getElementById('complianceChart');
+  if (compCtx && (complianceData.compliant + complianceData.expired) > 0) {
+    new Chart(compCtx, {
+      type: 'doughnut',
+      data: {
+        labels: ['Compliant', 'Expired'],
+        datasets: [{ data: [complianceData.compliant, complianceData.expired], backgroundColor: ['#63e6be','#ff6b6b'], borderWidth: 0 }],
+      },
+      options: {
+        cutout: '68%',
+        plugins: {
+          legend: { position: 'bottom', labels: { color: textColor, padding: 12, boxWidth: 12 } },
+          tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed}` } },
+        },
+      },
+    });
+  }
 
-      document.querySelectorAll('.js-bucket[data-bucket]').forEach(card => {
-        card.style.cursor = 'pointer';
-        card.addEventListener('click', () => {
-          const bucket = card.dataset.bucket;
-          if (bucket) showBucket(bucket);
-        });
-      });
-    }
+  // Aging horizontal bar
+  const agingCtx = document.getElementById('agingChart');
+  if (agingCtx) {
+    new Chart(agingCtx, {
+      type: 'bar',
+      data: {
+        labels: Object.keys(agingData),
+        datasets: [{
+          label: 'Items',
+          data: Object.values(agingData),
+          backgroundColor: ['#ff6b6b','#ffa94d','#ffd43b','#ffc078','#a9e34b','#63e6be'],
+          borderRadius: 6,
+        }],
+      },
+      options: {
+        indexAxis: 'y',
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: textColor, precision: 0 }, grid: { color: gridColor } },
+          y: { ticks: { color: textColor }, grid: { color: gridColor } },
+        },
+      },
+    });
+  }
 
-    const reasonOverlay = document.getElementById('reason-overlay');
-    if (reasonOverlay) {
-      const reasonPanels = Array.from(reasonOverlay.querySelectorAll('[data-reason-panel]'));
-      const reasonTitle = reasonOverlay.querySelector('[data-reason-title]');
-      const reasonClose = reasonOverlay.querySelector('#reason-close');
+  // Depletion trend line
+  const trendCtx = document.getElementById('trendChart');
+  if (trendCtx) {
+    new Chart(trendCtx, {
+      type: 'line',
+      data: {
+        labels: velocityWeeks,
+        datasets: [{
+          label: 'Depletions',
+          data: velocityCounts,
+          borderColor: '#4dabf7',
+          backgroundColor: 'rgba(77,171,247,0.15)',
+          pointBackgroundColor: '#4dabf7',
+          tension: 0.35,
+          fill: true,
+        }],
+      },
+      options: {
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: textColor, maxRotation: 45 }, grid: { color: gridColor } },
+          y: { ticks: { color: textColor, precision: 0 }, grid: { color: gridColor }, beginAtZero: true },
+        },
+      },
+    });
+  }
 
-      function closeReason() {
-        reasonOverlay.classList.remove('open');
-        reasonOverlay.setAttribute('hidden', 'hidden');
-        reasonOverlay.style.display = 'none';
-      }
+  // Top consumed horizontal bar
+  const consumedCtx = document.getElementById('consumedChart');
+  if (consumedCtx && topConsumed.length) {
+    new Chart(consumedCtx, {
+      type: 'bar',
+      data: {
+        labels: topConsumed.map(r => r.name),
+        datasets: [{
+          label: 'Depletions',
+          data: topConsumed.map(r => r.count),
+          backgroundColor: '#4dabf7',
+          borderRadius: 6,
+        }],
+      },
+      options: {
+        indexAxis: 'y',
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: textColor, precision: 0 }, grid: { color: gridColor } },
+          y: { ticks: { color: textColor }, grid: { color: gridColor } },
+        },
+      },
+    });
+  }
 
-      function showReason(reason) {
-        reasonPanels.forEach(p => {
-          p.style.display = (p.dataset.reasonPanel === reason) ? 'block' : 'none';
-        });
-        if (reasonTitle) reasonTitle.textContent = reason || 'Reason';
-        reasonOverlay.removeAttribute('hidden');
-        reasonOverlay.classList.add('open');
-        reasonOverlay.style.display = 'flex';
-      }
+  // Bucket KPI modal
+  const bucketOverlay = document.getElementById('bucket-overlay');
+  if (bucketOverlay) {
+    const titleEl  = bucketOverlay.querySelector('[data-bucket-title]');
+    const panels   = Array.from(bucketOverlay.querySelectorAll('[data-bucket-panel]'));
+    const closeBtn = bucketOverlay.querySelector('#bucket-close');
+    const labels   = { overdue:'Expired', d7:'Expires ≤7d', d14:'Expires ≤14d', d30:'Expires ≤30d', d60:'Expires ≤60d', total:'All in view' };
+    const closeDlg = () => { bucketOverlay.classList.remove('open'); bucketOverlay.setAttribute('hidden','hidden'); bucketOverlay.style.display='none'; };
+    const showBucket = bucket => {
+      panels.forEach(p => { p.style.display = p.dataset.bucketPanel === bucket ? 'block' : 'none'; });
+      if (titleEl) titleEl.textContent = labels[bucket] || 'Items';
+      bucketOverlay.removeAttribute('hidden'); bucketOverlay.classList.add('open'); bucketOverlay.style.display='flex';
+    };
+    closeBtn?.addEventListener('click', closeDlg);
+    bucketOverlay.addEventListener('click', e => { if (e.target === bucketOverlay) closeDlg(); });
+    document.querySelectorAll('.js-bucket[data-bucket]').forEach(card => {
+      card.style.cursor = 'pointer';
+      card.addEventListener('click', () => showBucket(card.dataset.bucket));
+    });
+  }
 
-      reasonClose?.addEventListener('click', closeReason);
-      reasonOverlay.addEventListener('click', (e) => {
-        if (e.target === reasonOverlay) closeReason();
-      });
-
-      document.querySelectorAll('.js-reason-bar[data-reason]').forEach(bar => {
-        bar.style.cursor = 'pointer';
-        bar.addEventListener('click', () => {
-          const reason = bar.dataset.reason;
-          if (reason) showReason(reason);
-        });
-      });
-    }
-  });
+  // Reason modal
+  const reasonOverlay = document.getElementById('reason-overlay');
+  if (reasonOverlay) {
+    const reasonPanels = Array.from(reasonOverlay.querySelectorAll('[data-reason-panel]'));
+    const reasonTitle  = reasonOverlay.querySelector('[data-reason-title]');
+    const reasonClose  = reasonOverlay.querySelector('#reason-close');
+    const closeReason  = () => { reasonOverlay.classList.remove('open'); reasonOverlay.setAttribute('hidden','hidden'); reasonOverlay.style.display='none'; };
+    const showReason   = reason => {
+      reasonPanels.forEach(p => { p.style.display = p.dataset.reasonPanel === reason ? 'block' : 'none'; });
+      if (reasonTitle) reasonTitle.textContent = reason || 'Reason';
+      reasonOverlay.removeAttribute('hidden'); reasonOverlay.classList.add('open'); reasonOverlay.style.display='flex';
+    };
+    reasonClose?.addEventListener('click', closeReason);
+    reasonOverlay.addEventListener('click', e => { if (e.target === reasonOverlay) closeReason(); });
+    document.querySelectorAll('.js-reason-bar[data-reason]').forEach(bar => {
+      bar.style.cursor = 'pointer';
+      bar.addEventListener('click', () => showReason(bar.dataset.reason));
+    });
+  }
+})();
 </script>
 {% endblock %}

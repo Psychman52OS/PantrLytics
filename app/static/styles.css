@@ -2007,3 +2007,195 @@ form.search-and-filters .btn-clear-filters:hover {
   border-color: #ff6b6b;
   background: color-mix(in oklab, #fa5252 28%, var(--card) 72%);
 }
+
+/* -------------------------
+   Reports v2 — health score, charts, compliance tables
+-------------------------- */
+
+/* Health row */
+.health-row {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.health-score-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 140px;
+  padding: 16px 20px;
+  border-radius: var(--radius);
+  border: 2px solid var(--btn-border);
+  gap: 2px;
+  flex-shrink: 0;
+}
+.health-score-card.grade-a { border-color: #63e6be; background: color-mix(in oklab, #2f9e44 20%, var(--card) 80%); }
+.health-score-card.grade-b { border-color: #a9e34b; background: color-mix(in oklab, #5c940d 20%, var(--card) 80%); }
+.health-score-card.grade-c { border-color: #ffd43b; background: color-mix(in oklab, #f08c00 20%, var(--card) 80%); }
+.health-score-card.grade-d { border-color: #ffa94d; background: color-mix(in oklab, #e8590c 20%, var(--card) 80%); }
+.health-score-card.grade-f { border-color: #ff6b6b; background: color-mix(in oklab, #fa5252 20%, var(--card) 80%); }
+.health-score-number {
+  font-size: 42px;
+  font-weight: 800;
+  line-height: 1;
+}
+.health-score-grade {
+  font-size: 22px;
+  font-weight: 700;
+  opacity: 0.75;
+}
+.health-score-label {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 4px;
+}
+.health-score-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* Action items panel */
+.action-items-panel {
+  flex: 1;
+  min-width: 240px;
+  background: color-mix(in oklab, var(--card), var(--bg) 8%);
+  border: 1px solid var(--btn-border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+.action-items-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.action-items-header h3 { margin: 0; font-size: 15px; }
+.action-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.action-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  border: 1px solid transparent;
+}
+.action-item.action-danger {
+  background: color-mix(in oklab, #fa5252 16%, var(--card) 84%);
+  border-color: #ff6b6b;
+  color: var(--text);
+}
+.action-item.action-warn {
+  background: color-mix(in oklab, #f08c00 16%, var(--card) 84%);
+  border-color: #ffa94d;
+  color: var(--text);
+}
+.action-item.action-info {
+  background: color-mix(in oklab, #1971c2 14%, var(--card) 86%);
+  border-color: #74c0fc;
+  color: var(--text);
+}
+.action-all-clear {
+  color: #63e6be;
+  font-size: 14px;
+  margin: 4px 0 0;
+}
+
+/* Charts row */
+.charts-row {
+  display: grid;
+  grid-template-columns: 180px 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+@media (max-width: 900px) {
+  .charts-row {
+    grid-template-columns: 1fr 1fr;
+  }
+  .charts-row .chart-card:first-child {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 600px) {
+  .charts-row { grid-template-columns: 1fr; }
+}
+.chart-card { display: flex; flex-direction: column; }
+.chart-wrap {
+  position: relative;
+  width: 100%;
+  height: 180px;
+  margin-top: 6px;
+}
+.chart-wrap-sm {
+  height: 140px;
+}
+.chart-wrap-consumed {
+  height: 220px;
+}
+.chart-stat {
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 6px;
+}
+
+/* Compliance tables */
+.compliance-tables-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 14px;
+  margin-bottom: 0;
+}
+.compliance-table th.num,
+.compliance-table td.num { text-align: right; padding-right: 12px; }
+.text-danger { color: #ff6b6b; font-weight: 600; }
+.text-muted  { color: var(--muted); }
+.pct-bar-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 100px;
+}
+.pct-bar {
+  height: 8px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  max-width: 80px;
+}
+.pct-label {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* btn-sm */
+.btn-sm {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+.btn-danger {
+  background: color-mix(in oklab, #fa5252 70%, var(--card) 30%);
+  color: #fff;
+  border-color: #ff6b6b;
+}
+.btn-danger:hover {
+  background: color-mix(in oklab, #fa5252 85%, var(--card) 15%);
+}
