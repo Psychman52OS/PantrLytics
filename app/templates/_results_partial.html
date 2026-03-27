@@ -138,7 +138,7 @@
     <div class="item-card" data-item-url="{{ url_for('show_item', item_id=item.id) }}">
       <a class="item-card-thumb" href="{{ url_for('show_item', item_id=item.id) }}" tabindex="-1" aria-hidden="true">
         {% if item.photo_path %}
-          <img src="{{ url_for('photo', item_id=item.id) }}" alt="{{ item.name }}" loading="lazy">
+          <img src="{{ url_for('photo', item_id=item.id) }}?v={{ item.photo_path | photo_ver }}" alt="{{ item.name }}" loading="lazy">
         {% elif default_item_icon_exists() %}
           <img src="{{ url_for('default_item_icon') }}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover;">
         {% else %}

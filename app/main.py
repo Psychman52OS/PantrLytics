@@ -1315,6 +1315,9 @@ templates.env.globals["get_font_sizes"] = _jinja_get_font_sizes
 templates.env.globals["default_item_icon_exists"] = _jinja_default_icon_exists
 templates.env.globals["get_default_item_emoji"] = _jinja_get_default_emoji
 
+import hashlib as _hashlib
+templates.env.filters["photo_ver"] = lambda p: _hashlib.md5((p or "").encode()).hexdigest()[:8] if p else "0"
+
 
 class PrefixFromHeaders(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -3194,9 +3197,10 @@ def reports(
 def _resolve_photo_path(session: Session, item_id: int, prefer_photo_id: int | None = None):
     """Return (path, photo_id) for an item's photo.
 
-    Prioritizes an explicitly requested photo id, otherwise returns the most
-    recent photo file that still exists on disk before falling back to legacy
-    `photo_path`.
+    Priority order:
+    1. An explicitly requested photo_id (prefer_photo_id param)
+    2. The item's designated primary photo (item.photo_path)
+    3. Newest-to-oldest photo that still exists on disk
     """
     photos = get_item_photos(session, item_id)
 
@@ -3205,14 +3209,20 @@ def _resolve_photo_path(session: Session, item_id: int, prefer_photo_id: int | N
             if p.id == prefer_photo_id and os.path.isfile(p.path):
                 return p.path, p.id
 
-    # Prefer newest-to-oldest so we skip stale DB rows pointing at deleted files.
+    item = session.get(Item, item_id)
+
+    # Prefer the item's designated primary photo_path
+    if item and item.photo_path and os.path.isfile(item.photo_path):
+        for p in photos:
+            if p.path == item.photo_path:
+                return p.path, p.id
+        return item.photo_path, None
+
+    # Fall back: newest-to-oldest, skipping stale DB rows
     for p in reversed(photos):
         if os.path.isfile(p.path):
             return p.path, p.id
 
-    item = session.get(Item, item_id)
-    if item and item.photo_path and os.path.isfile(item.photo_path):
-        return item.photo_path, None
     return None, None
 
 
