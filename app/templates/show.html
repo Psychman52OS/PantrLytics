@@ -132,82 +132,86 @@
     </aside>
   </div>
 
-  <!-- Actions row -->
-  <div class="actions">
-    <form method="post"
-          action="{{ url_for('duplicate_item', item_id=item.id) }}"
-          style="display:inline">
-      <button class="btn btn-primary" type="submit" title="Duplicate and reset cook/use-by/use-within">
-        Duplicate From
+  <!-- Actions: grouped into logical sections -->
+  <div class="item-actions">
+
+    <!-- Row 1: Primary navigation + editing -->
+    <div class="item-actions-row">
+      <a class="btn btn-ghost" href="{{ url_for('index') }}">← Back</a>
+      <button
+        class="btn btn-accent"
+        type="button"
+        data-edit-url="{{ url_for('edit_item_form', item_id=item.id) }}?partial=1"
+        onclick="openModal(this.dataset.editUrl)">
+        Edit
       </button>
-    </form>
-
-    <a class="btn" href="{{ url_for('label_png', item_id=item.id) }}"
-       target="_blank" rel="noopener">
-      Preview Label
-    </a>
-
-    <form method="post"
-          action="{{ url_for('print_label_post', item_id=item.id) }}"
-          style="display:inline-flex; align-items:center; gap:6px;">
-      <label for="print-copies-{{ item.id }}" class="muted" style="font-size:12px;">Copies</label>
-      <input
-        id="print-copies-{{ item.id }}"
-        name="copies"
-        type="number"
-        min="1"
-        max="{{ max_label_copies }}"
-        value="1"
-        class="input input-small"
-        style="width:70px;"
-        aria-label="Number of labels" />
-      <button class="btn" type="submit">Print Label(s)</button>
-    </form>
-
-    {% if not item.depleted_at %}
       <form method="post"
-            action="{{ url_for('deplete_item', item_id=item.id) }}"
-            style="display:inline"
-            class="js-deplete-form">
-        <input type="hidden" name="reason" value="">
-        <button class="btn btn-danger" type="submit" title="Mark item as depleted (sets qty to 0)">
-          Mark Depleted
+            action="{{ url_for('duplicate_item', item_id=item.id) }}"
+            style="display:contents">
+        <button class="btn btn-secondary" type="submit" title="Duplicate and reset cook/use-by/use-within">
+          Duplicate From
         </button>
       </form>
-    {% else %}
+    </div>
+
+    <!-- Row 2: Label printing -->
+    <div class="item-actions-row item-actions-labels">
       <form method="post"
-            action="{{ url_for('recover_item', item_id=item.id) }}"
-            style="display:inline">
-        <button class="btn btn-accent" type="submit" title="Recover this item (restore qty)">
-          Recover
-        </button>
+            action="{{ url_for('print_label_post', item_id=item.id) }}"
+            class="print-copies-form">
+        <label for="print-copies-{{ item.id }}" class="muted" style="font-size:12px; white-space:nowrap;">Copies</label>
+        <input
+          id="print-copies-{{ item.id }}"
+          name="copies"
+          type="number"
+          min="1"
+          max="{{ max_label_copies }}"
+          value="1"
+          class="input input-small"
+          style="width:64px;"
+          aria-label="Number of labels" />
+        <button class="btn" type="submit">Print Label(s)</button>
       </form>
-      <span class="pill pill-danger">Depleted</span>
-    {% endif %}
+      <a class="btn btn-ghost" href="{{ url_for('label_png', item_id=item.id) }}"
+         target="_blank" rel="noopener">Preview Label</a>
+      <a class="btn btn-ghost" href="{{ url_for('label_designer') }}">Designer</a>
+    </div>
 
-    <a
-      class="btn btn-secondary"
-      href="{{ url_for('label_designer') }}"
-    >
-      Designer
-    </a>
+    <!-- Row 3: Status change (deplete / recover) -->
+    <div class="item-actions-row item-actions-status">
+      {% if not item.depleted_at %}
+        <form method="post"
+              action="{{ url_for('deplete_item', item_id=item.id) }}"
+              style="display:contents"
+              class="js-deplete-form">
+          <input type="hidden" name="reason" value="">
+          <input type="hidden" name="depleted_at_input" value="">
+          <button class="btn btn-danger" type="submit" title="Mark item as depleted (sets qty to 0)">
+            Mark Depleted
+          </button>
+        </form>
+      {% else %}
+        <form method="post"
+              action="{{ url_for('recover_item', item_id=item.id) }}"
+              style="display:contents">
+          <button class="btn btn-accent" type="submit" title="Recover this item (restore qty)">
+            Recover Item
+          </button>
+        </form>
+        <span class="pill pill-danger" style="align-self:center;">Depleted</span>
+      {% endif %}
+    </div>
 
-    <button
-      class="btn btn-accent"
-      type="button"
-      data-edit-url="{{ url_for('edit_item_form', item_id=item.id) }}?partial=1"
-      onclick="openModal(this.dataset.editUrl)">
-      Edit
-    </button>
+    <!-- Row 4: Destructive -->
+    <div class="item-actions-row item-actions-danger">
+      <form method="post"
+            action="{{ url_for('delete_item', item_id=item.id) }}"
+            style="display:contents"
+            onsubmit="return confirm('Delete this item permanently?');">
+        <button class="btn btn-danger" type="submit">{{ 'Delete Permanently' if item.depleted_at else 'Delete Item' }}</button>
+      </form>
+    </div>
 
-    <form method="post"
-          action="{{ url_for('delete_item', item_id=item.id) }}"
-          style="display:inline"
-          onsubmit="return confirm('Delete this item permanently?');">
-      <button class="btn btn-danger" type="submit">{{ 'Delete Permanently' if item.depleted_at else 'Delete' }}</button>
-    </form>
-
-    <a class="btn btn-secondary" href="{{ url_for('index') }}">Back</a>
   </div>
   <script>
     (function(){
@@ -310,8 +314,15 @@
     const select = dlg.querySelector('#deplete-reason');
     const otherWrap = dlg.querySelector('[data-other-wrap]');
     const otherInput = dlg.querySelector('#deplete-reason-other');
+    const dateInput = dlg.querySelector('#deplete-date');
     const confirmBtn = dlg.querySelector('#deplete-confirm');
     const cancelBtn = dlg.querySelector('#deplete-cancel');
+
+    function nowLocalISO() {
+      const d = new Date();
+      const pad = n => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
 
     function toggleOther() {
       if (!select || !otherWrap || !otherInput) return;
@@ -331,6 +342,7 @@
       if (!form) return;
       e.preventDefault();
       pendingForm = form;
+      if (dateInput) dateInput.value = nowLocalISO();
       if (typeof dlg.showModal === 'function') {
         dlg.showModal();
       } else {
@@ -345,6 +357,7 @@
       const other = otherInput?.value || '';
       const finalReason = reason === 'Other' ? other : reason;
       pendingForm.querySelector('input[name=\"reason\"]').value = finalReason;
+      pendingForm.querySelector('input[name=\"depleted_at_input\"]').value = dateInput?.value || '';
       if (typeof dlg.close === 'function') dlg.close();
       dlg.removeAttribute('open');
       dlg.style.display = 'none';
@@ -370,7 +383,10 @@
 
 <dialog id="deplete-dialog" class="modal-card">
   <h3 style="margin:0 0 12px 0;">Mark as depleted</h3>
-  <p class="muted" style="margin:0 0 10px 0;">Select a reason (optional).</p>
+  <div class="field" style="margin-bottom:10px;">
+    <label class="kv-label" for="deplete-date">Date &amp; time depleted</label>
+    <input id="deplete-date" class="input" type="datetime-local" style="width:100%;">
+  </div>
   <div class="field" style="margin-bottom:10px;">
     <label class="kv-label" for="deplete-reason">Reason</label>
     <select id="deplete-reason" class="input" style="width:100%;">

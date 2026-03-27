@@ -216,52 +216,57 @@
             </td>
           {% endfor %}
 
-          {# Actions (unchanged) #}
+          {# Actions #}
           <td class="right col-actions">
             <div class="btn-group">
               <a
                 class="btn btn-small btn-ghost"
                 href="{{ url_for('show_item', item_id=item.id) }}"
                 title="Open details"
-              >
-                Open
-              </a>
-
-              <a
-                class="btn btn-small btn-ghost"
-                href="{{ url_for('label_png', item_id=item.id) }}"
-                target="_blank"
-                rel="noopener"
-                title="Preview label"
-              >
-                Preview
-              </a>
-
-              <a
-                class="btn btn-small btn-ghost"
-                href="{{ url_for('print_label_get', item_id=item.id) }}"
-                title="Send label to printer"
-              >
-                Print
-              </a>
+              >Open</a>
 
               <button
                 type="button"
                 class="btn btn-small btn-accent js-edit"
                 data-edit-url="{{ url_for('edit_item_form', item_id=item.id) }}?partial=1"
                 title="Edit item"
-              >
-                Edit
-              </button>
+              >Edit</button>
+
+              <a
+                class="btn btn-small btn-ghost"
+                href="{{ url_for('print_label_get', item_id=item.id) }}"
+                title="Send label to printer"
+              >Print</a>
+
+              {% if not item.depleted_at %}
+              <form method="post"
+                    action="{{ url_for('deplete_item', item_id=item.id) }}"
+                    style="display:contents"
+                    class="js-deplete-form">
+                <input type="hidden" name="reason" value="">
+                <input type="hidden" name="depleted_at_input" value="">
+                <button type="submit" class="btn btn-small btn-danger" title="Mark as depleted">
+                  Deplete
+                </button>
+              </form>
+              {% else %}
+              <form method="post"
+                    action="{{ url_for('recover_item', item_id=item.id) }}"
+                    style="display:contents">
+                <button type="submit" class="btn btn-small btn-accent" title="Recover item">
+                  Recover
+                </button>
+              </form>
+              {% endif %}
 
               <form
                 method="post"
                 action="{{ url_for('delete_item', item_id=item.id) }}"
-                style="display:inline"
+                style="display:contents"
                 onsubmit="return confirm('Delete this item permanently?');"
               >
                 <button type="submit" class="btn btn-small btn-danger" title="Delete item">
-                  {{ 'Delete Permanently' if item.depleted_at else 'Delete' }}
+                  Delete
                 </button>
               </form>
             </div>
@@ -444,6 +449,26 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 });
 
+// Live search: auto-submit on typing (debounced)
+document.addEventListener("DOMContentLoaded", () => {
+  const searchInput = document.querySelector('input[name="q"]');
+  const searchBtn   = document.querySelector('.search-row button[type="submit"]');
+  if (!searchInput) return;
+
+  const currentQ = new URLSearchParams(window.location.search).get("q") || "";
+  let debounceTimer;
+
+  searchInput.addEventListener("input", () => {
+    clearTimeout(debounceTimer);
+    const val = searchInput.value;
+    if (val === currentQ) return; // nothing changed vs current results
+    debounceTimer = setTimeout(() => {
+      if (searchBtn) { searchBtn.textContent = "…"; searchBtn.disabled = true; }
+      searchInput.closest("form").requestSubmit();
+    }, 350);
+  });
+});
+
 // Advanced filters toggle
 document.addEventListener("DOMContentLoaded", () => {
   const body = document.getElementById("adv-filters-body");
@@ -583,5 +608,91 @@ document.addEventListener("DOMContentLoaded", () => {
 
     setTimeout(poll, POLL_INTERVAL);
   })();
+</script>
+
+{# ── Deplete dialog (shared with show page pattern) ── #}
+{% set reasons_list = DEPLETION_REASONS if DEPLETION_REASONS is defined else [
+  "Consumed/Used", "Discarded (expired/spoiled)", "Discarded (damaged)",
+  "Donated/Returned", "Lost/Missing", "Restocked/Replaced (new batch)", "Other"
+] %}
+<dialog id="deplete-dialog" class="modal-card">
+  <h3 style="margin:0 0 12px 0;">Mark as depleted</h3>
+  <div class="field" style="margin-bottom:10px;">
+    <label class="kv-label" for="deplete-date">Date &amp; time depleted</label>
+    <input id="deplete-date" class="input" type="datetime-local" style="width:100%;">
+  </div>
+  <div class="field" style="margin-bottom:10px;">
+    <label class="kv-label" for="deplete-reason">Reason</label>
+    <select id="deplete-reason" class="input" style="width:100%;">
+      <option value="">(None)</option>
+      {% for r in reasons_list %}
+        <option value="{{ r }}">{{ r }}</option>
+      {% endfor %}
+      <option value="Other">Other</option>
+    </select>
+  </div>
+  <div class="field" data-other-wrap style="display:none; margin-bottom:10px;">
+    <label class="kv-label" for="deplete-reason-other">Other reason</label>
+    <input id="deplete-reason-other" class="input" type="text" placeholder="Enter reason">
+  </div>
+  <div style="display:flex; gap:8px; justify-content:flex-end;">
+    <button class="btn btn-secondary" type="button" id="deplete-cancel">Cancel</button>
+    <button class="btn btn-danger" type="button" id="deplete-confirm">Mark Depleted</button>
+  </div>
+</dialog>
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const dlg = document.getElementById('deplete-dialog');
+    if (!dlg) return;
+    let pendingForm = null;
+    const select = dlg.querySelector('#deplete-reason');
+    const otherWrap = dlg.querySelector('[data-other-wrap]');
+    const otherInput = dlg.querySelector('#deplete-reason-other');
+    const dateInput = dlg.querySelector('#deplete-date');
+    const confirmBtn = dlg.querySelector('#deplete-confirm');
+    const cancelBtn = dlg.querySelector('#deplete-cancel');
+
+    function nowLocalISO() {
+      const d = new Date();
+      const pad = n => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+
+    select?.addEventListener('change', () => {
+      if (!otherWrap || !otherInput) return;
+      if (select.value === 'Other') { otherWrap.style.display = 'block'; otherInput.focus(); }
+      else { otherWrap.style.display = 'none'; otherInput.value = ''; }
+    });
+
+    document.addEventListener('click', (e) => {
+      const form = e.target.closest('.js-deplete-form');
+      if (!form) return;
+      e.preventDefault();
+      pendingForm = form;
+      if (dateInput) dateInput.value = nowLocalISO();
+      if (select) select.value = '';
+      if (otherWrap) otherWrap.style.display = 'none';
+      if (otherInput) otherInput.value = '';
+      if (typeof dlg.showModal === 'function') dlg.showModal();
+      else { dlg.setAttribute('open', 'open'); dlg.style.display = 'block'; }
+    });
+
+    confirmBtn?.addEventListener('click', () => {
+      if (!pendingForm) return;
+      const reason = select?.value || '';
+      const other = otherInput?.value || '';
+      pendingForm.querySelector('input[name="reason"]').value = reason === 'Other' ? other : reason;
+      pendingForm.querySelector('input[name="depleted_at_input"]').value = dateInput?.value || '';
+      if (typeof dlg.close === 'function') dlg.close();
+      dlg.removeAttribute('open'); dlg.style.display = 'none';
+      pendingForm.submit();
+    });
+
+    cancelBtn?.addEventListener('click', () => {
+      if (typeof dlg.close === 'function') dlg.close();
+      dlg.removeAttribute('open'); dlg.style.display = 'none';
+      pendingForm = null;
+    });
+  });
 </script>
 {% endblock %}

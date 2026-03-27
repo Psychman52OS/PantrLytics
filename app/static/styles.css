@@ -278,6 +278,44 @@ button.btn { -webkit-appearance: none; appearance: none; }
   flex-wrap: wrap;
 }
 
+/* Item detail page — grouped action rows */
+.item-actions {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border-top: 1px solid var(--border);
+}
+.item-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.item-actions-row:last-child { border-bottom: none; }
+
+/* Label row: print form inline */
+.print-copies-form {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Status row: slightly more padding for emphasis */
+.item-actions-status {
+  padding: 14px 0;
+}
+
+/* Danger row: push delete to the right */
+.item-actions-danger {
+  padding: 10px 0;
+}
+.item-actions-danger .btn {
+  margin-left: auto;
+}
+
 /* icon helper */
 .btn-icon-left {
   font-size: 14px;
@@ -789,19 +827,31 @@ dialog#app-modal::backdrop {
 .quick-filters {
   margin: 12px 0;
   display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 0;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 14px;
 }
 .chip-row {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   align-items: center;
-  flex: 1 1 220px;
+  padding: 6px 0;
+}
+.chip-row + .chip-row {
+  border-top: 1px solid var(--border);
 }
 .chip-label {
-  font-size: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
   color: var(--muted);
+  min-width: 72px;
+  flex-shrink: 0;
 }
 .chip {
   display: inline-flex;
@@ -836,10 +886,6 @@ dialog#app-modal::backdrop {
   line-height: 1.2;
 }
 
-.quick-filters.row {
-  flex-direction: row;
-  align-items: flex-start;
-}
 
 .pagination {
   margin: 12px 0 4px;
@@ -1216,6 +1262,18 @@ dialog#app-modal::backdrop {
     padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
   }
 
+  /* Remove card frame on mobile — chips scroll inline */
+  .quick-filters {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    gap: 0;
+  }
+  .chip-row + .chip-row {
+    border-top: none;
+  }
+
   /* Scrollable chip rows */
   .chip-row {
     flex-wrap: nowrap !important;
@@ -1333,15 +1391,19 @@ dialog#app-modal::backdrop {
   }
 
   .table-inventory .col-actions .btn-group {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: 6px;
     width: 100%;
   }
 
+  /* Open spans full width — primary action */
+  .table-inventory .col-actions .btn-group .btn:first-child {
+    grid-column: 1 / -1;
+  }
+
   .table-inventory .col-actions .btn-group .btn {
-    flex: 1 1 auto;
-    min-width: 64px;
+    flex: none;
     height: auto;
     min-height: 40px;
   }
@@ -1351,6 +1413,26 @@ dialog#app-modal::backdrop {
     flex-direction: column;
     align-items: flex-start;
     gap: 8px;
+  }
+
+  /* Item detail actions: full-width buttons on mobile */
+  .item-actions-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .item-actions-row .btn,
+  .item-actions-row .print-copies-form {
+    width: 100%;
+    justify-content: center;
+  }
+  .print-copies-form {
+    display: grid;
+    grid-template-columns: auto 64px 1fr;
+    align-items: center;
+  }
+  .item-actions-danger .btn {
+    margin-left: 0;
   }
 }
 

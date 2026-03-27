@@ -1908,10 +1908,19 @@ def deplete_item(
     request: Request,
     item_id: int,
     reason: str = Form(""),
+    depleted_at_input: str = Form(""),
 ):
     reason_clean = _norm(reason) or ""
     if reason_clean and reason_clean not in DEPLETION_REASONS:
         reason_clean = "Other"
+    # Use submitted datetime if valid, otherwise fall back to now
+    depleted_iso = dt.datetime.utcnow().isoformat()
+    if depleted_at_input:
+        try:
+            parsed = dt.datetime.fromisoformat(depleted_at_input)
+            depleted_iso = parsed.isoformat()
+        except ValueError:
+            pass
     with Session(engine) as session:
         item = session.get(Item, item_id)
         if not item:
@@ -1921,8 +1930,7 @@ def deplete_item(
                 url=str(request.url_for("show_item", item_id=item_id)),
                 status_code=303,
             )
-        now_iso = dt.datetime.utcnow().isoformat()
-        item.depleted_at = now_iso
+        item.depleted_at = depleted_iso
         item.depleted_reason = reason_clean
         item.depleted_qty = item.quantity
         item.quantity = 0
