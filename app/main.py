@@ -1289,8 +1289,31 @@ def _jinja_default_icon_exists():
     return result
 
 
+_emoji_cache: str | None = None
+_emoji_cache_exp: float = 0.0
+DEFAULT_ITEM_EMOJI = "📦"
+
+
+def _invalidate_emoji_cache():
+    global _emoji_cache_exp
+    _emoji_cache_exp = 0.0
+
+
+def _jinja_get_default_emoji():
+    global _emoji_cache, _emoji_cache_exp
+    now = time.monotonic()
+    if _emoji_cache is not None and now < _emoji_cache_exp:
+        return _emoji_cache
+    with Session(engine) as _s:
+        val = _get_setting(_s, "default_icon_emoji", DEFAULT_ITEM_EMOJI)
+    _emoji_cache = val or DEFAULT_ITEM_EMOJI
+    _emoji_cache_exp = now + 30.0
+    return _emoji_cache
+
+
 templates.env.globals["get_font_sizes"] = _jinja_get_font_sizes
 templates.env.globals["default_item_icon_exists"] = _jinja_default_icon_exists
+templates.env.globals["get_default_item_emoji"] = _jinja_get_default_emoji
 
 
 class PrefixFromHeaders(BaseHTTPMiddleware):
@@ -4304,6 +4327,11 @@ async def admin(request: Request, response: Response):
                 fs_show = _parse_size(form.get("font_size_show"), 0)
                 save_font_sizes(session, fs_base, fs_list, fs_show)
 
+            elif form.get("default_icon_emoji_action") == "save":
+                val = (form.get("default_icon_emoji") or "").strip() or DEFAULT_ITEM_EMOJI
+                _set_setting(session, "default_icon_emoji", val)
+                _invalidate_emoji_cache()
+
             elif form.get("usewithin_order_action") == "save":
                 order_str = form.get("usewithin_order", "")
                 try:
@@ -4359,6 +4387,7 @@ async def admin(request: Request, response: Response):
         selected_required_fields = get_required_field_keys(session)
         current_theme = get_theme(session)
         admin_font_sizes = get_font_sizes(session)
+        admin_default_emoji = _get_setting(session, "default_icon_emoji", DEFAULT_ITEM_EMOJI) or DEFAULT_ITEM_EMOJI
         health = {
             "ipp_status": check_ipp_status(),
             "disk": get_disk_usage(DATA_DIR),
@@ -4382,6 +4411,7 @@ async def admin(request: Request, response: Response):
             "admin_font_sizes": admin_font_sizes,
             "font_size_min": FONT_SIZE_MIN,
             "font_size_max": FONT_SIZE_MAX,
+            "admin_default_emoji": admin_default_emoji,
             "health": health,
             "app_heading": app_heading,
             "pass_error": pass_error,

@@ -142,7 +142,7 @@
         {% elif default_item_icon_exists() %}
           <img src="{{ url_for('default_item_icon') }}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover;">
         {% else %}
-          <div class="item-card-thumb-empty">📦</div>
+          <div class="item-card-thumb-empty">{{ get_default_item_emoji() }}</div>
         {% endif %}
       </a>
       <div class="item-card-body">

@@ -312,11 +312,13 @@
     const btn = e.target.closest('.js-set-thumbnail');
     if (!btn) return;
     e.preventDefault();
-    const url = btn.dataset.url;
+    let url = btn.dataset.url;
     if (!url) return;
+    // Use pathname only so the fetch is always same-origin (avoids HA ingress scheme mismatch)
+    try { url = new URL(url, window.location.href).pathname; } catch (_) {}
     btn.disabled = true;
     fetch(url, { method: 'POST' })
-      .then(r => r.json())
+      .then(r => r.ok ? r.json() : Promise.reject('HTTP ' + r.status))
       .then(data => {
         if (data.ok) {
           document.querySelectorAll('.js-set-thumbnail').forEach(b => {

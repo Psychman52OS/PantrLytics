@@ -192,8 +192,8 @@
     <div class="admin-section-header">
       <h2>Default item icon</h2>
       <p class="admin-section-help">
-        The image shown on cards when an item has no photo uploaded.
-        Upload any JPG/PNG (max 5 MB). Delete to restore the default 📦 emoji.
+        Shown on cards when an item has no photo. Upload an image, or just type an emoji below.
+        The uploaded image takes priority over the emoji.
       </p>
     </div>
     <div style="display:flex; flex-wrap:wrap; gap:16px; align-items:flex-start;">
@@ -204,23 +204,31 @@
         {% else %}
           <div style="width:80px; height:80px; border-radius:10px; border:1px solid var(--border);
                       background: color-mix(in oklab, var(--card), var(--bg) 30%);
-                      display:flex; align-items:center; justify-content:center; font-size:36px; opacity:0.5;">📦</div>
+                      display:flex; align-items:center; justify-content:center; font-size:36px; opacity:0.5;">{{ admin_default_emoji }}</div>
         {% endif %}
       </div>
-      <div style="display:flex; flex-direction:column; gap:8px;">
+      <div style="display:flex; flex-direction:column; gap:10px;">
         <form method="post" enctype="multipart/form-data"
               action="{{ url_for('upload_default_item_icon') }}" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
           <label class="file-btn" style="cursor:pointer; padding:6px 12px; background:var(--btn-bg); border:1px solid var(--btn-border); border-radius:8px;">
             Choose image
             <input type="file" name="icon" accept="image/*" style="display:none;" onchange="this.form.submit()">
           </label>
-          <span class="muted" style="font-size:12px;">JPG or PNG, max 5 MB — auto-saves on selection</span>
+          <span class="muted" style="font-size:12px;">JPG or PNG, max 5 MB — auto-saves</span>
         </form>
         {% if default_item_icon_exists() %}
           <form method="post" action="{{ url_for('delete_default_item_icon') }}" style="display:contents">
-            <button class="btn btn-danger btn-small" type="submit">Remove custom icon</button>
+            <button class="btn btn-danger btn-small" type="submit">Remove custom image</button>
           </form>
         {% endif %}
+        <form method="post" style="display:flex; gap:8px; align-items:center;">
+          <input type="hidden" name="default_icon_emoji_action" value="save">
+          <input type="text" name="default_icon_emoji" value="{{ admin_default_emoji }}"
+                 class="input input-small" style="width:72px; font-size:22px; text-align:center;"
+                 maxlength="8" placeholder="📦">
+          <button class="btn btn-primary btn-small" type="submit">Save emoji</button>
+          <span class="muted" style="font-size:12px;">Used when no image is uploaded</span>
+        </form>
       </div>
     </div>
   </section>

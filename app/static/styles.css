@@ -906,7 +906,7 @@ dialog#app-modal::backdrop {
 }
 
 .admin-section[data-collapsed="1"] > :not(.admin-section-header) {
-  display: none;
+  display: none !important;
 }
 .collapse-toggle {
   position: absolute;
