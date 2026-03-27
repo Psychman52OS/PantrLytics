@@ -1088,6 +1088,205 @@ dialog#app-modal::backdrop {
   #app-modal-body .form-grid { grid-template-columns: 1fr; }
 }
 
+/* ==============================================
+   MOBILE IMPROVEMENTS (≤ 640px)
+   ============================================== */
+
+/* E — Hamburger button (hidden on desktop) */
+.nav-toggle {
+  display: none;
+  background: transparent;
+  border: 1px solid var(--btn-border);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+/* Photo input row: camera + library side by side */
+.photo-input-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.photo-input-row .file-input {
+  flex: 1;
+  min-width: 140px;
+}
+
+@media (max-width: 640px) {
+  /* E — Show hamburger, collapse nav */
+  .nav-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .nav {
+    display: none !important;
+    flex-direction: column !important;
+    gap: 0 !important;
+    width: 100%;
+    padding: 4px 0 8px;
+    border-top: 1px solid var(--border);
+    margin-top: 6px;
+    font-size: 15px !important;
+  }
+
+  .nav.nav-open {
+    display: flex !important;
+  }
+
+  .nav a {
+    padding: 12px 6px !important;
+    border-radius: 0 !important;
+    border: none !important;
+    border-bottom: 1px solid var(--border) !important;
+    font-size: 15px !important;
+  }
+
+  .nav a:last-child {
+    border-bottom: none !important;
+  }
+
+  /* Nav container spans full header width when open */
+  .nav-container {
+    grid-column: 1 / -1 !important;
+  }
+
+  /* C — Prevent iOS auto-zoom on input focus */
+  .input,
+  select.input,
+  textarea.input {
+    font-size: 16px;
+  }
+
+  /* B — Minimum 44px touch targets */
+  .btn {
+    min-height: 44px;
+    padding: 10px 16px;
+  }
+  .btn-small {
+    min-height: 44px;
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+  .qty-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  /* A — Item list as cards */
+  .table-wrap {
+    border: none;
+    border-radius: 0;
+    overflow: visible;
+    background: transparent;
+  }
+
+  .table-inventory,
+  .table-inventory tbody {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .table-inventory thead {
+    display: none;
+  }
+
+  .table-inventory tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 10px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px;
+    margin-bottom: 8px;
+  }
+
+  .table-inventory tr:last-child { margin-bottom: 0; }
+  .table-inventory tr:hover td { background: transparent; }
+
+  .table-inventory td {
+    display: block;
+    padding: 0;
+    border: none;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /* Name: full width, top, prominent */
+  .table-inventory .col-name {
+    flex: 0 0 100%;
+    order: 0;
+    font-size: 15px;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+
+  /* Visible metadata fields flow inline */
+  .table-inventory .col-category,
+  .table-inventory .col-location,
+  .table-inventory .col-quantity,
+  .table-inventory .col-use_by_date {
+    order: 1;
+  }
+
+  /* Hide less critical columns */
+  .table-inventory .col-bin_number,
+  .table-inventory .col-unit,
+  .table-inventory .col-condition,
+  .table-inventory .col-cook_date,
+  .table-inventory .col-notes,
+  .table-inventory .col-tags,
+  .table-inventory .col-barcode,
+  .table-inventory .col-second_serial_number,
+  .table-inventory .col-last_audit_date,
+  .table-inventory .col-use_within {
+    display: none;
+  }
+
+  /* Actions: full width, pinned to bottom of card */
+  .table-inventory .col-actions {
+    flex: 0 0 100%;
+    order: 99;
+    white-space: normal;
+    text-align: left;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+  }
+
+  .table-inventory .col-actions .btn-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    width: 100%;
+  }
+
+  .table-inventory .col-actions .btn-group .btn {
+    flex: 1 1 auto;
+    min-width: 64px;
+    height: auto;
+    min-height: 40px;
+  }
+
+  /* Pagination stack */
+  .pagination {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+}
+
 .hidden { display: none !important; }
 .wrap { white-space: pre-wrap; word-wrap: break-word; }
 

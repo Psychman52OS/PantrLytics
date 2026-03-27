@@ -91,11 +91,13 @@
         <h3>Aging waterfall</h3>
       </div>
       <div class="bar-chart">
-        {% for label,count in aging.items() %}
+        {% set _max = aging.values() | max | default(0) %}
+        {% set max_count = _max if _max > 0 else 1 %}
+        {% for label, count in aging.items() %}
           <div class="bar">
             <div class="bar-label">{{ label }}</div>
             <div class="bar-track">
-              <span class="bar-fill" style="width: {{ (count or 0) * 6 }}px;"></span>
+              <span class="bar-fill" style="width: {{ ((count or 0) / max_count * 100) | int }}%;"></span>
             </div>
             <div class="bar-value">{{ count }}</div>
           </div>

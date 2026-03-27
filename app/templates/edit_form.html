@@ -204,22 +204,19 @@
 
       <!-- Photo upload -->
       <div class="field field--full">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <label class="kv-label" for="photos">Add photos</label>
-          <small class="muted">You can add multiple; originals are compressed.</small>
+        <label class="kv-label">Add photos</label>
+        <div class="photo-input-row">
+          <label class="file-input">
+            <span class="file-btn">📷 Take photo</span>
+            <input class="input" type="file" name="photos" accept="image/*" capture="environment">
+            <span class="file-name">Camera</span>
+          </label>
+          <label class="file-input">
+            <span class="file-btn">🖼 Choose file</span>
+            <input class="input" id="photos" name="photos" type="file" accept="image/*" multiple>
+            <span class="file-name">Select one or more files</span>
+          </label>
         </div>
-        <label class="file-input">
-          <span class="file-btn">Choose photos</span>
-          <input
-            class="input"
-            id="photos"
-            name="photos"
-            type="file"
-            accept="image/*"
-            multiple
-          >
-          <span class="file-name">Select one or more files</span>
-        </label>
       </div>
     </div>
 

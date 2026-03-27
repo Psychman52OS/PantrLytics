@@ -47,16 +47,17 @@
           <img src="{{ (request.scope.get('root_path','') ~ '/assets/icon.png') | replace('//','/') }}" alt="PantrLytics icon" width="100" height="100" style="display:block; border-radius:16px;">
         </a>
       </div>
-      <div style="grid-row:1 / 2; grid-column:2 / 3;">
+      <div style="grid-row:1 / 2; grid-column:2 / 3; display:flex; align-items:center; justify-content:space-between; gap:10px;">
         <h1 class="app-title" style="margin:0;">
           <a href="{{ url_for('index') }}" style="display:inline-flex; align-items:baseline; gap:10px; text-decoration:none;">
             Pantrlytics
             <span style="font-size:14px; font-style:italic; color: var(--muted);">Your Mise en Place, Digitized.</span>
           </a>
         </h1>
+        <button class="nav-toggle" id="nav-toggle" aria-label="Open menu" aria-expanded="false">☰</button>
       </div>
-      <div style="grid-row:2 / 3; grid-column:2 / 3;">
-        <nav class="nav" style="flex-wrap:wrap; gap:22px; padding-left:0; font-size:17px;">
+      <div class="nav-container" style="grid-row:2 / 3; grid-column:2 / 3;">
+        <nav class="nav" id="main-nav" style="flex-wrap:wrap; gap:22px; padding-left:0; font-size:17px;">
           <a href="{{ url_for('index') }}">All Items</a>
           <a href="{{ url_for('new_item') }}">New Item</a>
           <a href="{{ url_for('label_designer') }}">Designer</a>
@@ -229,6 +230,18 @@
     const names = files.slice(0,3).map(f => f.name).join(', ');
     label.textContent = files.length > 3 ? `${files.length} files selected (${names}…)` : names;
   });
+
+  // Hamburger nav toggle
+  (function () {
+    const toggle = document.getElementById('nav-toggle');
+    const nav = document.getElementById('main-nav');
+    if (!toggle || !nav) return;
+    toggle.addEventListener('click', () => {
+      const open = nav.classList.toggle('nav-open');
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      toggle.textContent = open ? '✕' : '☰';
+    });
+  })();
 </script>
 </body>
 </html>
