@@ -221,13 +221,27 @@
             <button class="btn btn-danger btn-small" type="submit">Remove custom image</button>
           </form>
         {% endif %}
-        <form method="post" style="display:flex; gap:8px; align-items:center;">
+        <form method="post" style="display:flex; flex-direction:column; gap:8px;">
           <input type="hidden" name="default_icon_emoji_action" value="save">
-          <input type="text" name="default_icon_emoji" value="{{ admin_default_emoji }}"
-                 class="input input-small" style="width:72px; font-size:22px; text-align:center;"
-                 maxlength="8" placeholder="📦">
-          <button class="btn btn-primary btn-small" type="submit">Save emoji</button>
-          <span class="muted" style="font-size:12px;">Used when no image is uploaded</span>
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <div style="position:relative;">
+              <input type="text" name="default_icon_emoji" id="emoji-input"
+                     value="{{ admin_default_emoji }}"
+                     class="input input-small" style="width:72px; font-size:22px; text-align:center; cursor:pointer;"
+                     maxlength="8" placeholder="📦" autocomplete="off" readonly>
+              <div id="emoji-grid" style="display:none; position:absolute; bottom:calc(100% + 6px); left:0; z-index:100;
+                                          grid-template-columns:repeat(8,1fr); gap:2px;
+                                          padding:8px; background:var(--card); border:1px solid var(--border);
+                                          border-radius:10px; box-shadow:0 4px 20px rgba(0,0,0,0.35); min-width:256px;">
+                {% for em in ['📦','🥫','🫙','🧴','🍞','🥩','🥦','🧀','🥚','🍎','🥕','🧅','🧄','🍋','🥑','🫑','🥒','🍅','🌽','🥜','🫘','🧃','🥛','☕','🍵','🍯','🧂','🧊','🫚','🌶️','🫛','🥐','🧁','🍕','🍖','🐟','🫐','🍇','🍓','🍑'] %}
+                  <button type="button" class="emoji-pick-btn"
+                          style="font-size:22px; line-height:1; cursor:pointer; border:none; background:none; padding:3px; border-radius:6px;">{{ em }}</button>
+                {% endfor %}
+              </div>
+            </div>
+            <button class="btn btn-primary btn-small" type="submit">Save emoji</button>
+            <span class="muted" style="font-size:12px;">Used when no image is uploaded</span>
+          </div>
         </form>
       </div>
     </div>
@@ -846,6 +860,34 @@ document.addEventListener('click', (e) => {
     body.innerHTML = '';
     body.appendChild(form);
     if (typeof dialogEl.showModal === 'function') dialogEl.showModal(); else dialogEl.setAttribute('open','open');
+  });
+})();
+
+// ── Emoji picker ──
+(function () {
+  const input = document.getElementById('emoji-input');
+  const grid  = document.getElementById('emoji-grid');
+  if (!input || !grid) return;
+
+  function showGrid() { grid.style.display = 'grid'; }
+  function hideGrid() { grid.style.display = 'none'; }
+
+  input.addEventListener('click', (e) => {
+    e.stopPropagation();
+    grid.style.display === 'grid' ? hideGrid() : showGrid();
+  });
+
+  grid.addEventListener('click', (e) => {
+    const btn = e.target.closest('.emoji-pick-btn');
+    if (!btn) return;
+    input.value = btn.textContent.trim();
+    hideGrid();
+    // Auto-submit so the user sees the preview update immediately
+    input.closest('form').submit();
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!input.contains(e.target) && !grid.contains(e.target)) hideGrid();
   });
 })();
 </script>

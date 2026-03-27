@@ -329,9 +329,11 @@
           btn.classList.add('thumb-primary');
           btn.title = 'Current thumbnail ✓';
           btn.textContent = '✓';
+          // Reload so the grid cards reflect the new thumbnail
+          setTimeout(() => { window.location.reload(); }, 600);
         }
       })
-      .catch(() => {})
+      .catch((err) => { console.error('set-thumbnail failed', err); })
       .finally(() => { btn.disabled = false; });
   });
 </script>
