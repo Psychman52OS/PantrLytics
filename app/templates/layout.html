@@ -140,6 +140,13 @@
       const html = await res.text();
       body.innerHTML = html;
 
+      // Browsers don't reliably initialise <input type="date"> values set via
+      // innerHTML — explicitly push the attribute value into the live property.
+      body.querySelectorAll('input[type="date"]').forEach(inp => {
+        const v = inp.getAttribute('value');
+        if (v) inp.value = v;
+      });
+
       if (typeof dlg.showModal === "function") {
         dlg.showModal();
       } else {
