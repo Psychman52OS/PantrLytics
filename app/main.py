@@ -2060,12 +2060,71 @@ def deplete_item(
         item.depleted_reason = reason_clean
         item.depleted_qty = item.quantity
         item.quantity = 0
+        item.last_audit_date = dt.date.today().isoformat()
         session.add(item)
         session.commit()
     return RedirectResponse(
         url=str(request.url_for("show_item", item_id=item_id)),
         status_code=303,
     )
+
+
+@app.post("/item/{item_id}/mark-reviewed", name="mark_reviewed")
+def mark_reviewed(request: Request, item_id: int, next: str = Form("")):
+    with Session(engine) as session:
+        item = session.get(Item, item_id)
+        if item and not item.depleted_at:
+            item.last_audit_date = dt.date.today().isoformat()
+            session.add(item)
+            session.commit()
+    target = next or str(request.url_for("review_page"))
+    return RedirectResponse(url=target, status_code=303)
+
+
+@app.post("/review/mark-all-reviewed", name="mark_all_reviewed")
+def mark_all_reviewed(request: Request):
+    today = dt.date.today().isoformat()
+    with Session(engine) as session:
+        items = session.exec(select(Item).where(Item.depleted_at == None)).all()
+        for it in items:
+            it.last_audit_date = today
+            session.add(it)
+        session.commit()
+        count = len(items)
+    return RedirectResponse(
+        url=str(request.url_for("review_page")) + f"?msg={count}+items+marked+reviewed",
+        status_code=303,
+    )
+
+
+@app.get("/review", name="review_page", response_class=HTMLResponse)
+def review_page(request: Request, msg: str = ""):
+    with Session(engine) as session:
+        audit_window = int(_get_setting(session, "audit_window_days", "30") or "30")
+        cutoff = (dt.date.today() - dt.timedelta(days=audit_window)).isoformat()
+        all_active = session.exec(select(Item).where(Item.depleted_at == None)).all()
+
+    needs_review = []
+    recently_reviewed = []
+    for it in all_active:
+        if not it.last_audit_date or it.last_audit_date < cutoff:
+            needs_review.append(it)
+        else:
+            recently_reviewed.append(it)
+
+    # Sort: never reviewed first, then oldest reviewed date
+    needs_review.sort(key=lambda x: x.last_audit_date or "")
+    recently_reviewed.sort(key=lambda x: x.last_audit_date or "", reverse=True)
+
+    return templates.TemplateResponse("review.html", {
+        "request": request,
+        "needs_review": needs_review,
+        "recently_reviewed": recently_reviewed,
+        "audit_window": audit_window,
+        "msg": msg,
+        "total_needs": len(needs_review),
+        "total_active": len(all_active),
+    })
 
 
 @app.post("/item/{item_id}/recover")
@@ -2235,185 +2294,6 @@ async def import_csv(request: Request, file: UploadFile = File(...)):
     return RedirectResponse(url=target, status_code=303)
 
 
-def _restore_restart_html() -> str:
-    """Return a fun HTML page that polls /ping until the app is back up, then redirects.
-
-    Uses the browser's own URL to derive the correct ingress root — no server-side
-    URL generation needed, so it works correctly behind HA ingress.
-    """
-    return """<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>PantrLytics — Restoring Your Pantry</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: linear-gradient(135deg, #e8f5e9 0%, #f0f4f8 50%, #e3f2fd 100%);
-    }
-
-    .card {
-      background: white;
-      border-radius: 20px;
-      padding: 2.5rem 3rem;
-      box-shadow: 0 8px 40px rgba(0,0,0,.12);
-      text-align: center;
-      max-width: 460px;
-      width: 90%;
-      animation: fadeIn .5s ease;
-    }
-
-    @keyframes fadeIn { from { opacity:0; transform: translateY(16px); } to { opacity:1; transform: translateY(0); } }
-
-    .icon-row {
-      font-size: 2.8rem;
-      letter-spacing: .15em;
-      margin-bottom: 1.2rem;
-      animation: bounce 2s infinite;
-    }
-    @keyframes bounce {
-      0%, 100% { transform: translateY(0); }
-      50%       { transform: translateY(-6px); }
-    }
-
-    h2 {
-      color: #1b5e20;
-      font-size: 1.5rem;
-      margin-bottom: .5rem;
-    }
-
-    .subtitle {
-      color: #666;
-      font-size: .95rem;
-      margin-bottom: 1.6rem;
-      line-height: 1.5;
-    }
-
-    /* Progress bar */
-    .bar-wrap {
-      background: #e8f5e9;
-      border-radius: 99px;
-      height: 10px;
-      overflow: hidden;
-      margin-bottom: 1.4rem;
-    }
-    .bar-fill {
-      height: 100%;
-      width: 0%;
-      background: linear-gradient(90deg, #43a047, #66bb6a);
-      border-radius: 99px;
-      transition: width .4s ease;
-    }
-
-    /* Rotating fun messages */
-    #fun-msg {
-      font-size: .9rem;
-      color: #388e3c;
-      font-weight: 500;
-      min-height: 1.4em;
-      margin-bottom: 1.2rem;
-      transition: opacity .3s;
-    }
-
-    #status {
-      font-size: .8rem;
-      color: #aaa;
-    }
-
-    .ready-msg {
-      color: #1b5e20 !important;
-      font-size: 1.1rem !important;
-      font-weight: 600;
-    }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <div class="icon-row">&#127829; &#10024; &#128218;</div>
-    <h2>Restore Complete!</h2>
-    <p class="subtitle">Your pantry data is back. The app is reloading&mdash;<br>
-      hang tight while we stock the shelves.</p>
-
-    <div class="bar-wrap"><div class="bar-fill" id="bar"></div></div>
-    <p id="fun-msg">Counting the cans&hellip;</p>
-    <p id="status">Checking if the app is ready&hellip;</p>
-  </div>
-
-  <script>
-    var pingUrl = window.location.href.replace(/\\/backup(\\/restore.*)?$/, '/ping');
-    var rootUrl = window.location.href.replace(/\\/backup(\\/restore.*)?$/, '/');
-
-    var msgs = [
-      'Counting the cans\u2026',
-      'Alphabetising the spices\u2026',
-      'Checking the expiry dates\u2026',
-      'Restocking the freezer\u2026',
-      'Labelling everything neatly\u2026',
-      'Rotating the stock\u2026',
-      'Making sure nothing expired\u2026',
-      'Organising the bins\u2026',
-      'Brewing a quick coffee while we wait\u2026',
-      'Almost there, promise\u2026',
-    ];
-
-    var attempts  = 0;
-    var maxWait   = 120;
-    var msgIndex  = 0;
-    var barEl     = document.getElementById('bar');
-    var funEl     = document.getElementById('fun-msg');
-    var statusEl  = document.getElementById('status');
-
-    function nextMsg() {
-      funEl.style.opacity = 0;
-      setTimeout(function() {
-        msgIndex = (msgIndex + 1) % msgs.length;
-        funEl.textContent = msgs[msgIndex];
-        funEl.style.opacity = 1;
-      }, 300);
-    }
-    setInterval(nextMsg, 3500);
-
-    function tryRedirect() {
-      attempts++;
-      var pct = Math.min(90, attempts * 3);
-      barEl.style.width = pct + '%';
-      statusEl.textContent = 'Attempt ' + attempts + '\u2026';
-
-      fetch(pingUrl, { cache: 'no-store' })
-        .then(function(r) {
-          if (r.ok) {
-            barEl.style.width = '100%';
-            funEl.textContent = '\u2705 All stocked up!';
-            statusEl.className = 'ready-msg';
-            statusEl.textContent = 'Taking you home\u2026';
-            setTimeout(function() { window.location.href = rootUrl; }, 800);
-          } else {
-            schedule();
-          }
-        })
-        .catch(function() { schedule(); });
-    }
-
-    function schedule() {
-      if (attempts < maxWait) setTimeout(tryRedirect, 3000);
-      else {
-        funEl.textContent = '\u26a0\ufe0f Timed out';
-        statusEl.textContent = 'Please refresh the page manually.';
-      }
-    }
-
-    setTimeout(tryRedirect, 5000);
-  </script>
-</body>
-</html>"""
-
-
 @app.post("/backup/restore")
 async def backup_restore(request: Request, file: UploadFile = File(...)):
     if not file or not file.filename:
@@ -2434,15 +2314,10 @@ async def backup_restore(request: Request, file: UploadFile = File(...)):
             msg_parts.append(f"Photos:{summary['photos']}")
         if summary.get("options"):
             msg_parts.append("Options")
-        print(f"[backup restore upload] success: {msg_parts} — scheduling restart")
-
-        async def _restart():
-            await asyncio.sleep(2)
-            print("[backup restore] restarting process to reload database")
-            os.execv(sys.executable, [sys.executable] + sys.argv)
-
-        asyncio.create_task(_restart())
-        return HTMLResponse(_restore_restart_html())
+        print(f"[backup restore upload] success: {msg_parts} — restore complete")
+        restored_label = "+".join(msg_parts) if msg_parts else "data"
+        target = str(request.url_for("backup_page")) + f"?msg=Restore+complete:+{restored_label}+restored"
+        return RedirectResponse(url=target, status_code=303)
     except Exception as e:
         target = str(request.url_for("backup_page")) + "?err=Restore+failed"
         print(f"[backup restore upload] redirect -> {target} err={e}")
@@ -2478,15 +2353,10 @@ async def backup_restore_file(request: Request, filename: str = Form(...)):
             msg_parts.append(f"Photos:{summary['photos']}")
         if summary.get("options"):
             msg_parts.append("Options")
-        print(f"[backup restore file] success: {msg_parts} — scheduling restart")
-
-        async def _restart():
-            await asyncio.sleep(2)
-            print("[backup restore] restarting process to reload database")
-            os.execv(sys.executable, [sys.executable] + sys.argv)
-
-        asyncio.create_task(_restart())
-        return HTMLResponse(_restore_restart_html())
+        print(f"[backup restore file] success: {msg_parts} — restore complete")
+        restored_label = "+".join(msg_parts) if msg_parts else "data"
+        target = str(request.url_for("backup_page")) + f"?msg=Restore+complete:+{restored_label}+restored"
+        return RedirectResponse(url=target, status_code=303)
     except Exception as e:
         target = str(request.url_for("backup_page")) + "?err=Restore+failed"
         print(f"[backup restore file] redirect -> {target} err={e}")
@@ -2952,6 +2822,7 @@ async def new_item(
             notes=notes or None,
             barcode=serial,
             photo_path=None,
+            last_audit_date=dt.date.today().isoformat(),
         )
         session.add(item)
         session.commit()
@@ -3061,7 +2932,7 @@ def reports(
     # Waste tracking and consumption velocity
     waste_count = 0
     total_depleted_with_date = 0
-    consumed_names: dict[str, int] = {}
+    consumed_cats: dict[str, int] = {}
     all_depleted_dates: list[dt.date] = []
 
     noncompliant = 0
@@ -3069,6 +2940,7 @@ def reports(
     aging_buckets = {"expired": 0, "1-7": 0, "8-14": 0, "15-30": 0, "31-60": 0, "61+": 0}
 
     with Session(engine) as session:
+        audit_window = int(_get_setting(session, "audit_window_days", "30") or "30")
         items = session.exec(select(Item)).all()
         for it in items:
             object.__setattr__(it, "expiry_info", _expiry_info(it))
@@ -3082,10 +2954,11 @@ def reports(
                     health_noncompliant_global += 1
                 if it.last_audit_date:
                     audit_d = _parse_date(it.last_audit_date)
-                    if audit_d and (today - audit_d).days <= 30:
+                    if audit_d and (today - audit_d).days <= audit_window:
                         health_audited_30d += 1
             else:
-                consumed_names[it.name] = consumed_names.get(it.name, 0) + 1
+                cat_key = it.category or "Uncategorized"
+                consumed_cats[cat_key] = consumed_cats.get(cat_key, 0) + 1
                 dep_d_g = _parse_date(it.depleted_at)
                 if dep_d_g:
                     all_depleted_dates.append(dep_d_g)
@@ -3309,8 +3182,8 @@ def reports(
         velocity_weeks.append(label)
         velocity_counts.append(count)
 
-    # --- Top consumed items (top 10 by name frequency) ---
-    top_consumed = sorted(consumed_names.items(), key=lambda kv: kv[1], reverse=True)[:10]
+    # --- Top consumed categories (top 10 by depletion count) ---
+    top_consumed = sorted(consumed_cats.items(), key=lambda kv: kv[1], reverse=True)[:10]
 
     # --- Action items ---
     action_items = []
@@ -3321,21 +3194,25 @@ def reports(
         action_items.append({
             "severity": "danger",
             "text": f"{n_expired} item{'s' if n_expired != 1 else ''} expired and still in stock",
+            "bucket": "overdue",
         })
     if n_expiring_7d > 0:
         action_items.append({
             "severity": "warn",
             "text": f"{n_expiring_7d} item{'s' if n_expiring_7d != 1 else ''} expire{'s' if n_expiring_7d == 1 else ''} within 7 days",
+            "bucket": "d7",
         })
     if g_no_date > 0:
         action_items.append({
             "severity": "info",
             "text": f"{g_no_date} item{'s' if g_no_date != 1 else ''} {'has' if g_no_date == 1 else 'have'} no use-by date set",
+            "bucket": "total",
         })
     if waste_rate is not None and waste_rate > 20:
         action_items.append({
             "severity": "warn",
             "text": f"{waste_rate}% of tracked depletions were past their use-by date",
+            "bucket": None,
         })
 
     return templates.TemplateResponse(
@@ -4153,6 +4030,7 @@ async def edit_item_submit(
         item.use_by_date = use_by_date or None
         item.use_within = use_within or None
         item.notes = notes or None
+        item.last_audit_date = dt.date.today().isoformat()
         session.add(item)
         session.commit()
 
@@ -4615,6 +4493,13 @@ async def admin(request: Request, response: Response):
                     left=form.get("swipe_left_action", SWIPE_ACTION_DEFAULTS["left"]),
                 )
 
+            elif form.get("audit_window_action") == "save":
+                try:
+                    days = max(7, min(365, int(form.get("audit_window_days", "30"))))
+                except (ValueError, TypeError):
+                    days = 30
+                _set_setting(session, "audit_window_days", str(days))
+
             elif form.get("usewithin_order_action") == "save":
                 order_str = form.get("usewithin_order", "")
                 try:
@@ -4672,6 +4557,7 @@ async def admin(request: Request, response: Response):
         admin_font_sizes = get_font_sizes(session)
         admin_default_emoji = _get_setting(session, "default_icon_emoji", DEFAULT_ITEM_EMOJI) or DEFAULT_ITEM_EMOJI
         admin_swipe_actions = get_swipe_actions(session)
+        audit_window_days = int(_get_setting(session, "audit_window_days", "30") or "30")
         health = {
             "ipp_status": check_ipp_status(),
             "disk": get_disk_usage(DATA_DIR),
@@ -4698,6 +4584,7 @@ async def admin(request: Request, response: Response):
             "admin_default_emoji": admin_default_emoji,
             "admin_swipe_actions": admin_swipe_actions,
             "swipe_action_options": SWIPE_ACTION_OPTIONS,
+            "audit_window_days": audit_window_days,
             "health": health,
             "app_heading": app_heading,
             "pass_error": pass_error,
