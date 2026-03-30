@@ -1,5 +1,14 @@
 # PantrLytics Changelog
 
+## 2026.03.30-5
+
+### Quick Edit — Auto-save
+- **No more Save/Cancel buttons** — removed the per-row Save/Cancel buttons from Quick Edit mode; the actions column stays unchanged while editing
+- **Auto-save on field change** — text and number fields save automatically when you click away (blur); date fields save as soon as a date is picked (change event)
+- **Visual feedback** — the edited cell briefly dims while saving, then flashes green on success or red on failure; no alert dialogs
+- **Unchanged fields skipped** — if you click into a field and leave without changing the value, no network request is made
+- **State stays correct across saves** — after each auto-save the row's stored item data updates so subsequent edits to other fields in the same row merge cleanly
+
 ## 2026.03.30-4
 
 ### Quick Edit Overhaul
