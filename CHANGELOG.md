@@ -1,5 +1,16 @@
 # PantrLytics Changelog
 
+## 2026.03.30
+
+### Reports — Mobile Fixes
+- **Health score card** now stretches to full width on mobile instead of rendering as a narrow, oddly sized block
+- **No horizontal page scroll** — outer report card clips overflow; chart grid cells get `min-width:0` so Chart.js canvases shrink properly inside their cells
+- **KPI strip** uses a 3-column fixed grid on mobile (was `auto-fit` with a 160px minimum that could trigger overflow on narrow phones)
+- **"No use-by date" alert** now drills down to only the items actually missing a date — previously it opened the full inventory list
+
+### Bug Fixes
+- Fix Review page crashing with 500 error — `url_for('edit_item')` corrected to `url_for('edit_item_form')`
+
 ## 2026.03.27
 
 ### Reports — Complete Overhaul
