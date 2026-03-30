@@ -493,7 +493,7 @@ function initSwipe() {
 
     // Touch
     row.addEventListener('touchstart', (e) => {
-      if (row.dataset.editing) return;
+      if (_quickEditActive) return;
       if (e.target.closest('button, a, input, select')) return;
       sx = e.touches[0].clientX; sy = e.touches[0].clientY;
       dx = 0; axis = null;
@@ -514,9 +514,9 @@ function initSwipe() {
 
     // Pointer (desktop)
     row.addEventListener('pointerdown', (e) => {
+      if (_quickEditActive) return;
       if (e.pointerType === 'touch') return;
       if (e.button !== 0) return;
-      if (row.dataset.editing) return;
       if (e.target.closest('button, a, input, select')) return;
       row.setPointerCapture(e.pointerId);
       activePtr = e.pointerId;
@@ -552,14 +552,12 @@ function applyQuickEditMode(active) {
   if (btn) btn.classList.toggle('active', active);
 
   if (active) {
-    // Enter edit mode on every non-depleted row
     document.querySelectorAll('.table-inventory tbody tr[data-item-id]').forEach(row => {
-      if (!row.dataset.editing && !row.querySelector('td.col-name .pill-danger')) {
-        _qeStartEdit(row);
-      }
+      if (row.dataset.editing) return;
+      if (row.querySelector('td.col-name .pill-danger')) return; // skip depleted
+      try { _qeStartEdit(row); } catch (err) { console.error('QE row error', err); }
     });
   } else {
-    // Reload results to show fresh server data
     pantrSearch.fetchResults(window.location.href);
   }
 }
@@ -583,18 +581,15 @@ function _qeStartEdit(row) {
     inp.dataset.fieldName = 'name';
     inp.type = 'text';
     inp.value = itemData.name || '';
-    inp.style.cssText = 'min-width:100px;width:100%;';
+    inp.style.cssText = 'min-width:100px;width:100%;display:block;';
     nameCell.innerHTML = '';
     nameCell.appendChild(inp);
-    inp.addEventListener('blur', () => _qeAutoSave(row, inp));
-    nameCell.addEventListener('click', () => inp.focus());
   }
 
   // Display field cells
   row.querySelectorAll('td[data-field]').forEach(td => {
     const field = td.dataset.field;
-    if (field === 'name') return; // handled above
-    if (field === 'last_audit_date') return; // read-only
+    if (field === 'name' || field === 'last_audit_date') return;
     const val = String(itemData[field] ?? '');
     td.dataset.origHtml = td.innerHTML;
 
@@ -606,33 +601,56 @@ function _qeStartEdit(row) {
       inp.type = 'number';
       inp.min = '0';
       inp.value = val;
-      inp.style.width = '72px';
-      inp.addEventListener('blur', () => _qeAutoSave(row, inp));
+      inp.style.cssText = 'width:72px;display:block;';
     } else if (field === 'cook_date' || field === 'use_by_date') {
       inp.type = 'date';
       inp.value = val;
-      inp.style.minWidth = '130px';
-      inp.addEventListener('change', () => _qeAutoSave(row, inp));
+      inp.style.cssText = 'min-width:130px;display:block;';
     } else {
       inp.type = 'text';
       inp.value = val;
-      inp.style.cssText = 'min-width:80px;width:100%;';
-      inp.addEventListener('blur', () => _qeAutoSave(row, inp));
+      inp.style.cssText = 'min-width:80px;width:100%;display:block;';
     }
 
     td.innerHTML = '';
     td.appendChild(inp);
-    td.addEventListener('click', () => inp.focus());
   });
-  // Actions cell intentionally left as-is (no Save/Cancel needed)
 }
+
+// ── QE event delegation (no per-input listeners) ────────────────────
+// Auto-save on blur for text/number inputs (capture so blur reaches document)
+document.addEventListener('blur', (e) => {
+  if (!_quickEditActive) return;
+  if (!e.target.classList.contains('qe-input')) return;
+  if (e.target.type === 'date') return; // dates handled by change
+  const row = e.target.closest('tr[data-editing]');
+  if (!row) return;
+  _qeAutoSave(row, e.target);
+}, true);
+
+// Auto-save on change for date inputs
+document.addEventListener('change', (e) => {
+  if (!_quickEditActive) return;
+  if (!e.target.classList.contains('qe-input')) return;
+  if (e.target.type !== 'date') return;
+  const row = e.target.closest('tr[data-editing]');
+  if (!row) return;
+  _qeAutoSave(row, e.target);
+});
+
+// Click anywhere inside an editable cell → focus its input
+document.addEventListener('click', (e) => {
+  if (!_quickEditActive) return;
+  const td = e.target.closest('td[data-field]');
+  if (!td) return;
+  const inp = td.querySelector('.qe-input');
+  if (inp) inp.focus();
+});
 
 async function _qeAutoSave(row, changedInp) {
   const itemData = JSON.parse(row.dataset.item || '{}');
   const field = changedInp.dataset.fieldName;
-
-  // Skip if value hasn't changed
-  if (changedInp.value === String(itemData[field] ?? '')) return;
+  if (changedInp.value === String(itemData[field] ?? '')) return; // unchanged
 
   const editUrl = row.dataset.editUrl;
   if (!editUrl) return;
@@ -645,7 +663,6 @@ async function _qeAutoSave(row, changedInp) {
   ['name','category','tags','location','bin_number','quantity','unit',
    'condition','cook_date','use_by_date','use_within','notes','review_window_days'
   ].forEach(f => fd.set(f, String(itemData[f] ?? '')));
-  // Override with all current input values so the full record is saved
   row.querySelectorAll('.qe-input').forEach(i => fd.set(i.dataset.fieldName, i.value));
 
   try {
@@ -656,7 +673,6 @@ async function _qeAutoSave(row, changedInp) {
     td.classList.remove('qe-saving');
     changedInp.disabled = false;
     if (res.ok) {
-      // Update stored item data so future auto-saves merge correctly
       const updated = { ...itemData };
       row.querySelectorAll('.qe-input').forEach(i => { updated[i.dataset.fieldName] = i.value; });
       row.dataset.item = JSON.stringify(updated);
