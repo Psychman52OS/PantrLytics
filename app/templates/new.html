@@ -105,6 +105,20 @@
     </div>
 
     <div class="field field--full">
+      <label>Review window <span class="muted" style="font-weight:normal;">(days — leave blank to use default of {{ audit_window_days }}d)</span></label>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:4px;">
+        {% for days in [15, 30, 60, 120] %}
+          <button type="button" class="btn btn-secondary btn-sm js-review-quick
+            {% if form_values.review_window_days == days %}btn-accent{% endif %}"
+            data-days="{{ days }}">{{ days }}d</button>
+        {% endfor %}
+      </div>
+      <input class="input input-small" type="number" name="review_window_days" id="new_review_window_days"
+             min="1" max="365" placeholder="Default ({{ audit_window_days }}d)"
+             value="{{ form_values.review_window_days or '' }}" style="width:120px;">
+    </div>
+
+    <div class="field field--full">
       <label>Notes {% if 'notes' in required_fields %}(REQUIRED){% endif %}</label>
       <textarea class="input" name="notes" rows="3"
         {% if 'notes' in required_fields %}required{% endif %}
@@ -133,4 +147,21 @@
     </div>
   </form>
 </section>
+<script>
+(function(){
+  const input = document.getElementById('new_review_window_days');
+  if (!input) return;
+  const btns = document.querySelectorAll('.js-review-quick');
+  function syncBtns() {
+    btns.forEach(b => b.classList.toggle('btn-accent', b.dataset.days === input.value));
+  }
+  btns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      input.value = btn.dataset.days;
+      syncBtns();
+    });
+  });
+  input.addEventListener('input', syncBtns);
+})();
+</script>
 {% endblock %}

@@ -63,6 +63,26 @@
             {% else %}No{% endif %}
           </span>
         </div>
+        <div><span class="kv-label">Last reviewed</span><span class="kv-value">{{ item.last_audit_date or "—" }}</span></div>
+        <div>
+          <span class="kv-label">Next review</span>
+          <span class="kv-value">
+            {% if next_review_date %}
+              {{ next_review_date }}
+              {% if days_until_review is not none %}
+                {% if days_until_review < 0 %}
+                  <span class="pill pill-danger">{{ days_until_review | abs }}d overdue</span>
+                {% elif days_until_review == 0 %}
+                  <span class="pill pill-warn">Due today</span>
+                {% else %}
+                  <span class="pill pill-ok">in {{ days_until_review }}d</span>
+                {% endif %}
+              {% endif %}
+            {% else %}
+              —
+            {% endif %}
+          </span>
+        </div>
         <div><span class="kv-label">Tags</span><span class="kv-value">{{ item.tags or "—" }}</span></div>
         <div class="field--full"><span class="kv-label">Notes</span><span class="kv-value wrap">{{ item.notes or "—" }}</span></div>
         <div><span class="kv-label">Created</span><span class="kv-value">{{ format_datetime(item.created_at) }}</span></div>

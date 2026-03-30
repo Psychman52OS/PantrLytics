@@ -242,6 +242,7 @@ class Item(SQLModel, table=True):
     notes: Optional[str] = None
     photo_path: Optional[str] = None
     last_audit_date: Optional[str] = None
+    review_window_days: Optional[int] = None  # Per-item override for review interval
 
     depleted_at: Optional[str] = None  # ISO timestamp when item was marked depleted
     depleted_reason: Optional[str] = None
@@ -446,6 +447,7 @@ def init_db():
     with engine.connect() as conn:
         # ensure Item.use_within exists (if DB pre-dates the field)
         ensure_column(conn, "item", "use_within", "VARCHAR")
+        ensure_column(conn, "item", "review_window_days", "INTEGER")
         ensure_column(conn, "item", "depleted_at", "VARCHAR")
         ensure_column(conn, "item", "depleted_reason", "VARCHAR")
         ensure_column(conn, "item", "depleted_qty", "INTEGER")
@@ -2101,12 +2103,14 @@ def mark_all_reviewed(request: Request):
 def review_page(request: Request, msg: str = ""):
     with Session(engine) as session:
         audit_window = int(_get_setting(session, "audit_window_days", "30") or "30")
-        cutoff = (dt.date.today() - dt.timedelta(days=audit_window)).isoformat()
         all_active = session.exec(select(Item).where(Item.depleted_at == None)).all()
 
+    today = dt.date.today()
     needs_review = []
     recently_reviewed = []
     for it in all_active:
+        item_window = it.review_window_days or audit_window
+        cutoff = (today - dt.timedelta(days=item_window)).isoformat()
         if not it.last_audit_date or it.last_audit_date < cutoff:
             needs_review.append(it)
         else:
@@ -2701,12 +2705,14 @@ async def new_item(
     use_by_date: str = Form(""),
     use_within: str = Form(""),
     notes: str = Form(""),
+    review_window_days: Optional[int] = Form(None),
     photos: List[UploadFile] = File([]),
 ):
     with Session(engine) as session:
         cats, bins, locations, use_withins = _choices(session)
         unit_names = get_unit_names(session)
         required_fields = get_required_field_keys(session)
+        audit_window_days = int(_get_setting(session, "audit_window_days", "30") or "30")
 
     if request.method == "GET":
         return templates.TemplateResponse(
@@ -2719,6 +2725,7 @@ async def new_item(
                 "use_withins": use_withins,
                 "units": unit_names,
                 "required_fields": required_fields,
+                "audit_window_days": audit_window_days,
                 "form_values": {},
                 "error": "",
             },
@@ -2778,6 +2785,7 @@ async def new_item(
                 "use_withins": use_withins,
                 "units": unit_names,
                 "required_fields": required_fields,
+                "audit_window_days": audit_window_days,
                 "error": msg,
                 "form_values": {
                     "name": name,
@@ -2792,6 +2800,7 @@ async def new_item(
                     "use_by_date": use_by_date,
                     "use_within": use_within,
                     "notes": notes,
+                    "review_window_days": review_window_days,
                 },
             },
             status_code=400,
@@ -2823,6 +2832,7 @@ async def new_item(
             barcode=serial,
             photo_path=None,
             last_audit_date=dt.date.today().isoformat(),
+            review_window_days=review_window_days or None,
         )
         session.add(item)
         session.commit()
@@ -2846,6 +2856,7 @@ def show_item(request: Request, item_id: int):
             return Response(status_code=404)
         photos = get_item_photos(session, item_id)
         object.__setattr__(item, "expiry_info", _expiry_info(item))
+        audit_window = int(_get_setting(session, "audit_window_days", "30") or "30")
         print(
             f"[show_item] item {item_id} depleted={bool(item.depleted_at)} "
             f"photos={len(photos)}"
@@ -2856,6 +2867,18 @@ def show_item(request: Request, item_id: int):
     # One-shot flag to auto-open the edit modal
     auto_edit = request.query_params.get("auto_edit") == "1"
 
+    # Compute review countdown
+    item_window = item.review_window_days or audit_window
+    today = dt.date.today()
+    next_review_date = None
+    days_until_review = None
+    if item.last_audit_date:
+        last_reviewed = _parse_date(item.last_audit_date)
+        if last_reviewed:
+            next_review = last_reviewed + dt.timedelta(days=item_window)
+            next_review_date = next_review.isoformat()
+            days_until_review = (next_review - today).days
+
     return templates.TemplateResponse(
         "show.html",
         {
@@ -2865,6 +2888,9 @@ def show_item(request: Request, item_id: int):
             "qr_link": link,
             "auto_edit": auto_edit,
             "expiry_info": item.expiry_info,
+            "next_review_date": next_review_date,
+            "days_until_review": days_until_review,
+            "item_window": item_window,
         },
     )
 
@@ -2955,7 +2981,8 @@ def reports(
                     health_noncompliant_global += 1
                 if it.last_audit_date:
                     audit_d = _parse_date(it.last_audit_date)
-                    if audit_d and (today - audit_d).days <= audit_window:
+                    item_window = it.review_window_days or audit_window
+                    if audit_d and (today - audit_d).days <= item_window:
                         health_audited_30d += 1
             else:
                 cat_key = it.category or "Uncategorized"
@@ -3910,6 +3937,7 @@ def edit_item_form(request: Request, item_id: int, partial: int = 0):
         required_fields = get_required_field_keys(session)
         unit_names = get_unit_names(session)
         photos = get_item_photos(session, item_id, include_missing=True)
+        audit_window_days = int(_get_setting(session, "audit_window_days", "30") or "30")
     ctx = {
         "request": request,
         "item": item,
@@ -3920,6 +3948,7 @@ def edit_item_form(request: Request, item_id: int, partial: int = 0):
         "units": unit_names,
         "required_fields": required_fields,
         "photos": photos,
+        "audit_window_days": audit_window_days,
         "error": "",
     }
     if partial:
@@ -3943,6 +3972,7 @@ async def edit_item_submit(
     use_by_date: str = Form(""),
     use_within: str = Form(""),
     notes: str = Form(""),
+    review_window_days: Optional[int] = Form(None),
     photos: List[UploadFile] = File([]),
 ):
     # Normalize for consistent comparisons and to avoid duplicate-case inserts
@@ -4034,6 +4064,7 @@ async def edit_item_submit(
         item.use_by_date = use_by_date or None
         item.use_within = use_within or None
         item.notes = notes or None
+        item.review_window_days = review_window_days or None
         item.last_audit_date = dt.date.today().isoformat()
         session.add(item)
         session.commit()
