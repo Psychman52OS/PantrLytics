@@ -48,8 +48,26 @@
       </thead>
       <tbody>
         {% for item in items %}
-        <tr data-item-url="{{ url_for('show_item', item_id=item.id) }}">
-          <td class="col-name">
+        {% set _idata = {
+          "name": (item.name or ""),
+          "category": (item.category or ""),
+          "tags": (item.tags or ""),
+          "location": (item.location or ""),
+          "bin_number": (item.bin_number or ""),
+          "quantity": item.quantity,
+          "unit": (item.unit or ""),
+          "condition": (item.condition or ""),
+          "cook_date": (item.cook_date or ""),
+          "use_by_date": (item.use_by_date or ""),
+          "use_within": (item.use_within or ""),
+          "notes": (item.notes or ""),
+          "review_window_days": (item.review_window_days if item.review_window_days is not none else "")
+        } %}
+        <tr data-item-url="{{ url_for('show_item', item_id=item.id) }}"
+            data-item-id="{{ item.id }}"
+            data-edit-url="{{ url_for('edit_item_submit', item_id=item.id) }}"
+            data-item="{{ _idata | tojson | e }}">
+          <td class="col-name" data-field="name" data-orig-field="name">
             <a class="link name-link" href="{{ url_for('show_item', item_id=item.id) }}">{{ item.name }}</a>
             {% if item.depleted_at %}<span class="pill pill-danger">Depleted</span>{% endif %}
             {% if item.expiry_info and item.expiry_info.days <= 30 %}
@@ -59,7 +77,7 @@
           </td>
           {% for col in display_fields %}
             {% set val = item|attr(col.key) %}
-            <td class="col-{{ col.key }}">
+            <td class="col-{{ col.key }}" data-field="{{ col.key }}">
               {% if col.key == "quantity" %}
                 {% if item.depleted_at %}
                   <span class="muted">0</span>
@@ -99,6 +117,10 @@
               <a class="btn btn-small btn-ghost action-open"
                  href="{{ url_for('show_item', item_id=item.id) }}"
                  title="Open details">Open</a>
+              {% if not item.depleted_at %}
+              <button class="btn btn-small btn-ghost js-quick-edit-btn hide-mobile"
+                      type="button" title="Quick edit this row">✏ Edit</button>
+              {% endif %}
               <div class="row-menu">
                 <button class="btn btn-small btn-ghost row-menu-toggle" type="button" aria-label="More actions" aria-haspopup="true">
                   <span class="hide-mobile">⋯</span><span class="hide-desktop">Actions</span>

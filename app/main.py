@@ -3272,6 +3272,7 @@ def reports(
             # New analytics
             "health_score": health_score,
             "health_grade": health_grade,
+            "compliance_component": compliance_component,
             "coverage_component": coverage_component,
             "audit_component": audit_component,
             "action_items": action_items,

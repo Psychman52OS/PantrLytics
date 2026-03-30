@@ -540,6 +540,119 @@ function initSwipe() {
   });
 }
 
+// ─── Quick Edit (desktop list view only) ──────────────────────────
+function _escVal(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function initQuickEdit() {
+  document.querySelectorAll('.js-quick-edit-btn:not([data-qe-init])').forEach(btn => {
+    btn.dataset.qeInit = '1';
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const row = btn.closest('tr');
+      if (row && !row.dataset.editing) _qeStartEdit(row);
+    });
+  });
+}
+
+function _qeStartEdit(row) {
+  row.dataset.editing = '1';
+  const itemData = JSON.parse(row.dataset.item || '{}');
+
+  // Name cell
+  const nameCell = row.querySelector('td.col-name');
+  if (nameCell) {
+    nameCell.dataset.origHtml = nameCell.innerHTML;
+    nameCell.innerHTML = `<input class="input input-small qe-input" data-field-name="name"
+      type="text" value="${_escVal(itemData.name || '')}" style="min-width:100px;width:100%;">`;
+  }
+
+  // Display field cells
+  row.querySelectorAll('td[data-field]').forEach(td => {
+    const field = td.dataset.field;
+    if (field === 'name') return; // handled above
+    if (field === 'last_audit_date') return; // read-only
+    const val = String(itemData[field] ?? '');
+    td.dataset.origHtml = td.innerHTML;
+    let inp;
+    if (field === 'quantity') {
+      inp = `<input class="input input-small qe-input" data-field-name="${field}"
+        type="number" min="0" value="${_escVal(val)}" style="width:72px;">`;
+    } else if (field === 'cook_date' || field === 'use_by_date') {
+      inp = `<input class="input input-small qe-input" data-field-name="${field}"
+        type="date" value="${_escVal(val)}" style="min-width:130px;">`;
+    } else {
+      inp = `<input class="input input-small qe-input" data-field-name="${field}"
+        type="text" value="${_escVal(val)}" style="min-width:80px;width:100%;">`;
+    }
+    td.innerHTML = inp;
+  });
+
+  // Actions cell → Save / Cancel
+  const actCell = row.querySelector('td.col-actions');
+  if (actCell) {
+    actCell.dataset.origHtml = actCell.innerHTML;
+    actCell.innerHTML = `<div class="btn-group">
+      <button class="btn btn-small btn-accent js-qe-save" type="button">Save</button>
+      <button class="btn btn-small btn-secondary js-qe-cancel" type="button">Cancel</button>
+    </div>`;
+    actCell.querySelector('.js-qe-save').addEventListener('click', () => _qeSave(row));
+    actCell.querySelector('.js-qe-cancel').addEventListener('click', () => _qeCancel(row));
+  }
+}
+
+async function _qeSave(row) {
+  const editUrl = row.dataset.editUrl;
+  if (!editUrl) return;
+  const itemData = JSON.parse(row.dataset.item || '{}');
+  const fd = new FormData();
+
+  // Seed all fields from stored data
+  ['name','category','tags','location','bin_number','quantity','unit',
+   'condition','cook_date','use_by_date','use_within','notes','review_window_days'
+  ].forEach(f => fd.set(f, String(itemData[f] ?? '')));
+
+  // Override with edited inputs
+  row.querySelectorAll('.qe-input').forEach(inp => {
+    fd.set(inp.dataset.fieldName, inp.value);
+  });
+
+  const saveBtn = row.querySelector('.js-qe-save');
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
+
+  try {
+    const res = await fetch(editUrl, {
+      method: 'POST', body: fd,
+      headers: { 'Accept': 'application/json', 'X-Requested-With': 'fetch' }
+    });
+    if (res.ok) {
+      delete row.dataset.editing;
+      pantrSearch.fetchResults(window.location.href);
+    } else {
+      alert('Save failed');
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save'; }
+    }
+  } catch (err) {
+    console.error('Quick edit save error', err);
+    alert('Save failed');
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save'; }
+  }
+}
+
+function _qeCancel(row) {
+  ['td.col-name', 'td[data-field]', 'td.col-actions'].forEach(sel => {
+    row.querySelectorAll(sel).forEach(td => {
+      if (td.dataset.origHtml !== undefined) {
+        td.innerHTML = td.dataset.origHtml;
+        delete td.dataset.origHtml;
+      }
+    });
+  });
+  delete row.dataset.editing;
+  initQuickEdit();
+}
+
 // ─── View toggle ──────────────────────────────────────────────────
 function applyView(view) {
   const container = document.getElementById('items-container');
@@ -601,6 +714,7 @@ const pantrSearch = (function () {
       initTableSort();
       initColumnResize();
       initSwipe();
+      initQuickEdit();
       // Restore current view and chips visibility
       const savedView = localStorage.getItem('items_view') || 'list';
       applyView(savedView);
@@ -687,6 +801,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initTableSort();
   initColumnResize();
   initSwipe();
+  initQuickEdit();
   const savedView = localStorage.getItem('items_view') || 'list';
   applyView(savedView);
   applyChipsVisibility();

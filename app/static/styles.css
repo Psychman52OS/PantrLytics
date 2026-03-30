@@ -618,6 +618,19 @@ button.btn { -webkit-appearance: none; appearance: none; }
 .is-resizing * {
   cursor: col-resize !important;
 }
+
+/* ── Quick-edit inline inputs ───────────────────────────────────── */
+.qe-input {
+  width: auto;
+  padding: 3px 6px;
+  font-size: 13px;
+  height: 28px;
+  box-sizing: border-box;
+}
+tr[data-editing] td {
+  background: color-mix(in oklab, var(--accent), var(--card) 88%) !important;
+}
+
 .table tr:hover td {
   background: color-mix(in oklab, var(--card), #fff 2%);
 }
