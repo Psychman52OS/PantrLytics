@@ -71,8 +71,8 @@ The trend shows the last 12 weeks of depletions. If you haven't depleted any ite
 
 ## Backup and restore
 
-**Q: The restore completed but I'm stuck on the "waiting" page.**
-The app restarts automatically after a restore. If the page doesn't redirect after 60 seconds, manually navigate to `http://<your-ha-host>:8099`. If the app doesn't come back up, check the add-on log.
+**Q: The restore completed but nothing seems to have changed.**
+After a successful restore you are redirected to the Backup page with a confirmation message. The restored data is immediately active — no restart required. If items still look wrong, do a hard refresh (Ctrl+Shift+R / Cmd+Shift+R).
 
 **Q: Can I use HA's built-in backup to back up PantrLytics data?**
 HA's snapshot/backup does include add-on data volumes, so yes — HA backups will capture PantrLytics data. However, using PantrLytics' own backup feature gives you a portable zip you can restore independently, without needing to restore an entire HA snapshot.

@@ -24,8 +24,8 @@ A download prompt will appear. Save the file somewhere safe — Home Assistant i
 
 1. Click **Choose file** under the Restore section and select a `.zip` backup created by PantrLytics.
 2. Click **Restore**.
-3. The app will replace the current database and photos, then restart automatically.
-4. A "waiting" page will poll until the app is back up, then redirect you to the home page.
+3. The app will replace the current database and photos.
+4. You will be redirected back to the Backup page with a confirmation message.
 
 > **Warning:** Restoring overwrites all current data. There is no undo. Back up your current data first if you want to keep it.
 
