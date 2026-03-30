@@ -10,6 +10,7 @@ Choose your installation type:
 | [Managing Inventory](ha/managing-inventory.md) | Add, edit, search, deplete, and recover items |
 | [Labels and Printing](ha/labels-and-printing.md) | Print labels, preview PNGs, label designer, QR codes |
 | [Reports and Analytics](ha/reports-and-analytics.md) | Health score, charts, compliance tables, exports |
+| [Review](ha/review.md) | Periodic item review queue and audit freshness |
 | [Admin and Settings](ha/admin-and-settings.md) | Columns, units, categories, swipe actions, theme |
 | [Backup and Restore](ha/backup-and-restore.md) | Backup zips, restore, CSV import/export |
 | [Printer Setup](ha/printer-setup.md) | CUPS/IPP setup for label printing |
@@ -23,6 +24,7 @@ Choose your installation type:
 | [Managing Inventory](docker/managing-inventory.md) | Add, edit, search, deplete, and recover items |
 | [Labels and Printing](docker/labels-and-printing.md) | Print labels, preview PNGs, label designer, QR codes |
 | [Reports and Analytics](docker/reports-and-analytics.md) | Health score, charts, compliance tables, exports |
+| [Review](docker/review.md) | Periodic item review queue and audit freshness |
 | [Admin and Settings](docker/admin-and-settings.md) | Columns, units, categories, swipe actions, theme |
 | [Backup and Restore](docker/backup-and-restore.md) | Backup zips, restore, CSV import/export, volume backup |
 | [Printer Setup](docker/printer-setup.md) | CUPS/IPP setup for label printing |

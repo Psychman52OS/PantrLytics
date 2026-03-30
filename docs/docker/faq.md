@@ -111,10 +111,20 @@ Renaming from Admin updates all existing items automatically. If you see the old
 ## Reports
 
 **Q: The health score seems low even though most items are fine.**
-The score penalises items that have no use-by date set (date coverage = 30% of the score). Adding use-by dates to your items will improve it.
+The score penalises items that have no use-by date set (date coverage = 30% of the score). Adding use-by dates to your items will improve it. The audit freshness component (20%) also drops if items haven't been reviewed recently — visit the Review page to clear the queue.
 
 **Q: The depletion trend chart is empty.**
 The trend shows the last 12 weeks of depletions. If you haven't depleted any items yet, the chart will be empty.
+
+---
+
+## Review
+
+**Q: Every item shows as "Needs review" after the update.**
+Items added before the review system was introduced have no last reviewed date. They all show as needing review on first use. Work through the list using **Mark all reviewed** to clear it, then the queue will only surface items that genuinely haven't been touched.
+
+**Q: Items I just edited still show up in the Needs Review list.**
+Editing an item automatically stamps the last reviewed date to today, so they should immediately move to Recently Reviewed. If they don't, try a hard refresh (Ctrl+Shift+R / Cmd+Shift+R).
 
 ---
 

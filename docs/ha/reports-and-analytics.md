@@ -34,7 +34,7 @@ A score from **0–100** (with a letter grade A–F) summarising overall invento
 |---|---|---|
 | Use-by compliance | 50% | Percentage of items not past their use-by date |
 | Date coverage | 30% | Percentage of items that have a use-by date set |
-| Audit freshness | 20% | How recently items were added or updated |
+| Audit freshness | 20% | Percentage of items reviewed within the review window |
 
 **Grade scale:** A = 90–100, B = 80–89, C = 70–79, D = 60–69, F = below 60.
 
@@ -49,7 +49,7 @@ Below the health score, a banner surfaces the most urgent issues:
 - Items with **no use-by date** set
 - **High waste rate** alert (if more than 20% of depletions happened after use-by date)
 
-Each action item includes a count so you know the scale of the issue at a glance.
+Each action item includes a count so you know the scale of the issue at a glance. Tap an alert to open a drill-down list of the affected items.
 
 ---
 
@@ -84,9 +84,9 @@ Tables are sorted worst-first (most issues at the top).
 
 ---
 
-## Top consumed items
+## Top consumed categories
 
-A horizontal bar chart showing the **10 most-depleted item names** by depletion event count. Useful for identifying what you go through fastest and making sure you're stocking enough.
+A horizontal bar chart showing the **10 most-depleted categories** by total depletion count (all time). Useful for identifying which areas of your inventory you turn over fastest.
 
 ---
 

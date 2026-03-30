@@ -118,6 +118,17 @@ Manage the units of measure available on items (e.g. "cans", "oz", "bottles", "g
 
 ---
 
+## Review window
+
+Set how many days before an item needs to be re-reviewed. Items not touched within this window appear in the **Review** queue.
+
+- Enter a number between **7 and 365** (default: 30).
+- Click **Save**.
+
+This setting also controls the **Audit freshness** component of the Inventory Health Score on the Reports page. See [Review](review.md) for full details.
+
+---
+
 ## Admin password
 
 Change the admin area password. Enter the new password twice to confirm. The password is stored as a bcrypt hash — it cannot be recovered if forgotten, but can be reset by editing the database directly.

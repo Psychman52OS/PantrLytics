@@ -1,5 +1,23 @@
 # PantrLytics Changelog
 
+## 2026.03.30
+
+### Item Review System
+- **New Review page** — surfaces items not touched within a configurable window (default 30 days) in a "Needs review" queue; accessible from the desktop nav and mobile More sheet
+- **Mark Reviewed** — tap ✓ Reviewed on any item to stamp today's date and clear it from the queue; **Mark all reviewed** bulk action at the top of the page
+- **Auto-stamping** — creating, editing, or depleting an item automatically counts as a review; only items with no activity at all appear in the queue
+- **Configurable review window** — new "Review window" setting in Admin (7–365 days); shorter windows surface items more frequently
+- **Audit freshness score** — the health score's "Reviewed" component now reflects actual review stamps rather than item age
+
+### Reports Improvements
+- **Most Consumed Categories** — the consumption chart now groups by category instead of individual item name; gives a clearer picture of what areas of your inventory turn over fastest
+- **Clickable action alerts** — expired, expiring, and no-date alerts in the "What Needs Attention" panel are now tappable; clicking opens the corresponding item drill-down list
+- **Wider desktop layout** — content area expanded from 1100 px to 1400 px to reduce gutter space on larger screens
+- **Mobile overflow fixes** — resolved chart canvas overflow and compliance table horizontal scroll on narrow screens
+
+### Bug Fixes
+- Fix backup restore hanging in Home Assistant — removed `os.execv` restart approach; `engine.dispose()` is sufficient and the restore now redirects immediately with a success message
+
 ## 2026.03.28
 
 ### Reports — Complete Overhaul
