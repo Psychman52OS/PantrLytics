@@ -13,12 +13,16 @@
 - **Most Consumed Categories** — the consumption chart now groups by category instead of individual item name; gives a clearer picture of what areas of your inventory turn over fastest
 - **Clickable action alerts** — expired, expiring, and no-date alerts in the "What Needs Attention" panel are now tappable; clicking opens the corresponding item drill-down list
 - **Wider desktop layout** — content area expanded from 1100 px to 1400 px to reduce gutter space on larger screens
-- **Mobile overflow fixes** — resolved chart canvas overflow and compliance table horizontal scroll on narrow screens
+- **Health score card full width on mobile** — was rendering as a narrow oddly sized block; now stretches to fill the row
+- **No horizontal page scroll** — outer report card clips overflow; chart grid cells get `min-width:0` so Chart.js canvases shrink properly
+- **KPI strip** uses a 3-column fixed grid on mobile (was `auto-fit` with a 160px minimum that could overflow narrow phones)
+- **"No use-by date" alert** now drills down to only items actually missing a date — previously opened the full inventory list
 
 ### Bug Fixes
-- Fix backup restore hanging in Home Assistant — removed `os.execv` restart approach; `engine.dispose()` is sufficient and the restore now redirects immediately with a success message
+- Fix backup restore hanging in Home Assistant — removed `os.execv` restart; restore redirects immediately with a success message
+- Fix Review page crashing with 500 — `url_for('edit_item')` corrected to `url_for('edit_item_form')`
 
-## 2026.03.28
+## 2026.03.27
 
 ### Reports — Complete Overhaul
 - **Inventory Health Score** (0–100, letter grade A–F) combining use-by compliance (50%), date coverage (30%), and audit freshness (20%)
