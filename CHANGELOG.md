@@ -1,5 +1,10 @@
 # PantrLytics Changelog
 
+## 2026.03.30-8
+
+### Bug Fix
+- Fix Quick Edit: `data-item` attribute was broken HTML — `tojson` returns a `Markup` object so `| e` was a no-op, leaving raw JSON `"` characters inside a double-quoted attribute; browser read only the first `{` character; every `JSON.parse` call threw silently; changed to `| forceescape` which always escapes `"` → `&quot;` regardless of Markup status
+
 ## 2026.03.30-7
 
 ### Quick Edit — Complete interaction fix
