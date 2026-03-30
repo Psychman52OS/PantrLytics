@@ -2235,185 +2235,6 @@ async def import_csv(request: Request, file: UploadFile = File(...)):
     return RedirectResponse(url=target, status_code=303)
 
 
-def _restore_restart_html() -> str:
-    """Return a fun HTML page that polls /ping until the app is back up, then redirects.
-
-    Uses the browser's own URL to derive the correct ingress root — no server-side
-    URL generation needed, so it works correctly behind HA ingress.
-    """
-    return """<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>PantrLytics — Restoring Your Pantry</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: linear-gradient(135deg, #e8f5e9 0%, #f0f4f8 50%, #e3f2fd 100%);
-    }
-
-    .card {
-      background: white;
-      border-radius: 20px;
-      padding: 2.5rem 3rem;
-      box-shadow: 0 8px 40px rgba(0,0,0,.12);
-      text-align: center;
-      max-width: 460px;
-      width: 90%;
-      animation: fadeIn .5s ease;
-    }
-
-    @keyframes fadeIn { from { opacity:0; transform: translateY(16px); } to { opacity:1; transform: translateY(0); } }
-
-    .icon-row {
-      font-size: 2.8rem;
-      letter-spacing: .15em;
-      margin-bottom: 1.2rem;
-      animation: bounce 2s infinite;
-    }
-    @keyframes bounce {
-      0%, 100% { transform: translateY(0); }
-      50%       { transform: translateY(-6px); }
-    }
-
-    h2 {
-      color: #1b5e20;
-      font-size: 1.5rem;
-      margin-bottom: .5rem;
-    }
-
-    .subtitle {
-      color: #666;
-      font-size: .95rem;
-      margin-bottom: 1.6rem;
-      line-height: 1.5;
-    }
-
-    /* Progress bar */
-    .bar-wrap {
-      background: #e8f5e9;
-      border-radius: 99px;
-      height: 10px;
-      overflow: hidden;
-      margin-bottom: 1.4rem;
-    }
-    .bar-fill {
-      height: 100%;
-      width: 0%;
-      background: linear-gradient(90deg, #43a047, #66bb6a);
-      border-radius: 99px;
-      transition: width .4s ease;
-    }
-
-    /* Rotating fun messages */
-    #fun-msg {
-      font-size: .9rem;
-      color: #388e3c;
-      font-weight: 500;
-      min-height: 1.4em;
-      margin-bottom: 1.2rem;
-      transition: opacity .3s;
-    }
-
-    #status {
-      font-size: .8rem;
-      color: #aaa;
-    }
-
-    .ready-msg {
-      color: #1b5e20 !important;
-      font-size: 1.1rem !important;
-      font-weight: 600;
-    }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <div class="icon-row">&#127829; &#10024; &#128218;</div>
-    <h2>Restore Complete!</h2>
-    <p class="subtitle">Your pantry data is back. The app is reloading&mdash;<br>
-      hang tight while we stock the shelves.</p>
-
-    <div class="bar-wrap"><div class="bar-fill" id="bar"></div></div>
-    <p id="fun-msg">Counting the cans&hellip;</p>
-    <p id="status">Checking if the app is ready&hellip;</p>
-  </div>
-
-  <script>
-    var pingUrl = window.location.href.replace(/\\/backup(\\/restore.*)?$/, '/ping');
-    var rootUrl = window.location.href.replace(/\\/backup(\\/restore.*)?$/, '/');
-
-    var msgs = [
-      'Counting the cans\u2026',
-      'Alphabetising the spices\u2026',
-      'Checking the expiry dates\u2026',
-      'Restocking the freezer\u2026',
-      'Labelling everything neatly\u2026',
-      'Rotating the stock\u2026',
-      'Making sure nothing expired\u2026',
-      'Organising the bins\u2026',
-      'Brewing a quick coffee while we wait\u2026',
-      'Almost there, promise\u2026',
-    ];
-
-    var attempts  = 0;
-    var maxWait   = 120;
-    var msgIndex  = 0;
-    var barEl     = document.getElementById('bar');
-    var funEl     = document.getElementById('fun-msg');
-    var statusEl  = document.getElementById('status');
-
-    function nextMsg() {
-      funEl.style.opacity = 0;
-      setTimeout(function() {
-        msgIndex = (msgIndex + 1) % msgs.length;
-        funEl.textContent = msgs[msgIndex];
-        funEl.style.opacity = 1;
-      }, 300);
-    }
-    setInterval(nextMsg, 3500);
-
-    function tryRedirect() {
-      attempts++;
-      var pct = Math.min(90, attempts * 3);
-      barEl.style.width = pct + '%';
-      statusEl.textContent = 'Attempt ' + attempts + '\u2026';
-
-      fetch(pingUrl, { cache: 'no-store' })
-        .then(function(r) {
-          if (r.ok) {
-            barEl.style.width = '100%';
-            funEl.textContent = '\u2705 All stocked up!';
-            statusEl.className = 'ready-msg';
-            statusEl.textContent = 'Taking you home\u2026';
-            setTimeout(function() { window.location.href = rootUrl; }, 800);
-          } else {
-            schedule();
-          }
-        })
-        .catch(function() { schedule(); });
-    }
-
-    function schedule() {
-      if (attempts < maxWait) setTimeout(tryRedirect, 3000);
-      else {
-        funEl.textContent = '\u26a0\ufe0f Timed out';
-        statusEl.textContent = 'Please refresh the page manually.';
-      }
-    }
-
-    setTimeout(tryRedirect, 5000);
-  </script>
-</body>
-</html>"""
-
-
 @app.post("/backup/restore")
 async def backup_restore(request: Request, file: UploadFile = File(...)):
     if not file or not file.filename:
@@ -2434,15 +2255,10 @@ async def backup_restore(request: Request, file: UploadFile = File(...)):
             msg_parts.append(f"Photos:{summary['photos']}")
         if summary.get("options"):
             msg_parts.append("Options")
-        print(f"[backup restore upload] success: {msg_parts} — scheduling restart")
-
-        async def _restart():
-            await asyncio.sleep(2)
-            print("[backup restore] restarting process to reload database")
-            os.execv(sys.executable, [sys.executable] + sys.argv)
-
-        asyncio.create_task(_restart())
-        return HTMLResponse(_restore_restart_html())
+        print(f"[backup restore upload] success: {msg_parts} — restore complete")
+        restored_label = "+".join(msg_parts) if msg_parts else "data"
+        target = str(request.url_for("backup_page")) + f"?msg=Restore+complete:+{restored_label}+restored"
+        return RedirectResponse(url=target, status_code=303)
     except Exception as e:
         target = str(request.url_for("backup_page")) + "?err=Restore+failed"
         print(f"[backup restore upload] redirect -> {target} err={e}")
@@ -2478,15 +2294,10 @@ async def backup_restore_file(request: Request, filename: str = Form(...)):
             msg_parts.append(f"Photos:{summary['photos']}")
         if summary.get("options"):
             msg_parts.append("Options")
-        print(f"[backup restore file] success: {msg_parts} — scheduling restart")
-
-        async def _restart():
-            await asyncio.sleep(2)
-            print("[backup restore] restarting process to reload database")
-            os.execv(sys.executable, [sys.executable] + sys.argv)
-
-        asyncio.create_task(_restart())
-        return HTMLResponse(_restore_restart_html())
+        print(f"[backup restore file] success: {msg_parts} — restore complete")
+        restored_label = "+".join(msg_parts) if msg_parts else "data"
+        target = str(request.url_for("backup_page")) + f"?msg=Restore+complete:+{restored_label}+restored"
+        return RedirectResponse(url=target, status_code=303)
     except Exception as e:
         target = str(request.url_for("backup_page")) + "?err=Restore+failed"
         print(f"[backup restore file] redirect -> {target} err={e}")
