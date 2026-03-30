@@ -1,5 +1,10 @@
 # PantrLytics Changelog
 
+## 2026.03.30-6
+
+### Bug Fix
+- Fix Quick Edit inputs being unclickable — the desktop swipe handler was calling `setPointerCapture` on the row when clicking cell padding, swallowing focus from the input; swipe now backs off when a row is in edit mode; each editable cell also gets a click handler that explicitly focuses its input
+
 ## 2026.03.30-5
 
 ### Quick Edit — Auto-save

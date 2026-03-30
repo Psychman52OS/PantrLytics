@@ -493,6 +493,7 @@ function initSwipe() {
 
     // Touch
     row.addEventListener('touchstart', (e) => {
+      if (row.dataset.editing) return;
       if (e.target.closest('button, a, input, select')) return;
       sx = e.touches[0].clientX; sy = e.touches[0].clientY;
       dx = 0; axis = null;
@@ -515,6 +516,7 @@ function initSwipe() {
     row.addEventListener('pointerdown', (e) => {
       if (e.pointerType === 'touch') return;
       if (e.button !== 0) return;
+      if (row.dataset.editing) return;
       if (e.target.closest('button, a, input, select')) return;
       row.setPointerCapture(e.pointerId);
       activePtr = e.pointerId;
@@ -585,6 +587,7 @@ function _qeStartEdit(row) {
     nameCell.innerHTML = '';
     nameCell.appendChild(inp);
     inp.addEventListener('blur', () => _qeAutoSave(row, inp));
+    nameCell.addEventListener('click', () => inp.focus());
   }
 
   // Display field cells
@@ -619,6 +622,7 @@ function _qeStartEdit(row) {
 
     td.innerHTML = '';
     td.appendChild(inp);
+    td.addEventListener('click', () => inp.focus());
   });
   // Actions cell intentionally left as-is (no Save/Cancel needed)
 }
