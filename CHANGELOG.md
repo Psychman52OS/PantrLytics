@@ -2,14 +2,25 @@
 
 ## 2026.03.30
 
-### Reports — Mobile Fixes
-- **Health score card** now stretches to full width on mobile instead of rendering as a narrow, oddly sized block
-- **No horizontal page scroll** — outer report card clips overflow; chart grid cells get `min-width:0` so Chart.js canvases shrink properly inside their cells
-- **KPI strip** uses a 3-column fixed grid on mobile (was `auto-fit` with a 160px minimum that could trigger overflow on narrow phones)
-- **"No use-by date" alert** now drills down to only the items actually missing a date — previously it opened the full inventory list
+### Item Review System
+- **New Review page** — surfaces items not touched within a configurable window (default 30 days) in a "Needs review" queue; accessible from the desktop nav and mobile More sheet
+- **Mark Reviewed** — tap ✓ Reviewed on any item to stamp today's date and clear it from the queue; **Mark all reviewed** bulk action at the top of the page
+- **Auto-stamping** — creating, editing, or depleting an item automatically counts as a review; only items with no activity at all appear in the queue
+- **Configurable review window** — new "Review window" setting in Admin (7–365 days); shorter windows surface items more frequently
+- **Audit freshness score** — the health score's "Reviewed" component now reflects actual review stamps rather than item age
+
+### Reports Improvements
+- **Most Consumed Categories** — the consumption chart now groups by category instead of individual item name; gives a clearer picture of what areas of your inventory turn over fastest
+- **Clickable action alerts** — expired, expiring, and no-date alerts in the "What Needs Attention" panel are now tappable; clicking opens the corresponding item drill-down list
+- **Wider desktop layout** — content area expanded from 1100 px to 1400 px to reduce gutter space on larger screens
+- **Health score card full width on mobile** — was rendering as a narrow oddly sized block; now stretches to fill the row
+- **No horizontal page scroll** — outer report card clips overflow; chart grid cells get `min-width:0` so Chart.js canvases shrink properly
+- **KPI strip** uses a 3-column fixed grid on mobile (was `auto-fit` with a 160px minimum that could overflow narrow phones)
+- **"No use-by date" alert** now drills down to only items actually missing a date — previously opened the full inventory list
 
 ### Bug Fixes
-- Fix Review page crashing with 500 error — `url_for('edit_item')` corrected to `url_for('edit_item_form')`
+- Fix backup restore hanging in Home Assistant — removed `os.execv` restart; restore redirects immediately with a success message
+- Fix Review page crashing with 500 — `url_for('edit_item')` corrected to `url_for('edit_item_form')`
 
 ## 2026.03.27
 
