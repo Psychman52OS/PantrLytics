@@ -70,9 +70,11 @@
       {% if action_items %}
         <ul class="action-list">
           {% for ai in action_items %}
-            <li class="action-item action-{{ ai.severity }}">
+            <li class="action-item action-{{ ai.severity }}{% if ai.bucket %} action-item-link{% endif %}"
+              {% if ai.bucket %}data-action-bucket="{{ ai.bucket }}" role="button" tabindex="0"{% endif %}>
               {% if ai.severity == 'danger' %}⚠{% elif ai.severity == 'warn' %}⚡{% else %}ℹ{% endif %}
               {{ ai.text }}
+              {% if ai.bucket %}<span class="action-item-arrow">→</span>{% endif %}
             </li>
           {% endfor %}
         </ul>
@@ -231,8 +233,8 @@
   {% if top_consumed %}
   <section class="report-card" style="margin-top:14px;">
     <div class="report-head">
-      <h3>Most Consumed Items</h3>
-      <p class="muted">Top items by depletion events (all time, all categories).</p>
+      <h3>Most Consumed Categories</h3>
+      <p class="muted">Top categories by depletion count (all time).</p>
     </div>
     <div class="chart-wrap chart-wrap-consumed">
       <canvas id="consumedChart"></canvas>
@@ -579,6 +581,23 @@
       },
     });
   }
+
+  // Action item click → open bucket overlay
+  document.querySelectorAll('.action-item-link[data-action-bucket]').forEach(el => {
+    const open = () => {
+      const bucket = el.dataset.actionBucket;
+      const panels = Array.from(document.querySelectorAll('[data-bucket-panel]'));
+      const overlay = document.getElementById('bucket-overlay');
+      if (!overlay || !bucket) return;
+      const titleEl = overlay.querySelector('[data-bucket-title]');
+      const labels = { overdue:'Expired', d7:'Expires ≤7d', d14:'Expires ≤14d', d30:'Expires ≤30d', d60:'Expires ≤60d', total:'All in view' };
+      panels.forEach(p => { p.style.display = p.dataset.bucketPanel === bucket ? 'block' : 'none'; });
+      if (titleEl) titleEl.textContent = labels[bucket] || 'Items';
+      overlay.removeAttribute('hidden'); overlay.classList.add('open'); overlay.style.display = 'flex';
+    };
+    el.addEventListener('click', open);
+    el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
+  });
 
   // Bucket KPI modal
   const bucketOverlay = document.getElementById('bucket-overlay');

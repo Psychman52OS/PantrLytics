@@ -2932,7 +2932,7 @@ def reports(
     # Waste tracking and consumption velocity
     waste_count = 0
     total_depleted_with_date = 0
-    consumed_names: dict[str, int] = {}
+    consumed_cats: dict[str, int] = {}
     all_depleted_dates: list[dt.date] = []
 
     noncompliant = 0
@@ -2957,7 +2957,8 @@ def reports(
                     if audit_d and (today - audit_d).days <= audit_window:
                         health_audited_30d += 1
             else:
-                consumed_names[it.name] = consumed_names.get(it.name, 0) + 1
+                cat_key = it.category or "Uncategorized"
+                consumed_cats[cat_key] = consumed_cats.get(cat_key, 0) + 1
                 dep_d_g = _parse_date(it.depleted_at)
                 if dep_d_g:
                     all_depleted_dates.append(dep_d_g)
@@ -3181,8 +3182,8 @@ def reports(
         velocity_weeks.append(label)
         velocity_counts.append(count)
 
-    # --- Top consumed items (top 10 by name frequency) ---
-    top_consumed = sorted(consumed_names.items(), key=lambda kv: kv[1], reverse=True)[:10]
+    # --- Top consumed categories (top 10 by depletion count) ---
+    top_consumed = sorted(consumed_cats.items(), key=lambda kv: kv[1], reverse=True)[:10]
 
     # --- Action items ---
     action_items = []
@@ -3193,21 +3194,25 @@ def reports(
         action_items.append({
             "severity": "danger",
             "text": f"{n_expired} item{'s' if n_expired != 1 else ''} expired and still in stock",
+            "bucket": "overdue",
         })
     if n_expiring_7d > 0:
         action_items.append({
             "severity": "warn",
             "text": f"{n_expiring_7d} item{'s' if n_expiring_7d != 1 else ''} expire{'s' if n_expiring_7d == 1 else ''} within 7 days",
+            "bucket": "d7",
         })
     if g_no_date > 0:
         action_items.append({
             "severity": "info",
             "text": f"{g_no_date} item{'s' if g_no_date != 1 else ''} {'has' if g_no_date == 1 else 'have'} no use-by date set",
+            "bucket": "total",
         })
     if waste_rate is not None and waste_rate > 20:
         action_items.append({
             "severity": "warn",
             "text": f"{waste_rate}% of tracked depletions were past their use-by date",
+            "bucket": None,
         })
 
     return templates.TemplateResponse(
