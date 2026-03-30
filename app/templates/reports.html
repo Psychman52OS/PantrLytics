@@ -2,7 +2,7 @@
 {% block title %}Reports · Pantrlytics{% endblock %}
 
 {% block content %}
-<section class="card">
+<section class="card" style="overflow-x: hidden;">
   <header class="page-header">
     <div class="page-header-text">
       <h1 class="page-title">Reports</h1>
@@ -365,6 +365,7 @@
   ('d14', 'Expires ≤14d', bucket_items.get('d14', [])),
   ('d30', 'Expires ≤30d', bucket_items.get('d30', [])),
   ('d60', 'Expires ≤60d', bucket_items.get('d60', [])),
+  ('no_date', 'No Use-by Date', bucket_items.get('no_date', [])),
   ('total', 'All in view', total_items),
 ] %}
 
@@ -590,7 +591,7 @@
       const overlay = document.getElementById('bucket-overlay');
       if (!overlay || !bucket) return;
       const titleEl = overlay.querySelector('[data-bucket-title]');
-      const labels = { overdue:'Expired', d7:'Expires ≤7d', d14:'Expires ≤14d', d30:'Expires ≤30d', d60:'Expires ≤60d', total:'All in view' };
+      const labels = { overdue:'Expired', d7:'Expires ≤7d', d14:'Expires ≤14d', d30:'Expires ≤30d', d60:'Expires ≤60d', no_date:'No Use-by Date', total:'All in view' };
       panels.forEach(p => { p.style.display = p.dataset.bucketPanel === bucket ? 'block' : 'none'; });
       if (titleEl) titleEl.textContent = labels[bucket] || 'Items';
       overlay.removeAttribute('hidden'); overlay.classList.add('open'); overlay.style.display = 'flex';

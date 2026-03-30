@@ -2916,6 +2916,7 @@ def reports(
         "d14": [],
         "d30": [],
         "d60": [],
+        "no_date": [],
     }
     total_items: list[Item] = []
 
@@ -3042,6 +3043,8 @@ def reports(
                 elif info["days"] <= 60:
                     summary["d60"] += 1
                     bucket_items["d60"].append(it)
+            else:
+                bucket_items["no_date"].append(it)
 
             if info:
                 expiring.append(it)
@@ -3202,11 +3205,12 @@ def reports(
             "text": f"{n_expiring_7d} item{'s' if n_expiring_7d != 1 else ''} expire{'s' if n_expiring_7d == 1 else ''} within 7 days",
             "bucket": "d7",
         })
-    if g_no_date > 0:
+    n_no_date = len(bucket_items["no_date"])
+    if n_no_date > 0:
         action_items.append({
             "severity": "info",
-            "text": f"{g_no_date} item{'s' if g_no_date != 1 else ''} {'has' if g_no_date == 1 else 'have'} no use-by date set",
-            "bucket": "total",
+            "text": f"{n_no_date} item{'s' if n_no_date != 1 else ''} {'has' if n_no_date == 1 else 'have'} no use-by date set",
+            "bucket": "no_date",
         })
     if waste_rate is not None and waste_rate > 20:
         action_items.append({

@@ -2152,8 +2152,11 @@ form.search-and-filters .btn-clear-filters:hover {
 }
 @media (max-width: 600px) {
   .charts-row { grid-template-columns: 1fr; }
+  .health-score-card { width: 100%; flex-shrink: 1; }
+  .action-items-panel { min-width: 0; }
+  .kpi-grid { grid-template-columns: repeat(3, 1fr); }
 }
-.chart-card { display: flex; flex-direction: column; }
+.chart-card { display: flex; flex-direction: column; min-width: 0; }
 .chart-wrap {
   position: relative;
   width: 100%;
