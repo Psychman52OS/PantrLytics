@@ -1,5 +1,12 @@
 # PantrLytics Changelog
 
+## 2026.03.30-7
+
+### Quick Edit — Complete interaction fix
+- **Nuclear swipe disable** — swipe handlers now check `_quickEditActive` as their very first instruction; entire swipe system goes dark the moment Quick Edit is on, restores automatically when off
+- **Event delegation** — replaced per-input `blur`/`change`/`click` listeners with three document-level delegated handlers (blur in capture phase, change, click-to-focus); no listeners are lost due to DOM timing or JS errors
+- **Error isolation** — each row's `_qeStartEdit` is wrapped in try/catch so a failure on one row never aborts the others
+
 ## 2026.03.30-6
 
 ### Bug Fix
