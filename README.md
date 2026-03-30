@@ -1,5 +1,7 @@
 # PantrLytics
 
+**Version 2026.03.30-3**
+
 Inventory tracker with on-demand label generation and IPP printing. Runs as a Home Assistant add-on or as a standalone Docker container.
 
 License: Personal use only (non-commercial). See LICENSE.
@@ -37,16 +39,9 @@ Then open `http://<your-server-ip>:8099` in a browser.
 | `SERIAL_PREFIX` | Prefix for auto-generated serials | `ITEM-` |
 | `PORT` | Host port to expose | `8099` |
 
-`BASE_URL` is the most important setting — it's what gets encoded into printed label QR codes. Set it to the IP:port (or domain) that your barcode scanner or phone can reach. Leave it blank if you're only using the web UI.
+`BASE_URL` is the most important setting — it gets encoded into printed label QR codes. Set it to the IP:port your barcode scanner or phone can reach. Leave blank if you're only using the web UI.
 
-**Data persistence:**
-
-All data (database, photos, backups) is stored in a Docker named volume (`pantrlytics_data`). To use a host directory instead, edit `docker-compose.yml` and replace the volume with a bind mount:
-
-```yaml
-volumes:
-  - /your/path:/data
-```
+**Data persistence:** All data (database, photos, backups) is stored in a Docker named volume (`pantrlytics_data`). To use a host directory instead, replace the volume with a bind mount in `docker-compose.yml`.
 
 **Updating:**
 
@@ -60,107 +55,115 @@ docker compose pull && docker compose up -d
 
 ## Add-on install (Home Assistant)
 
-1) **Add repo**: Supervisor → Add-on Store → “Repositories” → `https://github.com/Psychman52OS/PantrLytics`.
-2) **Install**: Select “PantrLytics” and install.
-3) **Network mapping (critical for QR codes)**:
-   - Map a host port to container port `8099` (container always listens on 8099).
-   - Example: host `8099` → container `8099`. Whatever host port you map is the one you must use in `base_url`.
-4) **Configuration**:
-   - `base_url` (strongly recommended): Use a direct, reachable URL with the correct host and mapped port, e.g. `http://192.168.1.10:8099`. Avoid ingress URLs for QR codes. If you use a reverse proxy with HTTPS, use that URL instead (e.g. `https://your.domain:443`).
-   - `ipp_host` / `ipp_printer` (optional): IPP host:port and queue name for direct printing. If unset, print actions return PNG previews.
-   - `serial_prefix` (optional): Prefix for new serials/barcodes (default `USERconfigurable-`).
-   - `workers` (optional): Gunicorn workers (default 2).
-5) **Start** the add-on. Open via “Open Web UI” (ingress) or `http://<HA-host>:<mapped-port>/`.
-6) **Secure admin**: Default admin password is `password`. Go to Admin → “Admin password” and change it immediately.
+1. **Add repo**: Supervisor → Add-on Store → Repositories → `https://github.com/Psychman52OS/PantrLytics`
+2. **Install**: Select "PantrLytics" and install.
+3. **Network mapping**: Map a host port to container port `8099`. Whatever host port you map must match the port in `base_url`.
+4. **Configuration**:
+   - `base_url` (strongly recommended): direct reachable URL with the correct host and mapped port, e.g. `http://192.168.1.10:8099`. Avoid ingress URLs for QR codes.
+   - `ipp_host` / `ipp_printer` (optional): IPP host:port and queue name. If unset, print actions return PNG previews.
+   - `serial_prefix` (optional): prefix for new serials (default `USERconfigurable-`).
+5. **Start** the add-on. Open via "Open Web UI" (ingress) or `http://<HA-host>:<mapped-port>/`.
+6. **Secure admin**: Default password is `password`. Change it immediately in Admin → Admin password.
 
-### QR codes and `base_url` explained (don’t skip)
-- The QR code encodes `base_url` + `/item/<id>`. If `base_url` is wrong, scans will fail (401s, timeouts, or blank pages).
-- Use the HA host’s LAN IP plus the mapped port: e.g., `http://192.168.1.10:8099`. Include the port every time.
-- If you front this with HTTPS (reverse proxy), set `https://your-domain:<port>` so the QR matches the TLS endpoint.
-- Ingress URLs (`/api/hassio_ingress/...`) need short-lived tokens and often fail when scanned; prefer a direct reachable address.
-- After changing `base_url`, **reprint labels** so the QR codes carry the new URL.
+### QR codes and `base_url`
+- QR codes encode `base_url` + `/item/<id>`. If `base_url` is wrong, scans fail.
+- Use the HA host's LAN IP and the mapped port: `http://192.168.1.10:8099`.
+- If fronted by HTTPS/reverse proxy, use `https://your-domain:<port>`.
+- Ingress URLs need short-lived tokens and often fail when scanned — prefer a direct address.
+- After changing `base_url`, reprint labels.
 
 ---
 
-## Using the app (all pages and controls)
+## Using the app
 
 ### Home page (inventory list)
-- Search by name, serial, barcode, tags, notes, category, location, bin, unit, or dates.
-- Quick filters: categories, locations, bins, use-within, depleted reason, and show/hide depleted.
-- Columns: configurable in Admin → Main table columns (show/hide/reorder).
-- Quantity +/-: appears only for units marked **Adjustable** in Admin → Units. When off, buttons hide for that unit.
+
+- **Search**: name, serial, barcode, tags, notes, category, location, bin, unit, or dates.
+- **Quick-filter chips**: categories and locations with item counts; collapsible panel on desktop.
+- **Views**: toggle between compact List view and card Grid view (with photo thumbnails); preference persists.
+- **Columns**: configurable in Admin → Main table columns (show/hide/reorder).
+- **Quantity +/−**: appears only for units marked **Adjustable** in Admin → Units.
+- **Desktop Quick Edit**: click ✏ Edit on any list row to edit fields inline without leaving the page. Save updates in place; Cancel restores instantly.
 
 ### Items
-- **Create**: Click **New item**; fill name, category, location, bin, quantity, unit, condition, cook/use-by dates, use-within, tags, notes, and photos. Required fields are enforced per Admin settings.
-- **Edit**: Open item → Edit. Photos can be added/replaced; tags/fields updated.
-- **Deplete/Recover**: Mark depleted with reason (qty → 0). Recover restores quantity. Depleted list lives under “Depleted.”
-- **Delete**: Permanently remove item and photos.
 
-### Units (drives +/- buttons)
-- Admin → Units: add/edit/delete units, drag to reorder, toggle **Adjustable** to control +/- visibility.
-- Any unit already on items (e.g., grams) is auto-added to the list (non-adjustable by default) so you can toggle it.
+- **Create** (New Item): fill name, category, location, bin, quantity, unit, condition, cook/use-by dates, use-within, tags, notes, photos, and optional per-item review window.
+- **Edit**: opens a modal; all fields editable; photos can be added or deleted.
+- **Deplete/Recover**: mark depleted with a date, time, and reason (quantity → 0). Recover restores the item.
+- **Delete**: permanently removes item and photos.
+- **Detail page**: shows last reviewed date, next review due date with a countdown pill (`in Xd`, `Due today`, `Xd overdue`), plus all other item fields.
 
-### Labels
-- Item page: **Preview Label** (PNG) or **Print Label** (with copy count). Multiple copies are one CUPS job.
-- QR code uses `base_url`. If scans fail, fix `base_url`/port and reprint.
+### Review page
+
+Surfaces items that haven't been touched (created, edited, depleted, or manually reviewed) within the configured window.
+
+- **Needs review** queue: sorted by oldest review date; never-reviewed items appear first.
+- **Mark Reviewed** button on each item stamps today's date and removes it from the queue.
+- **Mark all reviewed** bulk action clears the entire queue at once.
+- **Per-item review window**: set a custom interval (15d / 30d / 60d / 120d) when creating or editing an item to override the global default for that item only.
+- **Global default**: Admin → Review window (7–365 days, default 30).
 
 ### Reports page
-- **Horizon**: 7/14/30/60/all days for expiry risk.
-- **KPIs**: Expired, ≤7d, ≤14d, ≤30d, ≤60d, total in view.
-- **Use-within compliance**: % of items within intended window.
-- **Aging waterfall**: Age distribution bars.
-- **Heatmap**: Category × Location counts for expiring items.
-- **Depletions**: Counts, avg days on hand, reasons (click to drill into items), recent depleted list.
-- **Upcoming risk (top 25)**: Soonest-to-expire items sorted by days remaining.
 
-### Admin sections (everything configurable)
-- **Main table columns**: Show/hide and reorder columns on the home page.
-- **Required fields**: Choose which fields are mandatory on new/edit.
-- **Theme**: Light/Dark toggle.
-- **App heading**: Custom text on the main page.
-- **Categories / Bins / Locations / Use Within**: Add, edit (modal), delete, drag to reorder. Renames update existing items.
-- **Units**: Add/edit/delete, reorder, toggle **Adjustable** (controls +/- buttons). Auto-captures any unit seen on items so you can manage it.
-- **Admin password**: Change from the default.
+- **Inventory Health Score** (0–100, letter grade A–F) composed of:
+  - Use-by compliance (50%) — items not past their use-by date
+  - Date coverage (30%) — items that have a use-by date set
+  - Audit freshness (20%) — items reviewed within their window
+- **Action items panel** — expired, expiring, no-date, and high-waste alerts; each is tappable and opens the matching item list.
+- **KPI strip**: Expired / ≤7d / ≤14d / ≤30d / ≤60d / Total in view; each card opens a drill-down list.
+- **Charts**: compliance donut, aging distribution bar, depletion trend (last 12 weeks), top consumed categories bar.
+- **Compliance tables**: by category and location; worst performers first.
+- **Waste rate**: percentage of depletions that occurred after the item's use-by date.
+- **Filters**: horizon (7/14/30/60/all days), category, location; auto-submit on change.
+- **Export CSV**: downloads active items in the current filtered view.
 
-### Backup, restore, and CSV
-- **Backup page**:
-  - Create zip backups (DB, photos, options, CSV export) and download.
-  - Restore from a zip created by the app.
-  - Delete all items/photos (irreversible).
-- **CSV export/import**:
-  - Export: choose fields and download.
-  - Import: headers must match export; missing serials auto-generate. Categories/bins/locations/units are upserted.
+### Label Designer & Printing
 
----
+- **Item page**: Preview Label (PNG) or Print Label with copy count. Multiple copies submit as one CUPS job.
+- **Label Designer**: customise layout, font sizes, fields shown, and QR code placement. Save as named presets.
+- **QR code** encodes `base_url + /item/<id>`. If scans fail, verify `base_url` and reprint.
 
-## Printer setup (IPP/CUPS over local network)
+### Admin sections
 
-1) Share your printer via CUPS/IPP:
-   - Enable sharing: `cupsctl --remote-admin --remote-any --share-printers`.
-   - Add printer in CUPS (`http://<cups-host>:631/admin`) and print a test page.
-   - Note queue name and host:port (default 631).
-2) In add-on config:
-   - `ipp_host`: e.g., `192.168.1.50:631`
-   - `ipp_printer`: queue name, e.g., `DYMO_LabelWriter_450`
-3) Restart the add-on. Print from an item; IPP sends directly. If unreachable/unset, you get a PNG instead.
-4) Troubleshoot: verify LAN reachability, queue name, CUPS sharing/firewall, and check add-on logs for IPP errors.
+| Section | What it controls |
+|---|---|
+| Main table columns | Show/hide and reorder columns on the home page |
+| Required fields | Which fields are mandatory when creating/editing |
+| Theme | Light / Dark |
+| App heading | Custom title text on the main page |
+| Font sizes | Global base size plus per-page overrides for list and detail pages |
+| Swipe actions | What left-swipe and right-swipe do on cards and rows (Edit, Deplete, Open, Print, or None) |
+| Review window | Default review interval in days (7–365); per-item overrides take precedence |
+| Default item icon | Choose from 40 food/pantry emojis or upload a custom image |
+| Categories / Bins / Locations / Use Within | Add, edit, delete, drag to reorder; renames update existing items |
+| Units | Add/edit/delete, reorder, toggle **Adjustable** (controls +/− buttons) |
+| Admin password | Change from the default |
 
----
+### Backup, Restore & CSV
 
-## CSV import/export (Backup page)
-
-- Export selected fields to CSV.
-- Import expects matching headers. Missing serials auto-generate; categories/bins/locations/units are upserted if new.
-- Success message shows items added/skipped.
+- **Backup**: create zip (DB, photos, options, CSV export) and download.
+- **Restore**: upload a zip created by the app. Works correctly in HA — no restart loop.
+- **CSV export/import**: export any field set; import matches on headers, auto-generates serials, upserts categories/bins/locations/units.
+- **Delete all items**: irreversible wipe of all items/photos on the Backup page.
+- **Repair DB**: `/repair-db` endpoint for corrupted databases.
 
 ---
 
-## Local development (optional)
+## Printer setup (IPP/CUPS)
+
+1. Share your printer via CUPS: `cupsctl --remote-admin --remote-any --share-printers`
+2. Add printer in CUPS (`http://<cups-host>:631/admin`), note queue name and host:port.
+3. In add-on config / `.env`: set `ipp_host` (e.g. `192.168.1.50:631`) and `ipp_printer` (queue name).
+4. Restart. Print from any item — IPP sends directly. If unreachable, you get a PNG preview instead.
+
+---
+
+## Local development
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -r app/requirements.txt
-export DATA_DIR="$(pwd)/data"   # optional: keep data in repo instead of /data
-./run.sh  # serves on http://localhost:8099
+export DATA_DIR="$(pwd)/data"
+./run.sh   # serves on http://localhost:8099
 ```
