@@ -2207,3 +2207,96 @@ form.search-and-filters .btn-clear-filters:hover {
 .btn-danger:hover {
   background: color-mix(in oklab, #fa5252 85%, var(--card) 15%);
 }
+
+/* -------------------------
+   Review page
+--------------------------- */
+.review-section { margin-top: 16px; }
+
+.review-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 0 10px;
+  color: var(--text);
+}
+.review-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 99px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.review-count-due  { background: #ff6b6b; color: #fff; }
+.review-count-ok   { background: #63e6be; color: #1a3a2a; }
+
+.review-list { display: flex; flex-direction: column; gap: 8px; }
+
+.review-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--btn-border);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+.review-row-done {
+  opacity: 0.65;
+  border-style: dashed;
+}
+.review-row-info { flex: 1; min-width: 0; }
+.review-row-name {
+  font-weight: 600;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.review-row-meta {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.review-row-dates {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+.review-date-label { font-weight: 600; }
+.review-row-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.review-row-date-right {
+  font-size: 12px;
+  color: var(--muted);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.review-btn { white-space: nowrap; }
+
+.review-all-clear {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 40px 20px;
+  color: var(--muted);
+}
+.review-all-clear-icon { font-size: 2.5rem; }
+.review-all-clear-text { font-size: 15px; }
+
+@media (max-width: 640px) {
+  .review-row { flex-direction: column; align-items: flex-start; }
+  .review-row-actions { width: 100%; justify-content: flex-end; margin-top: 6px; }
+}

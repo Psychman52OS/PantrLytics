@@ -65,6 +65,7 @@
           <a href="{{ url_for('new_item') }}">New Item</a>
           <a href="{{ url_for('label_designer') }}">Designer</a>
           <a href="{{ url_for('reports') }}">Reports</a>
+          <a href="{{ url_for('review_page') }}">Review</a>
           <a href="{{ url_for('admin') }}">Admin</a>
           <a href="{{ url_for('backup_page') }}">Backup</a>
         </nav>
@@ -117,6 +118,7 @@
     <div class="bottom-sheet-backdrop" id="bottom-sheet-backdrop"></div>
     <div class="bottom-sheet-content">
       <div class="bottom-sheet-handle"></div>
+      <a class="bottom-sheet-item" href="{{ url_for('review_page') }}">🔍 Review Items</a>
       <a class="bottom-sheet-item" href="{{ url_for('admin') }}">⚙ Admin &amp; Settings</a>
       <a class="bottom-sheet-item" href="{{ url_for('backup_page') }}">💾 Backup</a>
       <a class="bottom-sheet-item" href="{{ url_for('depleted_items') }}">📦 Depleted Items</a>

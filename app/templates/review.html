@@ -1,0 +1,104 @@
+{% extends "layout.html" %}
+{% block title %}Review · PantrLytics{% endblock %}
+
+{% block content %}
+<section class="card">
+  <header class="page-header">
+    <div class="page-header-text">
+      <h1 class="page-title">Review</h1>
+      <p class="page-subtitle">
+        Items not touched in {{ audit_window }} days · {{ total_needs }} of {{ total_active }} need review.
+      </p>
+    </div>
+    {% if needs_review %}
+    <form method="post" action="{{ url_for('mark_all_reviewed') }}"
+          onsubmit="return confirm('Mark all {{ total_needs }} items as reviewed today?')">
+      <button class="btn btn-accent" type="submit">Mark all reviewed</button>
+    </form>
+    {% endif %}
+  </header>
+
+  {% if msg %}
+    <div class="alert alert-success">{{ msg }}</div>
+  {% endif %}
+
+  {# ── Needs Review ────────────────────────────────────────────── #}
+  {% if needs_review %}
+  <section class="review-section">
+    <h2 class="review-section-title">
+      Needs review
+      <span class="review-count review-count-due">{{ needs_review | length }}</span>
+    </h2>
+    <div class="review-list">
+      {% for item in needs_review %}
+      <div class="review-row">
+        <div class="review-row-info">
+          <div class="review-row-name">
+            <a class="link" href="{{ url_for('show_item', item_id=item.id) }}">{{ item.name }}</a>
+            {% if item.expiry_info %}
+              <span class="pill pill-{{ item.expiry_info.severity }}">{{ item.expiry_info.badge }}</span>
+            {% endif %}
+          </div>
+          <div class="review-row-meta">
+            {% if item.category %}{{ item.category }}{% endif %}
+            {% if item.location %} · {{ item.location }}{% endif %}
+            {% if item.bin_number %} · {{ item.bin_number }}{% endif %}
+            {% if item.quantity is not none %} · Qty: {{ item.quantity }}{% if item.unit %} {{ item.unit }}{% endif %}{% endif %}
+          </div>
+          <div class="review-row-dates">
+            {% if item.use_by_date %}
+              <span class="review-date-label">Use-by:</span> {{ item.use_by_date }}
+            {% endif %}
+            <span class="review-date-label" style="margin-left:{% if item.use_by_date %}12px{% else %}0{% endif %};">Last reviewed:</span>
+            {% if item.last_audit_date %}{{ item.last_audit_date }}{% else %}<em class="muted">Never</em>{% endif %}
+          </div>
+        </div>
+        <div class="review-row-actions">
+          <form method="post" action="{{ url_for('mark_reviewed', item_id=item.id) }}">
+            <input type="hidden" name="next" value="{{ request.url }}">
+            <button class="btn btn-accent btn-sm review-btn" type="submit" title="Mark as reviewed">✓ Reviewed</button>
+          </form>
+          <a class="btn btn-secondary btn-sm" href="{{ url_for('edit_item', item_id=item.id) }}">Edit</a>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% else %}
+  <div class="review-all-clear">
+    <div class="review-all-clear-icon">✅</div>
+    <div class="review-all-clear-text">All items are up to date — nothing needs review.</div>
+  </div>
+  {% endif %}
+
+  {# ── Recently Reviewed ───────────────────────────────────────── #}
+  {% if recently_reviewed %}
+  <section class="review-section" style="margin-top: 24px;">
+    <h2 class="review-section-title">
+      Recently reviewed
+      <span class="review-count review-count-ok">{{ recently_reviewed | length }}</span>
+    </h2>
+    <div class="review-list review-list-done">
+      {% for item in recently_reviewed %}
+      <div class="review-row review-row-done">
+        <div class="review-row-info">
+          <div class="review-row-name">
+            <a class="link" href="{{ url_for('show_item', item_id=item.id) }}">{{ item.name }}</a>
+          </div>
+          <div class="review-row-meta">
+            {% if item.category %}{{ item.category }}{% endif %}
+            {% if item.location %} · {{ item.location }}{% endif %}
+            {% if item.quantity is not none %} · Qty: {{ item.quantity }}{% if item.unit %} {{ item.unit }}{% endif %}{% endif %}
+          </div>
+        </div>
+        <div class="review-row-date-right">
+          {{ item.last_audit_date }}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+</section>
+{% endblock %}

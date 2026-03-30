@@ -222,6 +222,27 @@
     </form>
   </section>
 
+  <!-- Review / audit window -->
+  <section class="admin-section" id="audit-window-section">
+    <div class="admin-section-header">
+      <h2>Review window</h2>
+      <p class="admin-section-help">
+        Items not edited, depleted, or manually reviewed within this many days are shown as
+        needing review on the Review page, and count against the Inventory Health score.
+      </p>
+    </div>
+    <form method="post" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+      <input type="hidden" name="audit_window_action" value="save">
+      <label class="kv-label" for="audit-window-days" style="margin:0;">Review every</label>
+      <input id="audit-window-days" name="audit_window_days" type="number"
+             min="7" max="365" step="1"
+             value="{{ audit_window_days }}"
+             class="input input-small" style="width:72px;">
+      <span class="muted">days</span>
+      <button class="btn btn-accent" type="submit" style="width:fit-content;">Save</button>
+    </form>
+  </section>
+
   <!-- Default item icon -->
   <section class="admin-section" id="default-icon-section">
     <div class="admin-section-header">

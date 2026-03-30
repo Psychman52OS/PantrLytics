@@ -2060,12 +2060,71 @@ def deplete_item(
         item.depleted_reason = reason_clean
         item.depleted_qty = item.quantity
         item.quantity = 0
+        item.last_audit_date = dt.date.today().isoformat()
         session.add(item)
         session.commit()
     return RedirectResponse(
         url=str(request.url_for("show_item", item_id=item_id)),
         status_code=303,
     )
+
+
+@app.post("/item/{item_id}/mark-reviewed", name="mark_reviewed")
+def mark_reviewed(request: Request, item_id: int, next: str = Form("")):
+    with Session(engine) as session:
+        item = session.get(Item, item_id)
+        if item and not item.depleted_at:
+            item.last_audit_date = dt.date.today().isoformat()
+            session.add(item)
+            session.commit()
+    target = next or str(request.url_for("review_page"))
+    return RedirectResponse(url=target, status_code=303)
+
+
+@app.post("/review/mark-all-reviewed", name="mark_all_reviewed")
+def mark_all_reviewed(request: Request):
+    today = dt.date.today().isoformat()
+    with Session(engine) as session:
+        items = session.exec(select(Item).where(Item.depleted_at == None)).all()
+        for it in items:
+            it.last_audit_date = today
+            session.add(it)
+        session.commit()
+        count = len(items)
+    return RedirectResponse(
+        url=str(request.url_for("review_page")) + f"?msg={count}+items+marked+reviewed",
+        status_code=303,
+    )
+
+
+@app.get("/review", name="review_page", response_class=HTMLResponse)
+def review_page(request: Request, msg: str = ""):
+    with Session(engine) as session:
+        audit_window = int(_get_setting(session, "audit_window_days", "30") or "30")
+        cutoff = (dt.date.today() - dt.timedelta(days=audit_window)).isoformat()
+        all_active = session.exec(select(Item).where(Item.depleted_at == None)).all()
+
+    needs_review = []
+    recently_reviewed = []
+    for it in all_active:
+        if not it.last_audit_date or it.last_audit_date < cutoff:
+            needs_review.append(it)
+        else:
+            recently_reviewed.append(it)
+
+    # Sort: never reviewed first, then oldest reviewed date
+    needs_review.sort(key=lambda x: x.last_audit_date or "")
+    recently_reviewed.sort(key=lambda x: x.last_audit_date or "", reverse=True)
+
+    return templates.TemplateResponse("review.html", {
+        "request": request,
+        "needs_review": needs_review,
+        "recently_reviewed": recently_reviewed,
+        "audit_window": audit_window,
+        "msg": msg,
+        "total_needs": len(needs_review),
+        "total_active": len(all_active),
+    })
 
 
 @app.post("/item/{item_id}/recover")
@@ -2763,6 +2822,7 @@ async def new_item(
             notes=notes or None,
             barcode=serial,
             photo_path=None,
+            last_audit_date=dt.date.today().isoformat(),
         )
         session.add(item)
         session.commit()
@@ -2880,6 +2940,7 @@ def reports(
     aging_buckets = {"expired": 0, "1-7": 0, "8-14": 0, "15-30": 0, "31-60": 0, "61+": 0}
 
     with Session(engine) as session:
+        audit_window = int(_get_setting(session, "audit_window_days", "30") or "30")
         items = session.exec(select(Item)).all()
         for it in items:
             object.__setattr__(it, "expiry_info", _expiry_info(it))
@@ -2893,7 +2954,7 @@ def reports(
                     health_noncompliant_global += 1
                 if it.last_audit_date:
                     audit_d = _parse_date(it.last_audit_date)
-                    if audit_d and (today - audit_d).days <= 30:
+                    if audit_d and (today - audit_d).days <= audit_window:
                         health_audited_30d += 1
             else:
                 consumed_names[it.name] = consumed_names.get(it.name, 0) + 1
@@ -3964,6 +4025,7 @@ async def edit_item_submit(
         item.use_by_date = use_by_date or None
         item.use_within = use_within or None
         item.notes = notes or None
+        item.last_audit_date = dt.date.today().isoformat()
         session.add(item)
         session.commit()
 
@@ -4426,6 +4488,13 @@ async def admin(request: Request, response: Response):
                     left=form.get("swipe_left_action", SWIPE_ACTION_DEFAULTS["left"]),
                 )
 
+            elif form.get("audit_window_action") == "save":
+                try:
+                    days = max(7, min(365, int(form.get("audit_window_days", "30"))))
+                except (ValueError, TypeError):
+                    days = 30
+                _set_setting(session, "audit_window_days", str(days))
+
             elif form.get("usewithin_order_action") == "save":
                 order_str = form.get("usewithin_order", "")
                 try:
@@ -4483,6 +4552,7 @@ async def admin(request: Request, response: Response):
         admin_font_sizes = get_font_sizes(session)
         admin_default_emoji = _get_setting(session, "default_icon_emoji", DEFAULT_ITEM_EMOJI) or DEFAULT_ITEM_EMOJI
         admin_swipe_actions = get_swipe_actions(session)
+        audit_window_days = int(_get_setting(session, "audit_window_days", "30") or "30")
         health = {
             "ipp_status": check_ipp_status(),
             "disk": get_disk_usage(DATA_DIR),
@@ -4509,6 +4579,7 @@ async def admin(request: Request, response: Response):
             "admin_default_emoji": admin_default_emoji,
             "admin_swipe_actions": admin_swipe_actions,
             "swipe_action_options": SWIPE_ACTION_OPTIONS,
+            "audit_window_days": audit_window_days,
             "health": health,
             "app_heading": app_heading,
             "pass_error": pass_error,
