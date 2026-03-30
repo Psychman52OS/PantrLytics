@@ -1539,6 +1539,13 @@ dialog#app-modal::backdrop {
     overflow: visible;
     background: transparent;
   }
+  /* Reports compliance tables need horizontal scroll, not the card override */
+  .compliance-table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border) !important;
+    border-radius: var(--radius) !important;
+    background: transparent;
+  }
 
   .table-inventory,
   .table-inventory tbody {
@@ -1909,7 +1916,7 @@ form.search-and-filters .btn-clear-filters:hover {
 
 .reports-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
   gap: 16px;
 }
 .report-card {
@@ -2161,7 +2168,7 @@ form.search-and-filters .btn-clear-filters:hover {
 /* Compliance tables */
 .compliance-tables-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
   gap: 14px;
   margin-bottom: 0;
 }

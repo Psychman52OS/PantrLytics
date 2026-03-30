@@ -156,7 +156,7 @@
         <h3>Compliance by Category</h3>
         <p class="muted">Worst performers first. Excludes depleted items.</p>
       </div>
-      <div class="table-wrap">
+      <div class="table-wrap compliance-table-wrap">
         <table class="table compliance-table">
           <thead>
             <tr>
@@ -194,7 +194,7 @@
         <h3>Compliance by Location</h3>
         <p class="muted">Worst performers first. Excludes depleted items.</p>
       </div>
-      <div class="table-wrap">
+      <div class="table-wrap compliance-table-wrap">
         <table class="table compliance-table">
           <thead>
             <tr>
@@ -486,6 +486,8 @@
         datasets: [{ data: [complianceData.compliant, complianceData.expired], backgroundColor: ['#63e6be','#ff6b6b'], borderWidth: 0 }],
       },
       options: {
+        responsive: true,
+        maintainAspectRatio: false,
         cutout: '68%',
         plugins: {
           legend: { position: 'bottom', labels: { color: textColor, padding: 12, boxWidth: 12 } },
@@ -510,6 +512,8 @@
         }],
       },
       options: {
+        responsive: true,
+        maintainAspectRatio: false,
         indexAxis: 'y',
         plugins: { legend: { display: false } },
         scales: {
@@ -538,6 +542,8 @@
         }],
       },
       options: {
+        responsive: true,
+        maintainAspectRatio: false,
         plugins: { legend: { display: false } },
         scales: {
           x: { ticks: { color: textColor, maxRotation: 45 }, grid: { color: gridColor } },
@@ -562,6 +568,8 @@
         }],
       },
       options: {
+        responsive: true,
+        maintainAspectRatio: false,
         indexAxis: 'y',
         plugins: { legend: { display: false } },
         scales: {
