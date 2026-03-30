@@ -1,0 +1,32 @@
+services:
+  pantrlytics:
+    image: ghcr.io/psychman52os/pantrlytics:latest
+    container_name: pantrlytics
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8099}:8099"
+    volumes:
+      - pantrlytics_data:/data
+    environment:
+      # Base URL used for QR codes on printed labels.
+      # Set this to the URL users will scan — e.g. http://192.168.1.100:8099
+      # or https://pantrlytics.yourdomain.com. Must be reachable by the device
+      # doing the scanning. Leave blank to auto-detect from request headers.
+      - BASE_URL=${BASE_URL:-}
+
+      # IPP label printer (leave blank if not printing labels).
+      # IPP_HOST: hostname:port of the CUPS/IPP server, e.g. 192.168.1.50:631
+      # IPP_PRINTER: queue name, e.g. DYMO_LabelWriter_450
+      - IPP_HOST=${IPP_HOST:-}
+      - IPP_PRINTER=${IPP_PRINTER:-}
+
+      # Prefix prepended to auto-generated serial numbers (default: ITEM-)
+      - SERIAL_PREFIX=${SERIAL_PREFIX:-ITEM-}
+
+volumes:
+  pantrlytics_data:
+    # Named volume — Docker manages storage location.
+    # To use a host path instead, replace with:
+    #   driver: local
+    # and change the volumes: section above to:
+    #   - /your/host/path:/data
