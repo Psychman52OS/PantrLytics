@@ -190,6 +190,21 @@
         </select>
       </div>
 
+      <!-- Review window -->
+      <div class="field field--full">
+        <label class="kv-label">Review window <span class="muted" style="font-weight:normal;">(days — leave blank for default of {{ audit_window_days }}d)</span></label>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:4px;">
+          {% for days in [15, 30, 60, 120] %}
+            <button type="button" class="btn btn-secondary btn-sm js-edit-review-quick
+              {% if item.review_window_days == days %}btn-accent{% endif %}"
+              data-days="{{ days }}">{{ days }}d</button>
+          {% endfor %}
+        </div>
+        <input class="input input-small" type="number" name="review_window_days" id="edit_review_window_days"
+               min="1" max="365" placeholder="Default ({{ audit_window_days }}d)"
+               value="{{ item.review_window_days or '' }}" style="width:120px;">
+      </div>
+
       <!-- Notes -->
       <div class="field field--full">
         <label class="kv-label" for="notes">Notes {% if required_fields and 'notes' in required_fields %}(REQUIRED){% endif %}</label>
@@ -330,5 +345,22 @@
       if (!wrapper.contains(e.target)) list.style.display = 'none';
     });
   });
+})();
+
+// Review window quick buttons
+(function(){
+  const input = document.getElementById('edit_review_window_days');
+  if (!input) return;
+  const btns = document.querySelectorAll('.js-edit-review-quick');
+  function syncBtns() {
+    btns.forEach(b => b.classList.toggle('btn-accent', b.dataset.days === input.value));
+  }
+  btns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      input.value = btn.dataset.days;
+      syncBtns();
+    });
+  });
+  input.addEventListener('input', syncBtns);
 })();
 </script>
