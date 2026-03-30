@@ -3,6 +3,7 @@ name: Publish Docker image to GHCR
 on:
   push:
     branches: [ main ]
+    tags: [ 'v*.*.*' ]
   workflow_dispatch:
 
 permissions:
@@ -29,12 +30,25 @@ jobs:
       - name: Lowercase owner for GHCR
         run: echo "GH_OWNER=${GITHUB_REPOSITORY_OWNER,,}" >> $GITHUB_ENV
 
+      - name: Extract version from config.yaml
+        id: version
+        run: |
+          VERSION=$(grep '^version:' config.yaml | awk '{print $2}' | tr -d '"')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
       - name: Build and push image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
           tags: |
             ghcr.io/${{ env.GH_OWNER }}/pantrlytics:latest
-            ghcr.io/${{ env.GH_OWNER }}/pantrlytics:${{ github.sha }}
+            ghcr.io/${{ env.GH_OWNER }}/pantrlytics:${{ steps.version.outputs.version }}
+          labels: |
+            org.opencontainers.image.title=PantrLytics
+            org.opencontainers.image.description=Inventory tracker with on-demand label generation and IPP printing
+            org.opencontainers.image.url=https://github.com/Psychman52OS/PantrLytics
+            org.opencontainers.image.source=https://github.com/Psychman52OS/PantrLytics
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}

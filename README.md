@@ -1,8 +1,60 @@
-# PantrLytics (Home Assistant add-on)
+# PantrLytics
 
-Inventory tracker with on-demand label generation and IPP printing. Built for Home Assistant ingress.
+Inventory tracker with on-demand label generation and IPP printing. Runs as a Home Assistant add-on or as a standalone Docker container.
 
 License: Personal use only (non-commercial). See LICENSE.
+
+---
+
+## Standalone Docker install
+
+No Home Assistant required. Runs on any machine with Docker.
+
+**Quick start:**
+
+```bash
+# 1. Download the compose file
+curl -O https://raw.githubusercontent.com/Psychman52OS/PantrLytics/main/docker-compose.yml
+
+# 2. Create your config (copy the example and edit)
+curl -O https://raw.githubusercontent.com/Psychman52OS/PantrLytics/main/.env.example
+cp .env.example .env
+nano .env   # set BASE_URL at minimum
+
+# 3. Start
+docker compose up -d
+```
+
+Then open `http://<your-server-ip>:8099` in a browser.
+
+**Key settings (in `.env`):**
+
+| Variable | Purpose | Example |
+|---|---|---|
+| `BASE_URL` | URL embedded in QR codes on labels | `http://192.168.1.100:8099` |
+| `IPP_HOST` | CUPS/IPP printer host:port | `192.168.1.50:631` |
+| `IPP_PRINTER` | IPP queue name | `DYMO_LabelWriter_450` |
+| `SERIAL_PREFIX` | Prefix for auto-generated serials | `ITEM-` |
+| `PORT` | Host port to expose | `8099` |
+
+`BASE_URL` is the most important setting — it's what gets encoded into printed label QR codes. Set it to the IP:port (or domain) that your barcode scanner or phone can reach. Leave it blank if you're only using the web UI.
+
+**Data persistence:**
+
+All data (database, photos, backups) is stored in a Docker named volume (`pantrlytics_data`). To use a host directory instead, edit `docker-compose.yml` and replace the volume with a bind mount:
+
+```yaml
+volumes:
+  - /your/path:/data
+```
+
+**Updating:**
+
+```bash
+docker compose pull && docker compose up -d
+```
+
+**Default admin password:** `password` — change it immediately in Admin → Admin password.
 
 ---
 
