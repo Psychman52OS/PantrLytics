@@ -66,7 +66,7 @@
         <tr data-item-url="{{ url_for('show_item', item_id=item.id) }}"
             data-item-id="{{ item.id }}"
             data-edit-url="{{ url_for('edit_item_submit', item_id=item.id) }}"
-            data-item="{{ _idata | tojson | e }}">
+            data-item="{{ _idata | tojson | forceescape }}">
           <td class="col-name" data-field="name" data-orig-field="name">
             <a class="link name-link" href="{{ url_for('show_item', item_id=item.id) }}">{{ item.name }}</a>
             {% if item.depleted_at %}<span class="pill pill-danger">Depleted</span>{% endif %}
