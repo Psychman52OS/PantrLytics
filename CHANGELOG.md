@@ -1,6 +1,6 @@
 # PantrLytics Changelog
 
-## 2026.03.27
+## 2026.03.28
 
 ### Reports — Complete Overhaul
 - **Inventory Health Score** (0–100, letter grade A–F) combining use-by compliance (50%), date coverage (30%), and audit freshness (20%)
