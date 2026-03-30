@@ -1,5 +1,15 @@
 # PantrLytics Changelog
 
+## 2026.03.30-2
+
+### Per-Item Review Window
+- **Quick-select buttons on New/Edit forms** — choose 15d, 30d, 60d, or 120d review interval per item; button highlights when active; leave blank to use the admin-level default
+- **Per-item window respected everywhere** — Review page and health score audit component now use the item's own interval (if set) rather than the global default
+- **Item detail page** — new read-only "Last reviewed" and "Next review" rows; "Next review" shows the calculated date plus a countdown pill (e.g. `in 12d`, `Due today`, `3d overdue`)
+
+### Bug Fix
+- Fix compliance % in health score card showing hardcoded "50%" — now displays the actual compliance rate; the 50% is the formula weight, not the score
+
 ## 2026.03.30
 
 ### Item Review System
