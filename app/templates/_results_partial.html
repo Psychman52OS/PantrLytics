@@ -117,10 +117,6 @@
               <a class="btn btn-small btn-ghost action-open"
                  href="{{ url_for('show_item', item_id=item.id) }}"
                  title="Open details">Open</a>
-              {% if not item.depleted_at %}
-              <button class="btn btn-small btn-ghost js-quick-edit-btn hide-mobile"
-                      type="button" title="Quick edit this row">✏ Edit</button>
-              {% endif %}
               <div class="row-menu">
                 <button class="btn btn-small btn-ghost row-menu-toggle" type="button" aria-label="More actions" aria-haspopup="true">
                   <span class="hide-mobile">⋯</span><span class="hide-desktop">Actions</span>
