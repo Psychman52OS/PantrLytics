@@ -385,7 +385,9 @@ button.btn { -webkit-appearance: none; appearance: none; }
 }
 .view-toggle-btns { display: flex; gap: 4px; }
 .view-toggle-btns .btn { padding: 4px 10px; font-size: 12px; }
-.view-toggle-btns .btn.active {
+.view-toggle-btns .btn.active,
+#chips-toggle.active,
+#quick-edit-toggle.active {
   background: var(--accent);
   color: var(--bg);
   border-color: var(--accent);

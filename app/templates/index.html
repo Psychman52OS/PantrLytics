@@ -85,6 +85,7 @@
 {# View toggle bar #}
 <div class="view-toggle-bar">
   <button class="btn btn-small" id="chips-toggle" title="Show/hide quick filters">⊟ Filters</button>
+  <button class="btn btn-small hide-mobile" id="quick-edit-toggle" title="Toggle quick edit mode for all rows">✏ Quick Edit</button>
   <div class="view-toggle-btns">
     <button class="btn btn-small" data-view-toggle="list" title="List view">☰ List</button>
     <button class="btn btn-small" data-view-toggle="grid" title="Grid view">⊞ Grid</button>
@@ -541,20 +542,37 @@ function initSwipe() {
 }
 
 // ─── Quick Edit (desktop list view only) ──────────────────────────
+let _quickEditActive = false;
+
 function _escVal(s) {
   return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-function initQuickEdit() {
-  document.querySelectorAll('.js-quick-edit-btn:not([data-qe-init])').forEach(btn => {
-    btn.dataset.qeInit = '1';
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const row = btn.closest('tr');
-      if (row && !row.dataset.editing) _qeStartEdit(row);
+function applyQuickEditMode(active) {
+  _quickEditActive = active;
+  const btn = document.getElementById('quick-edit-toggle');
+  if (btn) btn.classList.toggle('active', active);
+
+  if (active) {
+    // Enter edit mode on every non-depleted row
+    document.querySelectorAll('.table-inventory tbody tr[data-item-id]').forEach(row => {
+      if (!row.dataset.editing && !row.querySelector('td.col-name .pill-danger')) {
+        _qeStartEdit(row);
+      }
     });
-  });
+  } else {
+    // Cancel all rows currently in edit mode
+    document.querySelectorAll('.table-inventory tbody tr[data-editing]').forEach(row => {
+      _qeCancel(row, /*skipModeCheck=*/true);
+    });
+  }
 }
+
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('#quick-edit-toggle');
+  if (!btn) return;
+  applyQuickEditMode(!_quickEditActive);
+});
 
 function _qeStartEdit(row) {
   row.dataset.editing = '1';
@@ -640,7 +658,7 @@ async function _qeSave(row) {
   }
 }
 
-function _qeCancel(row) {
+function _qeCancel(row, skipModeCheck) {
   ['td.col-name', 'td[data-field]', 'td.col-actions'].forEach(sel => {
     row.querySelectorAll(sel).forEach(td => {
       if (td.dataset.origHtml !== undefined) {
@@ -650,7 +668,6 @@ function _qeCancel(row) {
     });
   });
   delete row.dataset.editing;
-  initQuickEdit();
 }
 
 // ─── View toggle ──────────────────────────────────────────────────
@@ -714,7 +731,8 @@ const pantrSearch = (function () {
       initTableSort();
       initColumnResize();
       initSwipe();
-      initQuickEdit();
+      // Re-apply quick edit mode if it was active
+      if (_quickEditActive) applyQuickEditMode(true);
       // Restore current view and chips visibility
       const savedView = localStorage.getItem('items_view') || 'list';
       applyView(savedView);
@@ -801,7 +819,6 @@ document.addEventListener('DOMContentLoaded', () => {
   initTableSort();
   initColumnResize();
   initSwipe();
-  initQuickEdit();
   const savedView = localStorage.getItem('items_view') || 'list';
   applyView(savedView);
   applyChipsVisibility();
