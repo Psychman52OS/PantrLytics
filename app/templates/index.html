@@ -544,10 +544,6 @@ function initSwipe() {
 // ─── Quick Edit (desktop list view only) ──────────────────────────
 let _quickEditActive = false;
 
-function _escVal(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-
 function applyQuickEditMode(active) {
   _quickEditActive = active;
   const btn = document.getElementById('quick-edit-toggle');
@@ -561,10 +557,8 @@ function applyQuickEditMode(active) {
       }
     });
   } else {
-    // Cancel all rows currently in edit mode
-    document.querySelectorAll('.table-inventory tbody tr[data-editing]').forEach(row => {
-      _qeCancel(row, /*skipModeCheck=*/true);
-    });
+    // Reload results to show fresh server data
+    pantrSearch.fetchResults(window.location.href);
   }
 }
 
@@ -582,8 +576,15 @@ function _qeStartEdit(row) {
   const nameCell = row.querySelector('td.col-name');
   if (nameCell) {
     nameCell.dataset.origHtml = nameCell.innerHTML;
-    nameCell.innerHTML = `<input class="input input-small qe-input" data-field-name="name"
-      type="text" value="${_escVal(itemData.name || '')}" style="min-width:100px;width:100%;">`;
+    const inp = document.createElement('input');
+    inp.className = 'input input-small qe-input';
+    inp.dataset.fieldName = 'name';
+    inp.type = 'text';
+    inp.value = itemData.name || '';
+    inp.style.cssText = 'min-width:100px;width:100%;';
+    nameCell.innerHTML = '';
+    nameCell.appendChild(inp);
+    inp.addEventListener('blur', () => _qeAutoSave(row, inp));
   }
 
   // Display field cells
@@ -593,81 +594,80 @@ function _qeStartEdit(row) {
     if (field === 'last_audit_date') return; // read-only
     const val = String(itemData[field] ?? '');
     td.dataset.origHtml = td.innerHTML;
-    let inp;
-    if (field === 'quantity') {
-      inp = `<input class="input input-small qe-input" data-field-name="${field}"
-        type="number" min="0" value="${_escVal(val)}" style="width:72px;">`;
-    } else if (field === 'cook_date' || field === 'use_by_date') {
-      inp = `<input class="input input-small qe-input" data-field-name="${field}"
-        type="date" value="${_escVal(val)}" style="min-width:130px;">`;
-    } else {
-      inp = `<input class="input input-small qe-input" data-field-name="${field}"
-        type="text" value="${_escVal(val)}" style="min-width:80px;width:100%;">`;
-    }
-    td.innerHTML = inp;
-  });
 
-  // Actions cell → Save / Cancel
-  const actCell = row.querySelector('td.col-actions');
-  if (actCell) {
-    actCell.dataset.origHtml = actCell.innerHTML;
-    actCell.innerHTML = `<div class="btn-group">
-      <button class="btn btn-small btn-accent js-qe-save" type="button">Save</button>
-      <button class="btn btn-small btn-secondary js-qe-cancel" type="button">Cancel</button>
-    </div>`;
-    actCell.querySelector('.js-qe-save').addEventListener('click', () => _qeSave(row));
-    actCell.querySelector('.js-qe-cancel').addEventListener('click', () => _qeCancel(row));
-  }
+    const inp = document.createElement('input');
+    inp.className = 'input input-small qe-input';
+    inp.dataset.fieldName = field;
+
+    if (field === 'quantity') {
+      inp.type = 'number';
+      inp.min = '0';
+      inp.value = val;
+      inp.style.width = '72px';
+      inp.addEventListener('blur', () => _qeAutoSave(row, inp));
+    } else if (field === 'cook_date' || field === 'use_by_date') {
+      inp.type = 'date';
+      inp.value = val;
+      inp.style.minWidth = '130px';
+      inp.addEventListener('change', () => _qeAutoSave(row, inp));
+    } else {
+      inp.type = 'text';
+      inp.value = val;
+      inp.style.cssText = 'min-width:80px;width:100%;';
+      inp.addEventListener('blur', () => _qeAutoSave(row, inp));
+    }
+
+    td.innerHTML = '';
+    td.appendChild(inp);
+  });
+  // Actions cell intentionally left as-is (no Save/Cancel needed)
 }
 
-async function _qeSave(row) {
+async function _qeAutoSave(row, changedInp) {
+  const itemData = JSON.parse(row.dataset.item || '{}');
+  const field = changedInp.dataset.fieldName;
+
+  // Skip if value hasn't changed
+  if (changedInp.value === String(itemData[field] ?? '')) return;
+
   const editUrl = row.dataset.editUrl;
   if (!editUrl) return;
-  const itemData = JSON.parse(row.dataset.item || '{}');
-  const fd = new FormData();
 
-  // Seed all fields from stored data
+  const td = changedInp.closest('td');
+  td.classList.add('qe-saving');
+  changedInp.disabled = true;
+
+  const fd = new FormData();
   ['name','category','tags','location','bin_number','quantity','unit',
    'condition','cook_date','use_by_date','use_within','notes','review_window_days'
   ].forEach(f => fd.set(f, String(itemData[f] ?? '')));
-
-  // Override with edited inputs
-  row.querySelectorAll('.qe-input').forEach(inp => {
-    fd.set(inp.dataset.fieldName, inp.value);
-  });
-
-  const saveBtn = row.querySelector('.js-qe-save');
-  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
+  // Override with all current input values so the full record is saved
+  row.querySelectorAll('.qe-input').forEach(i => fd.set(i.dataset.fieldName, i.value));
 
   try {
     const res = await fetch(editUrl, {
       method: 'POST', body: fd,
       headers: { 'Accept': 'application/json', 'X-Requested-With': 'fetch' }
     });
+    td.classList.remove('qe-saving');
+    changedInp.disabled = false;
     if (res.ok) {
-      delete row.dataset.editing;
-      pantrSearch.fetchResults(window.location.href);
+      // Update stored item data so future auto-saves merge correctly
+      const updated = { ...itemData };
+      row.querySelectorAll('.qe-input').forEach(i => { updated[i.dataset.fieldName] = i.value; });
+      row.dataset.item = JSON.stringify(updated);
+      td.classList.add('qe-saved');
+      setTimeout(() => td.classList.remove('qe-saved'), 1400);
     } else {
-      alert('Save failed');
-      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save'; }
+      td.classList.add('qe-error');
+      setTimeout(() => td.classList.remove('qe-error'), 2500);
     }
-  } catch (err) {
-    console.error('Quick edit save error', err);
-    alert('Save failed');
-    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save'; }
+  } catch {
+    td.classList.remove('qe-saving');
+    changedInp.disabled = false;
+    td.classList.add('qe-error');
+    setTimeout(() => td.classList.remove('qe-error'), 2500);
   }
-}
-
-function _qeCancel(row, skipModeCheck) {
-  ['td.col-name', 'td[data-field]', 'td.col-actions'].forEach(sel => {
-    row.querySelectorAll(sel).forEach(td => {
-      if (td.dataset.origHtml !== undefined) {
-        td.innerHTML = td.dataset.origHtml;
-        delete td.dataset.origHtml;
-      }
-    });
-  });
-  delete row.dataset.editing;
 }
 
 // ─── View toggle ──────────────────────────────────────────────────
