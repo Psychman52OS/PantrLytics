@@ -1,5 +1,16 @@
 # PantrLytics Changelog
 
+## 2026.03.30-4
+
+### Quick Edit Overhaul
+- **Global Quick Edit toggle** — replaced per-row ✏ Edit buttons with a single "✏ Quick Edit" toggle button in the view-toggle bar (desktop only, next to the Filters button)
+- **All rows editable at once** — activating Quick Edit mode turns every non-depleted list row editable simultaneously; each row gets its own Save / Cancel in the actions column
+- **Mode persists across saves** — after saving a row (which triggers an AJAX results refresh), Quick Edit mode stays active and re-applies to the refreshed rows
+- **Toggle off cancels all** — clicking Quick Edit again cancels all in-progress edits and restores display mode
+
+### UI Fix
+- Filters button and Quick Edit button now turn orange when active, matching the List/Grid view toggle highlight behaviour
+
 ## 2026.03.30-3
 
 ### Bug Fix
