@@ -1,5 +1,10 @@
 # PantrLytics Changelog
 
+## 2026.03.30-14
+
+### Bug Fixes
+- **Grid card action dropdown rendered behind adjacent cards** — the dropdown uses `position:fixed` to escape the card's `overflow:hidden`, but still paints within its ancestor's stacking context; sibling cards later in DOM order painted on top of it; fixed by temporarily setting `z-index:10` on the active card when its dropdown opens (and resetting on close), lifting its stacking context above all sibling cards
+
 ## 2026.03.30-13
 
 ### Bug Fixes

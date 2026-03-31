@@ -191,6 +191,7 @@ function _closeAllDropdowns() {
   document.querySelectorAll('.row-menu-dropdown:not([hidden])').forEach(d => {
     d.hidden = true;
     d.style.cssText = ''; // reset any fixed positioning applied for card dropdowns
+    d.closest('.item-card')?.style.removeProperty('z-index'); // reset card elevation
   });
 }
 document.addEventListener('click', (e) => {
@@ -201,14 +202,18 @@ document.addEventListener('click', (e) => {
     const isOpen = !dropdown.hidden;
     _closeAllDropdowns();
     if (!isOpen) {
-      // item-card has overflow:hidden (needed for swipe) — use fixed positioning to escape it
-      if (toggleBtn.closest('.item-card')) {
+      // item-card has overflow:hidden (needed for swipe) — use fixed positioning to escape it.
+      // Also lift the card's z-index so the fixed dropdown isn't occluded by sibling cards
+      // that share the same stacking context and paint later in DOM order.
+      const card = toggleBtn.closest('.item-card');
+      if (card) {
         const rect = toggleBtn.getBoundingClientRect();
         dropdown.style.position = 'fixed';
         dropdown.style.top = (rect.bottom + 4) + 'px';
         dropdown.style.right = (window.innerWidth - rect.right) + 'px';
         dropdown.style.left = 'auto';
         dropdown.style.minWidth = rect.width + 'px';
+        card.style.zIndex = '10';
       }
       dropdown.hidden = false;
     }
