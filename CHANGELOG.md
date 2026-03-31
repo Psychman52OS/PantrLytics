@@ -1,5 +1,13 @@
 # PantrLytics Changelog
 
+## 2026.03.30-15
+
+### Bug Fixes
+- **Grid card action dropdown still not visible (v14 regression)** — setting `z-index:10` on `.item-card` (which has `overflow:hidden`) caused Chrome to clip its `position:fixed` descendants, hiding the dropdown; replaced the card z-index approach with a DOM portal: when a card dropdown opens it is moved to `<body>` (escaping all stacking contexts and overflow clips), then returned to its original parent on close
+
+### Features
+- **Depleted items shortcut** — added a "📦 Depleted" button to the view-toggle bar (right of the Grid button) linking directly to the depleted items page
+
 ## 2026.03.30-14
 
 ### Bug Fixes

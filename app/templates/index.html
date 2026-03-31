@@ -90,6 +90,7 @@
     <button class="btn btn-small" data-view-toggle="list" title="List view">☰ List</button>
     <button class="btn btn-small" data-view-toggle="grid" title="Grid view">⊞ Grid</button>
   </div>
+  <a class="btn btn-small" href="{{ url_for('depleted_items') }}" title="View all depleted items">📦 Depleted</a>
 </div>
 
 {# Results region — swapped by AJAX #}
@@ -190,8 +191,12 @@ document.addEventListener('DOMContentLoaded', () => {
 function _closeAllDropdowns() {
   document.querySelectorAll('.row-menu-dropdown:not([hidden])').forEach(d => {
     d.hidden = true;
-    d.style.cssText = ''; // reset any fixed positioning applied for card dropdowns
-    d.closest('.item-card')?.style.removeProperty('z-index'); // reset card elevation
+    d.style.cssText = '';
+    // Return portalled dropdown to its original parent
+    if (d._origParent) {
+      d._origParent.appendChild(d);
+      delete d._origParent;
+    }
   });
 }
 document.addEventListener('click', (e) => {
@@ -202,18 +207,18 @@ document.addEventListener('click', (e) => {
     const isOpen = !dropdown.hidden;
     _closeAllDropdowns();
     if (!isOpen) {
-      // item-card has overflow:hidden (needed for swipe) — use fixed positioning to escape it.
-      // Also lift the card's z-index so the fixed dropdown isn't occluded by sibling cards
-      // that share the same stacking context and paint later in DOM order.
-      const card = toggleBtn.closest('.item-card');
-      if (card) {
+      // Portal the dropdown to <body> so it escapes overflow:hidden and all
+      // stacking contexts on the card (which caused Chrome to clip it).
+      if (toggleBtn.closest('.item-card')) {
         const rect = toggleBtn.getBoundingClientRect();
+        dropdown._origParent = dropdown.parentElement;
+        document.body.appendChild(dropdown);
         dropdown.style.position = 'fixed';
         dropdown.style.top = (rect.bottom + 4) + 'px';
         dropdown.style.right = (window.innerWidth - rect.right) + 'px';
         dropdown.style.left = 'auto';
         dropdown.style.minWidth = rect.width + 'px';
-        card.style.zIndex = '10';
+        dropdown.style.zIndex = '9999';
       }
       dropdown.hidden = false;
     }
