@@ -1,5 +1,11 @@
 # PantrLytics Changelog
 
+## 2026.03.30-13
+
+### Bug Fixes
+- **Grid card ⋯ Actions dropdown broken** — `.swipe-inner` had `will-change: transform` in CSS; in Chromium, this creates a new containing block for `position: fixed` descendants, so the dropdown (which uses fixed positioning to escape the card's `overflow: hidden`) was positioned relative to `.swipe-inner` instead of the viewport — rendering off-screen; removed `will-change: transform` from `.swipe-inner` (the swipe animation works fine without it)
+- **Reports "No Use-by Date" bucket empty** — the bucket was additionally gated on `if it.origin_date`, so items with no use-by date but also no origin date were never included; removed the origin_date guard so all active items with a NULL use-by date are flagged
+
 ## 2026.03.30-12
 
 ### Bug Fixes
