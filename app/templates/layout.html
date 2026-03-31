@@ -147,6 +147,26 @@
         if (v) inp.value = v;
       });
 
+      // Scripts injected via innerHTML don't execute — manually wire the
+      // origin date label select ↔ hidden text input sync.
+      (function() {
+        const sel = body.querySelector('#edit-origin-label-sel');
+        const inp = body.querySelector('#edit-origin-label-val');
+        if (!sel || !inp) return;
+        // Sync hidden input to current select value on load
+        if (inp.style.display === 'none') inp.value = sel.value;
+        sel.addEventListener('change', () => {
+          if (sel.value === '__custom__') {
+            inp.style.display = 'block';
+            inp.value = '';
+            inp.focus();
+          } else {
+            inp.value = sel.value;
+            inp.style.display = 'none';
+          }
+        });
+      })();
+
       if (typeof dlg.showModal === "function") {
         dlg.showModal();
       } else {

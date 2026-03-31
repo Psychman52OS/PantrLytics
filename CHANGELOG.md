@@ -1,5 +1,19 @@
 # PantrLytics Changelog
 
+## 2026.03.30-11
+
+### Bug Fixes — Origin Date
+- **Save failed on edit** — the `init_db()` migration block was missing `conn.commit()`; in SQLAlchemy 2.x the `ALTER TABLE` statements that add `origin_date` and `origin_date_label` columns are not committed automatically on connection close, so the columns never existed in the live database and every item save threw a DB error; explicit `conn.commit()` added at the end of the migration block
+- **cook_date data not migrating** — same missing commit; the `UPDATE item SET origin_date = cook_date` data migration was also rolled back; now committed correctly so all historical cook dates populate origin_date on first startup after upgrade
+- **Label showing "Origin Date" instead of "Cooked On"** — `show.html` fell back to the literal string `"Origin Date"` for items whose `origin_date_label` is still NULL; changed fallback to `"Cooked On"`
+- **Label dropdown in edit modal had no effect** — scripts injected via `innerHTML` do not execute in browsers; the select→hidden-input sync JS in `edit_form.html` never ran, so changing the dropdown had no effect; moved the initialization into `layout.html`'s `openModal` function which runs explicitly after `body.innerHTML = html`
+
+## 2026.03.30-10
+
+### Bug Fixes
+- **Grid view ⋯ Actions button** — dropdown was silently clipped by `overflow:hidden` on the card container (required for swipe gestures); fixed by using `position:fixed` via JS when opening a dropdown inside a grid card, allowing it to escape the clipping context
+- **Reports — No Use-by Date bucket** — items with no dates at all (no origin date and no use-by date) were appearing in the "No Use-by Date" action bucket; the bucket now only includes items that have an origin date but are missing a use-by date, making the action list genuinely actionable
+
 ## 2026.03.30-9
 
 ### Flexible Origin Date field
