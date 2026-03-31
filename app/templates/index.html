@@ -187,20 +187,36 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ─── Row / card dropdown menus ──────────────────────────────────────
+function _closeAllDropdowns() {
+  document.querySelectorAll('.row-menu-dropdown:not([hidden])').forEach(d => {
+    d.hidden = true;
+    d.style.cssText = ''; // reset any fixed positioning applied for card dropdowns
+  });
+}
 document.addEventListener('click', (e) => {
   const toggleBtn = e.target.closest('.row-menu-toggle');
   if (toggleBtn) {
     e.stopPropagation();
     const dropdown = toggleBtn.closest('.row-menu').querySelector('.row-menu-dropdown');
     const isOpen = !dropdown.hidden;
-    // Close all open dropdowns first
-    document.querySelectorAll('.row-menu-dropdown:not([hidden])').forEach(d => d.hidden = true);
-    if (!isOpen) dropdown.hidden = false;
+    _closeAllDropdowns();
+    if (!isOpen) {
+      // item-card has overflow:hidden (needed for swipe) — use fixed positioning to escape it
+      if (toggleBtn.closest('.item-card')) {
+        const rect = toggleBtn.getBoundingClientRect();
+        dropdown.style.position = 'fixed';
+        dropdown.style.top = (rect.bottom + 4) + 'px';
+        dropdown.style.right = (window.innerWidth - rect.right) + 'px';
+        dropdown.style.left = 'auto';
+        dropdown.style.minWidth = rect.width + 'px';
+      }
+      dropdown.hidden = false;
+    }
     return;
   }
   // Click outside → close all
   if (!e.target.closest('.row-menu-dropdown')) {
-    document.querySelectorAll('.row-menu-dropdown:not([hidden])').forEach(d => d.hidden = true);
+    _closeAllDropdowns();
   }
 });
 

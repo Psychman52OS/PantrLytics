@@ -43,7 +43,7 @@ except Exception as e:
 # Timezone / datetime formatting helper
 # -------------------------------------------------
 LOCAL_TZ = tzlocal.get_localzone()
-APP_VERSION = "2026.03.30-9"
+APP_VERSION = "2026.03.30-11"
 APP_INTERNAL_PORT = 8099
 
 
@@ -497,6 +497,11 @@ def init_db():
                     print("[MIGRATION] Updated display_fields: renamed cook_date -> origin_date")
         except Exception as e:
             print(f"[MIGRATION] display_fields migration skipped: {e}")
+
+        # Commit all DDL and DML migrations explicitly — SQLAlchemy 2.x does not
+        # auto-commit on connection close, so without this the ALTER TABLE column
+        # additions and the cook_date→origin_date data copy are both rolled back.
+        conn.commit()
 
     # Seed default UseWithin options if table is empty
     ensure_usewithin_defaults()
@@ -3179,7 +3184,9 @@ def reports(
                     summary["d60"] += 1
                     bucket_items["d60"].append(it)
             else:
-                bucket_items["no_date"].append(it)
+                # Only flag items that have origin_date — truly dateless items are excluded
+                if it.origin_date:
+                    bucket_items["no_date"].append(it)
 
             if info:
                 expiring.append(it)
