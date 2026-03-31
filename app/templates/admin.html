@@ -503,6 +503,43 @@
       </form>
     </section>
 
+    <!-- Origin Date Labels -->
+    <section class="admin-section" id="origin-date-labels">
+      <div class="admin-section-header">
+        <h2>Origin Date Labels</h2>
+        <p class="admin-section-help">
+          Labels for the "Origin Date" field on items — e.g. Cooked On, Purchased On, Opened On. Drag to reorder.
+        </p>
+      </div>
+
+      <form method="post" class="admin-inline-form">
+        <input type="text" name="new_origin_date_label" class="input" placeholder="New label…">
+        <button class="btn btn-primary btn-small" type="submit">Add</button>
+      </form>
+
+      <form method="post" id="origin-date-label-order-form" class="admin-display-form admin-columns">
+        <input type="hidden" name="origin_date_label_order_action" value="save">
+        <input type="hidden" name="origin_date_label_order" id="origin_date_label_order" value="">
+        <div id="origin-date-label-status" class="admin-save-status" aria-live="polite"></div>
+        <ul class="admin-sortable-list" id="origin-date-label-list">
+          {% for odl in origin_date_labels_admin %}
+            <li class="admin-sortable-row" data-id="{{ odl.id }}" draggable="true">
+              <button type="button" class="drag-handle" aria-label="Drag to reorder">☰</button>
+              <div class="admin-column-label">
+                <div class="admin-column-title">{{ odl.name }}</div>
+              </div>
+              <div class="btn-group">
+                <button type="button" class="btn btn-small btn-ghost js-entity-edit" data-entity="origin_date_label" data-id="{{ odl.id }}" data-name="{{ odl.name }}">Edit</button>
+                <button class="btn btn-danger btn-small js-delete-row" type="button" data-entity="origin_date_label" data-id="{{ odl.id }}">Delete</button>
+              </div>
+            </li>
+          {% else %}
+            <li class="admin-empty muted">No Origin Date labels yet.</li>
+          {% endfor %}
+        </ul>
+      </form>
+    </section>
+
     <!-- Units -->
     <section class="admin-section" id="units">
       <div class="admin-section-header">
@@ -776,6 +813,7 @@ registerSortable('category-list', 'category_order', 'category-status', 'category
 registerSortable('bin-list', 'bin_order', 'bin-status', 'bin-order-form');
 registerSortable('location-list', 'location_order', 'location-status', 'location-order-form');
 registerSortable('unit-list', 'unit_order', 'unit-status', 'unit-order-form');
+registerSortable('origin-date-label-list', 'origin_date_label_order', 'origin-date-label-status', 'origin-date-label-order-form');
 
 // Unit toggle auto-save
 document.addEventListener('change', (e) => {

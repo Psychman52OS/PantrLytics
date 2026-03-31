@@ -1,5 +1,16 @@
 # PantrLytics Changelog
 
+## 2026.03.30-9
+
+### Flexible Origin Date field
+
+- **Renamed "Cook Date" → "Origin Date"** — the field is now called *Origin Date* throughout the UI and database; existing `cook_date` values are automatically migrated to `origin_date` on first startup; no data loss
+- **Per-item label** — each item can independently label its origin date: choose from a dropdown (Cooked On, Purchased On, Opened On, Made On, Frozen On, Received On, Prepared On, Picked On, Brewed On) or type a custom label; the label is shown on the item detail page instead of a static "Cook Date" heading
+- **Admin — Origin Date Labels section** — manage the dropdown list (add, edit, delete, drag to reorder); changes propagate to any items using that label
+- **Label printing** — the printed label uses the item's actual origin date label text instead of the hardcoded "Cook:"
+- **CSV import backward compatibility** — imports with a `cook_date` column still work; `origin_date` column is preferred when present
+- **Quick Edit + filters** — the `origin_date` column is editable in Quick Edit mode and filterable in the advanced filters panel
+
 ## 2026.03.30-8
 
 ### Bug Fix

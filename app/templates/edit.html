@@ -64,8 +64,8 @@
   </label>
 
   <label class="field">
-    <span>Cook date</span>
-    <input class="input" type="date" name="cook_date" value="{{ item.cook_date or '' }}">
+    <span>{{ item.origin_date_label or "Origin Date" }}</span>
+    <input class="input" type="date" name="origin_date" value="{{ item.origin_date or '' }}">
   </label>
 
   <label class="field">

@@ -151,16 +151,35 @@
         >
       </div>
 
-      <!-- Cook date -->
+      <!-- Origin Date label -->
+      <div class="field field--full">
+        <label class="kv-label">Origin Date label <span class="muted" style="font-weight:normal;">(what to call this date)</span></label>
+        <div style="display:flex; flex-direction:column; gap:6px; max-width:260px;">
+          {% set _cur_odl = item.origin_date_label or 'Cooked On' %}
+          {% set _odl_in_list = _cur_odl in (origin_date_labels or []) %}
+          <select class="input" id="edit-origin-label-sel" style="max-width:260px;">
+            {% for lbl in (origin_date_labels or []) %}
+              <option value="{{ lbl }}" {% if lbl == _cur_odl %}selected{% endif %}>{{ lbl }}</option>
+            {% endfor %}
+            <option value="__custom__" {% if not _odl_in_list %}selected{% endif %}>Custom…</option>
+          </select>
+          <input type="text" name="origin_date_label" id="edit-origin-label-val"
+                 class="input" placeholder="Enter custom label…"
+                 style="max-width:260px; {% if _odl_in_list %}display:none;{% endif %}"
+                 value="{{ _cur_odl }}">
+        </div>
+      </div>
+
+      <!-- Origin Date -->
       <div class="field">
-        <label class="kv-label" for="cook_date">Cook date {% if required_fields and 'cook_date' in required_fields %}(REQUIRED){% endif %}</label>
+        <label class="kv-label" for="origin_date">Origin Date {% if required_fields and 'origin_date' in required_fields %}(REQUIRED){% endif %}</label>
         <input
           class="input"
-          id="cook_date"
-          name="cook_date"
+          id="origin_date"
+          name="origin_date"
           type="date"
-          value="{{ item.cook_date or '' }}"
-          {% if required_fields and 'cook_date' in required_fields %}required{% endif %}
+          value="{{ item.origin_date or '' }}"
+          {% if required_fields and 'origin_date' in required_fields %}required{% endif %}
         >
       </div>
 
@@ -284,6 +303,24 @@
 {% endif %}
 
 <script>
+// Origin Date label picker
+(function(){
+  const sel = document.getElementById('edit-origin-label-sel');
+  const inp = document.getElementById('edit-origin-label-val');
+  if (!sel || !inp) return;
+  sel.addEventListener('change', () => {
+    if (sel.value === '__custom__') {
+      inp.style.display = 'block';
+      inp.value = '';
+      inp.focus();
+    } else {
+      inp.value = sel.value;
+      inp.style.display = 'none';
+    }
+  });
+  if (inp.style.display === 'none') inp.value = sel.value;
+})();
+
 // Simple dropdown assist that always shows all options when clicking the chip
 (function(){
   const inputs = document.querySelectorAll('.js-suggest');

@@ -402,7 +402,7 @@
                         {% set val = item|attr(col.key) %}
                         <td class="col-{{ col.key }}">
                           {% if col.key == "quantity" %}{{ val }}
-                          {% elif col.key in ["cook_date","use_by_date","last_audit_date"] %}{{ val or "—" }}
+                          {% elif col.key in ["origin_date","use_by_date","last_audit_date"] %}{{ val or "—" }}
                           {% elif col.key == "notes" %}<span class="wrap">{{ val or "—" }}</span>
                           {% else %}{{ val or "—" }}{% endif %}
                         </td>

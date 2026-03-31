@@ -130,7 +130,7 @@
             {% if p.include_bin %}{% set _ = fields.append("Bin") %}{% endif %}
             {% if p.include_qty_unit %}{% set _ = fields.append("Qty+Unit") %}{% endif %}
             {% if p.include_condition %}{% set _ = fields.append("Condition") %}{% endif %}
-            {% if p.include_cook_date %}{% set _ = fields.append("Cook") %}{% endif %}
+            {% if p.include_cook_date %}{% set _ = fields.append("Origin Date") %}{% endif %}
             {% if p.include_use_by %}{% set _ = fields.append("Use-by") %}{% endif %}
             {% if p.include_use_within %}{% set _ = fields.append("Use Within") %}{% endif %}
             {% if p.include_qr %}{% set _ = fields.append("QR") %}{% endif %}
@@ -191,7 +191,7 @@
           ('include_bin','Bin', True),
           ('include_qty_unit','Qty + Unit', True),
           ('include_condition','Condition', False),
-          ('include_cook_date','Cook date', False),
+          ('include_cook_date','Origin Date', False),
           ('include_use_by','Use-by', True),
           ('include_use_within','Use Within', False),
           ('include_qr','QR code', True)

@@ -49,8 +49,8 @@
               </select>
           </div>
           <div class="filter-group">
-              <label>Cook date</label>
-              <input type="date" name="cook_date" class="filter-input" value="{{ cook_date }}">
+              <label>Origin Date</label>
+              <input type="date" name="origin_date" class="filter-input" value="{{ origin_date }}">
           </div>
           <div class="filter-group">
               <label>Use-by date</label>
@@ -602,7 +602,7 @@ function _qeStartEdit(row) {
       inp.min = '0';
       inp.value = val;
       inp.style.cssText = 'width:72px;display:block;';
-    } else if (field === 'cook_date' || field === 'use_by_date') {
+    } else if (field === 'origin_date' || field === 'use_by_date') {
       inp.type = 'date';
       inp.value = val;
       inp.style.cssText = 'min-width:130px;display:block;';
@@ -661,7 +661,7 @@ async function _qeAutoSave(row, changedInp) {
 
   const fd = new FormData();
   ['name','category','tags','location','bin_number','quantity','unit',
-   'condition','cook_date','use_by_date','use_within','notes','review_window_days'
+   'condition','origin_date','origin_date_label','use_by_date','use_within','notes','review_window_days'
   ].forEach(f => fd.set(f, String(itemData[f] ?? '')));
   row.querySelectorAll('.qe-input').forEach(i => fd.set(i.dataset.fieldName, i.value));
 
@@ -820,7 +820,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btn = document.getElementById('adv-filter-toggle');
   if (!body || !btn) return;
   const params = new URLSearchParams(window.location.search);
-  const advKeys = ['category', 'location', 'bin_number', 'cook_date', 'use_by_date', 'tags', 'depleted_reason', 'include_depleted'];
+  const advKeys = ['category', 'location', 'bin_number', 'origin_date', 'use_by_date', 'tags', 'depleted_reason', 'include_depleted'];
   if (advKeys.some(k => params.get(k))) {
     body.removeAttribute('hidden');
     btn.setAttribute('aria-expanded', 'true');

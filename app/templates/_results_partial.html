@@ -5,7 +5,7 @@
     {% for c in categories %}
       {% set is_active = category == c %}
       <a class="chip {% if is_active %}chip-active{% endif %}"
-         href="?category={{ '' if is_active else c | urlencode }}&location={{ location | urlencode }}&bin={{ bin | urlencode }}&cook_date={{ cook_date | urlencode }}&use_by_date={{ use_by_date | urlencode }}&tags={{ tags | urlencode }}&q={{ q | urlencode }}&include_depleted={{ 1 if include_depleted else '' }}">
+         href="?category={{ '' if is_active else c | urlencode }}&location={{ location | urlencode }}&bin={{ bin | urlencode }}&origin_date={{ origin_date | urlencode }}&use_by_date={{ use_by_date | urlencode }}&tags={{ tags | urlencode }}&q={{ q | urlencode }}&include_depleted={{ 1 if include_depleted else '' }}">
         {{ c }} <span class="chip-count">{{ cat_counts.get(c, 0) }}</span>
       </a>
     {% else %}
@@ -18,7 +18,7 @@
     {% for l in locations %}
       {% set is_active = location == l %}
       <a class="chip {% if is_active %}chip-active{% endif %}"
-         href="?category={{ category | urlencode }}&location={{ '' if is_active else l | urlencode }}&bin={{ bin | urlencode }}&cook_date={{ cook_date | urlencode }}&use_by_date={{ use_by_date | urlencode }}&tags={{ tags | urlencode }}&q={{ q | urlencode }}&include_depleted={{ 1 if include_depleted else '' }}">
+         href="?category={{ category | urlencode }}&location={{ '' if is_active else l | urlencode }}&bin={{ bin | urlencode }}&origin_date={{ origin_date | urlencode }}&use_by_date={{ use_by_date | urlencode }}&tags={{ tags | urlencode }}&q={{ q | urlencode }}&include_depleted={{ 1 if include_depleted else '' }}">
         {{ l }} <span class="chip-count">{{ loc_counts.get(l, 0) }}</span>
       </a>
     {% else %}
@@ -57,7 +57,8 @@
           "quantity": item.quantity,
           "unit": (item.unit or ""),
           "condition": (item.condition or ""),
-          "cook_date": (item.cook_date or ""),
+          "origin_date": (item.origin_date or ""),
+          "origin_date_label": (item.origin_date_label or "Cooked On"),
           "use_by_date": (item.use_by_date or ""),
           "use_within": (item.use_within or ""),
           "notes": (item.notes or ""),
@@ -103,7 +104,7 @@
                     {{ val }}
                   {% endif %}
                 {% endif %}
-              {% elif col.key in ["cook_date", "use_by_date", "last_audit_date"] %}
+              {% elif col.key in ["origin_date", "use_by_date", "last_audit_date"] %}
                 {{ val or "—" }}
               {% elif col.key == "notes" %}
                 <span class="wrap">{{ val or "—" }}</span>
@@ -211,10 +212,10 @@
     <div class="pagination-info">Page {{ page }} of {{ total_pages }} ({{ total_count }} items)</div>
     <div class="pagination-controls">
       {% if page > 1 %}
-        <a class="btn" href="{{ request.url_for('index').include_query_params(page=page-1, q=q, category=category, location=location, bin=bin, cook_date=cook_date, use_by_date=use_by_date, tags=tags, include_depleted=1 if include_depleted else 0) }}">← Prev</a>
+        <a class="btn" href="{{ request.url_for('index').include_query_params(page=page-1, q=q, category=category, location=location, bin=bin, origin_date=origin_date, use_by_date=use_by_date, tags=tags, include_depleted=1 if include_depleted else 0) }}">← Prev</a>
       {% endif %}
       {% if page < total_pages %}
-        <a class="btn" href="{{ request.url_for('index').include_query_params(page=page+1, q=q, category=category, location=location, bin=bin, cook_date=cook_date, use_by_date=use_by_date, tags=tags, include_depleted=1 if include_depleted else 0) }}">Next →</a>
+        <a class="btn" href="{{ request.url_for('index').include_query_params(page=page+1, q=q, category=category, location=location, bin=bin, origin_date=origin_date, use_by_date=use_by_date, tags=tags, include_depleted=1 if include_depleted else 0) }}">Next →</a>
       {% endif %}
     </div>
   </div>
