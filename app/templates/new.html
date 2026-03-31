@@ -78,11 +78,29 @@
              {% if 'condition' in required_fields %}required{% endif %}>
     </div>
 
+    <div class="field field--full">
+      <label>Origin Date label <span class="muted" style="font-weight:normal;">(what to call this date)</span></label>
+      <div style="display:flex; flex-direction:column; gap:6px; max-width:260px;">
+        {% set _cur_odl = form_values.origin_date_label or 'Cooked On' %}
+        {% set _odl_in_list = _cur_odl in origin_date_labels %}
+        <select class="input" id="new-origin-label-sel" style="max-width:260px;">
+          {% for lbl in origin_date_labels %}
+            <option value="{{ lbl }}" {% if lbl == _cur_odl %}selected{% endif %}>{{ lbl }}</option>
+          {% endfor %}
+          <option value="__custom__" {% if not _odl_in_list %}selected{% endif %}>Custom…</option>
+        </select>
+        <input type="text" name="origin_date_label" id="new-origin-label-val"
+               class="input" placeholder="Enter custom label…"
+               style="max-width:260px; {% if _odl_in_list %}display:none;{% endif %}"
+               value="{{ _cur_odl }}">
+      </div>
+    </div>
+
     <div class="field">
-      <label>Cook date {% if 'cook_date' in required_fields %}(REQUIRED){% endif %}</label>
-      <input class="input" type="date" name="cook_date"
-             value="{{ form_values.cook_date or '' }}"
-             {% if 'cook_date' in required_fields %}required{% endif %}>
+      <label>Origin Date {% if 'origin_date' in required_fields %}(REQUIRED){% endif %}</label>
+      <input class="input" type="date" name="origin_date"
+             value="{{ form_values.origin_date or '' }}"
+             {% if 'origin_date' in required_fields %}required{% endif %}>
     </div>
 
     <div class="field">
@@ -148,6 +166,25 @@
   </form>
 </section>
 <script>
+(function(){
+  const sel = document.getElementById('new-origin-label-sel');
+  const inp = document.getElementById('new-origin-label-val');
+  if (!sel || !inp) return;
+  // Sync hidden input when select changes
+  sel.addEventListener('change', () => {
+    if (sel.value === '__custom__') {
+      inp.style.display = 'block';
+      inp.value = '';
+      inp.focus();
+    } else {
+      inp.value = sel.value;
+      inp.style.display = 'none';
+    }
+  });
+  // Initialize: if not already showing custom input, sync value from select
+  if (inp.style.display === 'none') inp.value = sel.value;
+})();
+
 (function(){
   const input = document.getElementById('new_review_window_days');
   if (!input) return;

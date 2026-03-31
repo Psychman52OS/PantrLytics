@@ -1,6 +1,6 @@
 # PantrLytics
 
-**Version 2026.03.30-8**
+**Version 2026.03.30-9**
 
 Inventory tracker with on-demand label generation and IPP printing. Runs as a Home Assistant add-on or as a standalone Docker container.
 

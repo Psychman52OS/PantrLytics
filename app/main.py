@@ -43,7 +43,7 @@ except Exception as e:
 # Timezone / datetime formatting helper
 # -------------------------------------------------
 LOCAL_TZ = tzlocal.get_localzone()
-APP_VERSION = "2026.03.30-8"
+APP_VERSION = "2026.03.30-9"
 APP_INTERNAL_PORT = 8099
 
 
@@ -237,6 +237,8 @@ class Item(SQLModel, table=True):
     second_serial_number: Optional[str] = None
     condition: Optional[str] = None
     cook_date: Optional[str] = None
+    origin_date: Optional[str] = None
+    origin_date_label: Optional[str] = None
     use_by_date: Optional[str] = None
     use_within: Optional[str] = None  # "Use Within" field
     notes: Optional[str] = None
@@ -288,6 +290,15 @@ class Location(SQLModel, table=True):
 
 class UseWithin(SQLModel, table=True):
     """Admin-managed list of 'Use Within' options."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(index=True, unique=True)
+    created_at: str = Field(
+        default_factory=lambda: dt.datetime.utcnow().isoformat()
+    )
+
+
+class OriginDateLabel(SQLModel, table=True):
+    """Admin-managed list of labels for the Origin Date field (e.g. Cooked On, Purchased On)."""
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(index=True, unique=True)
     created_at: str = Field(
@@ -354,7 +365,7 @@ DISPLAYABLE_FIELDS = [
     {"key": "quantity", "label": "QTY", "sort_type": "number"},
     {"key": "unit", "label": "Unit", "sort_type": "text"},
     {"key": "condition", "label": "Condition", "sort_type": "text"},
-    {"key": "cook_date", "label": "Cook date", "sort_type": "text"},
+    {"key": "origin_date", "label": "Origin Date", "sort_type": "text"},
     {"key": "use_by_date", "label": "Use-by date", "sort_type": "text"},
     {"key": "use_within", "label": "Use within", "sort_type": "text"},
     {"key": "tags", "label": "Tags", "sort_type": "text"},
@@ -380,7 +391,7 @@ REQUIRED_FIELD_OPTIONS = [
     {"key": "quantity", "label": "Quantity"},
     {"key": "unit", "label": "Unit"},
     {"key": "condition", "label": "Condition"},
-    {"key": "cook_date", "label": "Cook date"},
+    {"key": "origin_date", "label": "Origin date"},
     {"key": "use_by_date", "label": "Use-by date"},
     {"key": "use_within", "label": "Use within"},
     {"key": "notes", "label": "Notes"},
@@ -412,7 +423,8 @@ EXPORTABLE_FIELDS = [
     {"key": "unit", "label": "Unit"},
     {"key": "barcode", "label": "Barcode"},
     {"key": "condition", "label": "Condition"},
-    {"key": "cook_date", "label": "Cook date"},
+    {"key": "origin_date", "label": "Origin date"},
+    {"key": "origin_date_label", "label": "Origin date label"},
     {"key": "use_by_date", "label": "Use-by date"},
     {"key": "use_within", "label": "Use within"},
     {"key": "notes", "label": "Notes"},
@@ -451,6 +463,8 @@ def init_db():
         ensure_column(conn, "item", "depleted_at", "VARCHAR")
         ensure_column(conn, "item", "depleted_reason", "VARCHAR")
         ensure_column(conn, "item", "depleted_qty", "INTEGER")
+        ensure_column(conn, "item", "origin_date", "VARCHAR")
+        ensure_column(conn, "item", "origin_date_label", "VARCHAR")
 
         # ensure created_at on supporting tables
         for tbl in ("category", "bin", "location", "usewithin"):
@@ -458,8 +472,35 @@ def init_db():
         # label preset additions
         ensure_column(conn, "labelpreset", "printer_side", "VARCHAR DEFAULT 'auto'")
 
+        # Migrate cook_date -> origin_date for existing items
+        try:
+            conn.exec_driver_sql(
+                "UPDATE item SET origin_date = cook_date WHERE origin_date IS NULL AND cook_date IS NOT NULL;"
+            )
+            print("[MIGRATION] Copied cook_date -> origin_date for existing items.")
+        except Exception as e:
+            print(f"[MIGRATION] cook_date->origin_date migration skipped: {e}")
+
+        # Migrate stored display_fields: rename cook_date -> origin_date
+        try:
+            from sqlalchemy import text as _sa_text
+            row = conn.exec_driver_sql("SELECT value FROM appsetting WHERE key='display_fields'").fetchone()
+            if row and row[0]:
+                import json as _json
+                fields = _json.loads(row[0])
+                if "cook_date" in fields:
+                    fields = ["origin_date" if f == "cook_date" else f for f in fields]
+                    conn.exec_driver_sql(
+                        "UPDATE appsetting SET value=? WHERE key='display_fields'",
+                        (_json.dumps(fields),)
+                    )
+                    print("[MIGRATION] Updated display_fields: renamed cook_date -> origin_date")
+        except Exception as e:
+            print(f"[MIGRATION] display_fields migration skipped: {e}")
+
     # Seed default UseWithin options if table is empty
     ensure_usewithin_defaults()
+    ensure_origin_date_label_defaults()
 
 
 def ensure_usewithin_defaults():
@@ -491,6 +532,64 @@ def ensure_usewithin_defaults():
                     session.add(UseWithin(name=name))
                 session.commit()
                 print(f"[SEED] Restored missing UseWithin options: {', '.join(missing)}")
+
+
+ORIGIN_DATE_LABEL_DEFAULTS = [
+    "Cooked On",
+    "Purchased On",
+    "Opened On",
+    "Made On",
+    "Frozen On",
+    "Received On",
+    "Prepared On",
+    "Picked On",
+    "Brewed On",
+]
+
+
+def ensure_origin_date_label_defaults():
+    """Seed default Origin Date label options if table is empty."""
+    with Session(engine) as session:
+        existing = session.exec(select(OriginDateLabel)).all()
+        names = {o.name for o in existing}
+        if not existing:
+            for name in ORIGIN_DATE_LABEL_DEFAULTS:
+                session.add(OriginDateLabel(name=name))
+            session.commit()
+            print(f"[SEED] Inserted default OriginDateLabel options: {', '.join(ORIGIN_DATE_LABEL_DEFAULTS)}")
+        else:
+            missing = [n for n in ORIGIN_DATE_LABEL_DEFAULTS if n not in names]
+            if missing:
+                for name in missing:
+                    session.add(OriginDateLabel(name=name))
+                session.commit()
+                print(f"[SEED] Restored missing OriginDateLabel options: {', '.join(missing)}")
+
+
+def get_origin_date_labels_ordered(session: Session) -> list[OriginDateLabel]:
+    items = {o.id: o for o in session.exec(select(OriginDateLabel)).all()}
+    raw = _get_setting(session, "origin_date_label_order")
+    ordered: list[OriginDateLabel] = []
+    if raw:
+        try:
+            ids = json.loads(raw)
+            for i in ids:
+                if i in items:
+                    ordered.append(items.pop(i))
+        except Exception:
+            pass
+    ordered.extend(items.values())
+    return ordered
+
+
+def save_origin_date_label_order(session: Session, ids: list[int]):
+    existing = {o.id for o in session.exec(select(OriginDateLabel)).all()}
+    filtered = [i for i in ids if i in existing]
+    _set_setting(session, "origin_date_label_order", json.dumps(filtered))
+
+
+def get_origin_date_label_names(session: Session) -> list[str]:
+    return [o.name for o in get_origin_date_labels_ordered(session)]
 
 
 def _get_setting(session: Session, key: str, default=None):
@@ -1706,8 +1805,9 @@ def make_label_image(
         if preset.include_condition and item.condition:
             lines.append(f"Cond: {item.condition}")
 
-        if preset.include_cook_date and item.cook_date:
-            lines.append(f"Cook: {item.cook_date}")
+        if preset.include_cook_date and item.origin_date:
+            label = getattr(item, "origin_date_label", None) or "Origin"
+            lines.append(f"{label}: {item.origin_date}")
 
         if preset.include_use_by and item.use_by_date:
             lines.append(f"Use-by: {item.use_by_date}")
@@ -2271,7 +2371,8 @@ async def import_csv(request: Request, file: UploadFile = File(...)):
                 barcode=_val(row, "barcode"),
                 second_serial_number=_val(row, "second_serial_number"),
                 condition=_val(row, "condition"),
-                cook_date=_val(row, "cook_date"),
+                origin_date=_val(row, "origin_date") or _val(row, "cook_date"),
+                origin_date_label=_val(row, "origin_date_label") or "Cooked On",
                 use_by_date=_val(row, "use_by_date"),
                 use_within=_val(row, "use_within"),
                 notes=_val(row, "notes"),
@@ -2449,7 +2550,7 @@ def index(
     category: Optional[str] = None,
     location: Optional[str] = None,
     bin: Optional[str] = None,
-    cook_date: Optional[str] = None,
+    origin_date: Optional[str] = None,
     use_by_date: Optional[str] = None,
     tags: Optional[str] = None,
     page: int = 1,
@@ -2506,7 +2607,7 @@ def index(
                 | (Item.category.like(like))
                 | (Item.unit.like(like))
                 | (Item.condition.like(like))
-                | (Item.cook_date.like(like))
+                | (Item.origin_date.like(like))
                 | (Item.use_by_date.like(like))
                 | (Item.use_within.like(like))
             )
@@ -2518,8 +2619,8 @@ def index(
             stmt = stmt.where(Item.location == location)
         if bin:
             stmt = stmt.where(Item.bin_number == bin)
-        if cook_date:
-            stmt = stmt.where(Item.cook_date == cook_date)
+        if origin_date:
+            stmt = stmt.where(Item.origin_date == origin_date)
         if use_by_date:
             stmt = stmt.where(Item.use_by_date == use_by_date)
         if tags:
@@ -2591,7 +2692,7 @@ def index(
             "category": category or "",
             "location": location or "",
             "bin": bin or "",
-            "cook_date": cook_date or "",
+            "origin_date": origin_date or "",
             "use_by_date": use_by_date or "",
             "tags": tags or "",
             "depleted_reason": depleted_reason or "",
@@ -2619,7 +2720,7 @@ def index(
             "category": category or "",
             "location": location or "",
             "bin": bin or "",
-            "cook_date": cook_date or "",
+            "origin_date": origin_date or "",
             "use_by_date": use_by_date or "",
             "tags": tags or "",
             "depleted_reason": depleted_reason or "",
@@ -2661,10 +2762,10 @@ def depleted_items(
         ).all()
         for it in items:
             created = _parse_date(it.created_at)
-            cooked = _parse_date(it.cook_date)
+            cooked = _parse_date(it.origin_date)
             depleted = _parse_date(it.depleted_at)
             days_on_hand = None
-            # Prefer cook_date to represent when the item was prepared; fall back to created_at
+            # Prefer origin_date to represent when the item was prepared; fall back to created_at
             basis = cooked or created
             if basis and depleted:
                 days_on_hand = (depleted - basis).days
@@ -2701,7 +2802,8 @@ async def new_item(
     quantity: int = Form(1),
     unit: str = Form("each"),
     condition: str = Form(""),
-    cook_date: str = Form(""),
+    origin_date: str = Form(""),
+    origin_date_label: str = Form(""),
     use_by_date: str = Form(""),
     use_within: str = Form(""),
     notes: str = Form(""),
@@ -2713,6 +2815,7 @@ async def new_item(
         unit_names = get_unit_names(session)
         required_fields = get_required_field_keys(session)
         audit_window_days = int(_get_setting(session, "audit_window_days", "30") or "30")
+        origin_date_labels = get_origin_date_label_names(session)
 
     if request.method == "GET":
         return templates.TemplateResponse(
@@ -2726,6 +2829,7 @@ async def new_item(
                 "units": unit_names,
                 "required_fields": required_fields,
                 "audit_window_days": audit_window_days,
+                "origin_date_labels": origin_date_labels,
                 "form_values": {},
                 "error": "",
             },
@@ -2739,7 +2843,8 @@ async def new_item(
     bin_number = _norm(bin_number)
     unit = _norm(unit)
     condition = _norm(condition)
-    cook_date = _norm(cook_date)
+    origin_date = _norm(origin_date)
+    origin_date_label = _norm(origin_date_label) or "Cooked On"
     use_by_date = _norm(use_by_date)
     use_within = _norm(use_within)
     notes = _norm(notes)
@@ -2756,7 +2861,7 @@ async def new_item(
                 "quantity": quantity,
                 "unit": unit,
                 "condition": condition,
-                "cook_date": cook_date,
+                "origin_date": origin_date,
                 "use_by_date": use_by_date,
                 "use_within": use_within,
                 "notes": notes,
@@ -2787,6 +2892,7 @@ async def new_item(
                 "required_fields": required_fields,
                 "audit_window_days": audit_window_days,
                 "error": msg,
+                "origin_date_labels": origin_date_labels,
                 "form_values": {
                     "name": name,
                     "category": category,
@@ -2796,7 +2902,8 @@ async def new_item(
                     "quantity": quantity,
                     "unit": unit,
                     "condition": condition,
-                    "cook_date": cook_date,
+                    "origin_date": origin_date,
+                    "origin_date_label": origin_date_label,
                     "use_by_date": use_by_date,
                     "use_within": use_within,
                     "notes": notes,
@@ -2825,7 +2932,8 @@ async def new_item(
             quantity=quantity,
             unit=unit or None,
             condition=condition or None,
-            cook_date=cook_date or None,
+            origin_date=origin_date or None,
+            origin_date_label=origin_date_label or "Cooked On",
             use_by_date=use_by_date or None,
             use_within=use_within or None,
             notes=notes or None,
@@ -3004,7 +3112,7 @@ def reports(
 
             if it.depleted_at:
                 created = _parse_date(it.created_at)
-                cooked = _parse_date(it.cook_date)
+                cooked = _parse_date(it.origin_date)
                 depleted_date = _parse_date(it.depleted_at)
                 if depleted_date:
                     lookback_ok = True
@@ -3939,6 +4047,7 @@ def edit_item_form(request: Request, item_id: int, partial: int = 0):
         unit_names = get_unit_names(session)
         photos = get_item_photos(session, item_id, include_missing=True)
         audit_window_days = int(_get_setting(session, "audit_window_days", "30") or "30")
+        origin_date_labels = get_origin_date_label_names(session)
     ctx = {
         "request": request,
         "item": item,
@@ -3950,6 +4059,7 @@ def edit_item_form(request: Request, item_id: int, partial: int = 0):
         "required_fields": required_fields,
         "photos": photos,
         "audit_window_days": audit_window_days,
+        "origin_date_labels": origin_date_labels,
         "error": "",
     }
     if partial:
@@ -3969,7 +4079,8 @@ async def edit_item_submit(
     quantity: int = Form(1),
     unit: str = Form("each"),
     condition: str = Form(""),
-    cook_date: str = Form(""),
+    origin_date: str = Form(""),
+    origin_date_label: str = Form(""),
     use_by_date: str = Form(""),
     use_within: str = Form(""),
     notes: str = Form(""),
@@ -3984,7 +4095,8 @@ async def edit_item_submit(
     bin_number = _norm(bin_number)
     unit = _norm(unit)
     condition = _norm(condition)
-    cook_date = _norm(cook_date)
+    origin_date = _norm(origin_date)
+    origin_date_label = _norm(origin_date_label) or "Cooked On"
     use_by_date = _norm(use_by_date)
     use_within = _norm(use_within)
     notes = _norm(notes)
@@ -3994,6 +4106,7 @@ async def edit_item_submit(
         cats, bins, _locations, use_withins = _choices(session)
         unit_names = get_unit_names(session)
         required_fields = get_required_field_keys(session)
+        origin_date_labels = get_origin_date_label_names(session)
 
         def _missing_required() -> list[str]:
             missing: list[str] = []
@@ -4007,7 +4120,7 @@ async def edit_item_submit(
                     "quantity": quantity,
                     "unit": unit,
                     "condition": condition,
-                    "cook_date": cook_date,
+                    "origin_date": origin_date,
                     "use_by_date": use_by_date,
                     "use_within": use_within,
                     "notes": notes,
@@ -4043,6 +4156,7 @@ async def edit_item_submit(
                     "use_withins": use_withins,
                     "units": unit_names,
                     "required_fields": required_fields,
+                    "origin_date_labels": origin_date_labels,
                     "error": msg,
                 },
                 status_code=400,
@@ -4061,7 +4175,8 @@ async def edit_item_submit(
         item.quantity = quantity
         item.unit = unit or None
         item.condition = condition or None
-        item.cook_date = cook_date or None
+        item.origin_date = origin_date or None
+        item.origin_date_label = origin_date_label or "Cooked On"
         item.use_by_date = use_by_date or None
         item.use_within = use_within or None
         item.notes = notes or None
@@ -4200,7 +4315,8 @@ def duplicate_item(request: Request, item_id: int):
             barcode=new_serial,
             second_serial_number=None,
             condition=original.condition,
-            cook_date=None,
+            origin_date=None,
+            origin_date_label=original.origin_date_label or "Cooked On",
             use_by_date=None,
             use_within=None,
             notes=original.notes,
@@ -4300,6 +4416,17 @@ async def admin(request: Request, response: Response):
                     save_usewithin_order(
                         session, [u.id for u in get_use_withins_ordered(session)]
                     )
+            elif "new_origin_date_label" in form:
+                name = (form.get("new_origin_date_label") or "").strip()
+                if name and not session.exec(
+                    select(OriginDateLabel).where(OriginDateLabel.name == name)
+                ).first():
+                    session.add(OriginDateLabel(name=name))
+                    session.commit()
+                    save_origin_date_label_order(
+                        session, [o.id for o in get_origin_date_labels_ordered(session)]
+                    )
+
             elif "new_unit" in form:
                 name = (form.get("new_unit") or "").strip()
                 adjustable = bool(form.get("new_unit_adjustable"))
@@ -4439,6 +4566,38 @@ async def admin(request: Request, response: Response):
                         for it in items:
                             it.use_within = new_name
                         session.commit()
+            elif "delete_origin_date_label_id" in form:
+                oid = form.get("delete_origin_date_label_id")
+                if oid:
+                    odl = session.get(OriginDateLabel, int(oid))
+                    if odl:
+                        items = session.exec(
+                            select(Item).where(Item.origin_date_label == odl.name)
+                        ).all()
+                        for it in items:
+                            it.origin_date_label = "Cooked On"
+                        session.delete(odl)
+                        session.commit()
+                        remaining_ids = [o.id for o in get_origin_date_labels_ordered(session)]
+                        save_origin_date_label_order(session, remaining_ids)
+
+            elif "edit_origin_date_label_id" in form:
+                oid = form.get("edit_origin_date_label_id")
+                new_name = (form.get("edit_origin_date_label_name") or "").strip()
+                if oid and new_name:
+                    odl = session.get(OriginDateLabel, int(oid))
+                    exists = session.exec(
+                        select(OriginDateLabel).where(OriginDateLabel.name == new_name)
+                    ).first()
+                    if odl and not exists:
+                        old = odl.name
+                        odl.name = new_name
+                        session.add(odl)
+                        items = session.exec(select(Item).where(Item.origin_date_label == old)).all()
+                        for it in items:
+                            it.origin_date_label = new_name
+                        session.commit()
+
             elif "delete_unit_id" in form:
                 uid = form.get("delete_unit_id")
                 if uid:
@@ -4559,6 +4718,10 @@ async def admin(request: Request, response: Response):
                 ids = [int(x) for x in (form.get("unit_order", "") or "").split(",") if x]
                 save_unit_order(session, ids)
 
+            elif form.get("origin_date_label_order_action") == "save":
+                ids = [int(x) for x in (form.get("origin_date_label_order", "") or "").split(",") if x]
+                save_origin_date_label_order(session, ids)
+
             elif form.get("app_heading_action") == "save":
                 heading = (form.get("app_heading_value") or "").strip()
                 save_app_heading(session, heading)
@@ -4584,6 +4747,7 @@ async def admin(request: Request, response: Response):
         locations = get_locations_ordered(session)
         use_withins = get_use_withins_ordered(session)
         units = get_units_ordered(session)
+        origin_date_labels_admin = get_origin_date_labels_ordered(session)
         app_heading = get_app_heading(session)
         selected_display_fields = get_display_field_keys(session)
         display_fields_defs = DISPLAYABLE_FIELDS
@@ -4609,6 +4773,7 @@ async def admin(request: Request, response: Response):
             "locations": locations,
             "use_withins": use_withins,
             "units": units,
+            "origin_date_labels_admin": origin_date_labels_admin,
             "display_fields_defs": display_fields_defs,
             "selected_display_fields": selected_display_fields,
             "required_field_defs": required_field_defs,
