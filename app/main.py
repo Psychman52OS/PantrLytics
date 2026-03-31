@@ -43,7 +43,7 @@ except Exception as e:
 # Timezone / datetime formatting helper
 # -------------------------------------------------
 LOCAL_TZ = tzlocal.get_localzone()
-APP_VERSION = "2026.03.30-11"
+APP_VERSION = "2026.03.30-12"
 APP_INTERNAL_PORT = 8099
 
 
@@ -2812,9 +2812,18 @@ async def new_item(
     use_by_date: str = Form(""),
     use_within: str = Form(""),
     notes: str = Form(""),
-    review_window_days: Optional[int] = Form(None),
+    review_window_days: Optional[str] = Form(None),
     photos: List[UploadFile] = File([]),
 ):
+    # Pydantic v2 won't coerce empty string "" to None for Optional[int], so
+    # we accept as Optional[str] and parse manually.
+    _rwd_new: Optional[int] = None
+    if review_window_days and review_window_days.strip():
+        try:
+            _rwd_new = int(review_window_days.strip())
+        except ValueError:
+            pass
+
     with Session(engine) as session:
         cats, bins, locations, use_withins = _choices(session)
         unit_names = get_unit_names(session)
@@ -2945,7 +2954,7 @@ async def new_item(
             barcode=serial,
             photo_path=None,
             last_audit_date=dt.date.today().isoformat(),
-            review_window_days=review_window_days or None,
+            review_window_days=_rwd_new,
         )
         session.add(item)
         session.commit()
@@ -3183,8 +3192,11 @@ def reports(
                 elif info["days"] <= 60:
                     summary["d60"] += 1
                     bucket_items["d60"].append(it)
-            else:
-                # Only flag items that have origin_date — truly dateless items are excluded
+            elif not it.use_by_date:
+                # use_by_date is genuinely NULL — flag if origin_date is set.
+                # Using 'elif not it.use_by_date' instead of bare 'else' ensures
+                # items with a malformed/unparseable use_by_date value don't appear
+                # in this bucket as if they have no date set.
                 if it.origin_date:
                     bucket_items["no_date"].append(it)
 
@@ -4091,9 +4103,18 @@ async def edit_item_submit(
     use_by_date: str = Form(""),
     use_within: str = Form(""),
     notes: str = Form(""),
-    review_window_days: Optional[int] = Form(None),
+    review_window_days: Optional[str] = Form(None),
     photos: List[UploadFile] = File([]),
 ):
+    # Pydantic v2 won't coerce empty string "" to None for Optional[int], so
+    # we accept as Optional[str] and parse manually.
+    _rwd: Optional[int] = None
+    if review_window_days and review_window_days.strip():
+        try:
+            _rwd = int(review_window_days.strip())
+        except ValueError:
+            pass
+
     # Normalize for consistent comparisons and to avoid duplicate-case inserts
     name = _norm(name)
     category = _norm(category)
@@ -4187,7 +4208,7 @@ async def edit_item_submit(
         item.use_by_date = use_by_date or None
         item.use_within = use_within or None
         item.notes = notes or None
-        item.review_window_days = review_window_days or None
+        item.review_window_days = _rwd
         item.last_audit_date = dt.date.today().isoformat()
         session.add(item)
         session.commit()

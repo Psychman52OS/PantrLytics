@@ -1,5 +1,11 @@
 # PantrLytics Changelog
 
+## 2026.03.30-12
+
+### Bug Fixes
+- **Edit save always returned 422** — `review_window_days` was declared as `Optional[int] = Form(None)` in both the edit and new-item routes; Pydantic v2 cannot coerce an empty string `""` to `None` for `Optional[int]`, so any item without a review window set would fail FastAPI validation before the route function ran; changed both parameters to `Optional[str]` and parse to int manually in the route body
+- **Reports "No Use-by Date" bucket showing wrong items** — the bucket was gated on `_expiry_info()` returning `None` (bare `else`), which is true for both genuinely NULL `use_by_date` AND for dates that are set but cannot be parsed (e.g. imported via CSV in a non-ISO format); items with a malformed date would appear as if they had no use-by date at all; changed gate to `elif not it.use_by_date` so only items with a truly NULL use-by date are included
+
 ## 2026.03.30-11
 
 ### Bug Fixes — Origin Date
