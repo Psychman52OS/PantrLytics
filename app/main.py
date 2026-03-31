@@ -43,7 +43,7 @@ except Exception as e:
 # Timezone / datetime formatting helper
 # -------------------------------------------------
 LOCAL_TZ = tzlocal.get_localzone()
-APP_VERSION = "2026.03.30-12"
+APP_VERSION = "2026.03.30-13"
 APP_INTERNAL_PORT = 8099
 
 
@@ -3193,12 +3193,11 @@ def reports(
                     summary["d60"] += 1
                     bucket_items["d60"].append(it)
             elif not it.use_by_date:
-                # use_by_date is genuinely NULL — flag if origin_date is set.
+                # use_by_date is genuinely NULL — flag it regardless of origin_date.
                 # Using 'elif not it.use_by_date' instead of bare 'else' ensures
                 # items with a malformed/unparseable use_by_date value don't appear
                 # in this bucket as if they have no date set.
-                if it.origin_date:
-                    bucket_items["no_date"].append(it)
+                bucket_items["no_date"].append(it)
 
             if info:
                 expiring.append(it)

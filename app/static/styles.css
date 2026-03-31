@@ -427,7 +427,6 @@ button.btn { -webkit-appearance: none; appearance: none; }
   border-radius: var(--radius);
   position: relative;
   z-index: 1;
-  will-change: transform;
   cursor: grab;
 }
 .swipe-inner:active { cursor: grabbing; }
