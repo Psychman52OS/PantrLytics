@@ -1620,12 +1620,13 @@ dialog#app-modal::backdrop {
   .table-inventory .col-category,
   .table-inventory .col-location,
   .table-inventory .col-quantity,
+  .table-inventory .col-bin_number,
+  .table-inventory .col-origin_date,
   .table-inventory .col-use_by_date {
     order: 1;
   }
 
   /* Hide less critical columns */
-  .table-inventory .col-bin_number,
   .table-inventory .col-unit,
   .table-inventory .col-condition,
   .table-inventory .col-cook_date,

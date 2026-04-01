@@ -103,11 +103,18 @@
                   {% else %}
                     {{ val }}
                   {% endif %}
+                  {% if item.unit %}<span class="hide-desktop"> {{ item.unit }}</span>{% endif %}
                 {% endif %}
               {% elif col.key in ["origin_date", "use_by_date", "last_audit_date"] %}
-                {{ val or "—" }}
+                {% if val %}
+                  {% if col.key == "origin_date" %}<span class="hide-desktop muted" style="font-size:11px;">{{ item.origin_date_label or 'Cooked On' }}: </span>
+                  {% elif col.key == "use_by_date" %}<span class="hide-desktop muted" style="font-size:11px;">Use By: </span>
+                  {% endif %}{{ val }}
+                {% else %}—{% endif %}
               {% elif col.key == "notes" %}
                 <span class="wrap">{{ val or "—" }}</span>
+              {% elif col.key == "bin_number" %}
+                {% if val %}<span class="hide-desktop muted" style="font-size:11px;">Bin: </span>{{ val }}{% else %}—{% endif %}
               {% else %}
                 {{ val or "—" }}
               {% endif %}
