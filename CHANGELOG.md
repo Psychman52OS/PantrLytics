@@ -1,5 +1,10 @@
 # PantrLytics Changelog
 
+## 2026.03.30-16
+
+### Features
+- **Mobile list view — richer item info** — unit now appears inline after quantity; bin number, origin date (with its per-item label), and use-by date (labelled "Use By:") are now visible on mobile; bin and origin date columns added to the mobile flex order group; label prefixes added to date/bin cells so context is clear without the hidden table header
+
 ## 2026.03.30-15
 
 ### Bug Fixes
