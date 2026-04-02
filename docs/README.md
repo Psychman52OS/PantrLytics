@@ -14,6 +14,7 @@ Choose your installation type:
 | [Admin and Settings](ha/admin-and-settings.md) | Columns, units, categories, swipe actions, theme |
 | [Backup and Restore](ha/backup-and-restore.md) | Backup zips, restore, CSV import/export |
 | [Printer Setup](ha/printer-setup.md) | CUPS/IPP setup for label printing |
+| [Lovelace Dashboard Cards](ha/lovelace-cards.md) | Install and configure the companion HA dashboard cards |
 | [FAQ](ha/faq.md) | Common questions and troubleshooting |
 
 ## Standalone Docker
