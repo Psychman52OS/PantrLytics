@@ -164,7 +164,7 @@ A companion card bundle for HA dashboards is available at [lovelace-pantrlytics-
 
 Cards included: Stats, Expiring Items, Reports/Health Score, Quick Add, Quick Adjust (up to 10 items with swipe actions), App Status.
 
-Install via HACS as a custom Lovelace repository, or manually copy `dist/pantrlytics-cards.js` to `/config/www/`. See the cards repo for full configuration reference.
+Install via HACS as a custom Dashboard repository, or manually copy `dist/pantrlytics-cards.js` to `/config/www/`. See the cards repo for full configuration reference.
 
 ---
 
