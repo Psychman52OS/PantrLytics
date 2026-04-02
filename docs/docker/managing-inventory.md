@@ -18,7 +18,8 @@ This guide covers how to add, edit, search, and deplete items in PantrLytics.
 | Quantity | How many you have |
 | Unit | Unit of measure (e.g. "cans", "oz", "bottles") |
 | Condition | Free text for condition notes |
-| Cook date | Date the item was cooked or prepared |
+| Origin date | A flexible date field that tracks when the item was made, purchased, opened, etc. The label shown (e.g. "Cooked On", "Purchased On", "Opened On") is chosen per-item from a dropdown and is printed on labels. |
+| Review window | Optional. Override the global review interval for this item (quick-select buttons: 15d, 30d, 60d, 120d). Leave blank to use the global default set in Admin. |
 | Use-by date | Expiry or best-by date (used in reports) |
 | Use within | How soon after opening to use (e.g. "3 days") |
 | Tags | Comma-separated labels for free-form grouping |
@@ -43,6 +44,8 @@ Click **Filters** to expand a panel with dropdowns for category, location, bin, 
 ### List vs Grid view
 Toggle between **List** (compact table) and **Grid** (cards with photo thumbnails) using the view toggle near the top right. Your preference is saved automatically.
 
+A **Depleted** shortcut button sits to the right of the Grid button and links directly to the Depleted Items page.
+
 ---
 
 ## Adjusting quantity
@@ -54,6 +57,19 @@ For units marked **Adjustable** in Admin → Units, **+** and **−** buttons ap
 ## Editing an item
 
 Open the item (tap the name or row) → click **Edit**. All fields are editable, including photos. Click **Save** when done.
+
+---
+
+## Quick Edit (desktop)
+
+Quick Edit lets you edit multiple items inline without opening a form for each one.
+
+1. Click the **Quick Edit** button in the view-toggle bar (desktop only — the button turns orange when active).
+2. All rows become editable at once. Click any cell to edit quantity, unit, origin date, use-by date, bin, or notes inline.
+3. Changes save automatically on blur (text/number fields) or immediately on change (date fields). A cell dims while saving and flashes green on success or red on failure. Unchanged cells are skipped.
+4. Click **Quick Edit** again to exit. All edits are committed.
+
+> Quick Edit is a desktop-only feature and does not appear on mobile.
 
 ---
 
@@ -80,7 +96,7 @@ Depleting marks an item as used up and moves it to the Depleted list.
 
 **From the item detail page:** click **Mark depleted**, choose a reason (optional), and confirm.
 
-Depletion reasons (for reporting): Expired, Used, Donated, Discarded, or a custom note.
+Depletion reasons (for reporting): Consumed/Used, Discarded – expired/spoiled, Discarded – damaged, Donated/Returned, Lost/Missing, Restocked/Replaced, or Other.
 
 ---
 
@@ -104,6 +120,19 @@ Open the item detail page → click **Delete**. This permanently removes the ite
 - Upload one or more photos on the new item or edit form.
 - On the item detail page, tap the **★ star** button on a photo to set it as the **primary thumbnail** — this is the image shown in grid card view.
 - Thumbnails update immediately after changing the primary photo (cache-busting is applied automatically).
+
+---
+
+## Mobile list view
+
+On mobile, the inventory list shows additional item detail inline beneath each row (no column headers are visible on small screens):
+
+- Quantity with its unit (e.g. "3 cans")
+- Bin number (if set)
+- Origin date with its per-item label (e.g. "Cooked On: 12 Mar")
+- Use-by date (labelled "Use By:")
+
+This lets you see key dates and location info without opening the item.
 
 ---
 

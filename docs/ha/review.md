@@ -60,6 +60,20 @@ A shorter window means items cycle through review more frequently. A longer wind
 
 ---
 
+## Per-item review window
+
+You can override the global review window on a per-item basis.
+
+**On the New or Edit form:** use the quick-select buttons (15d, 30d, 60d, 120d) next to the **Review window** field, or type a number of days manually. Leave the field blank to use the global default.
+
+**On the item detail page:** the item's review status is shown in a dedicated panel:
+- **Last reviewed** — date the item was last reviewed (or "Never")
+- **Next review due** — date the next review is due, with a countdown pill (e.g. "in 12 days" or "overdue")
+
+Items with a per-item window appear in the Review queue based on *their own* window rather than the global one.
+
+---
+
 ## Audit freshness and the Health Score
 
 The health score's "Reviewed" component reflects what percentage of your active items have been reviewed within the current window. Items auto-stamped by editing or depleting count toward this — only items that haven't been touched at all in the window will drag it down.

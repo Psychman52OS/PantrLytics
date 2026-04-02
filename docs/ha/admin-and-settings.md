@@ -108,6 +108,21 @@ Manage the "Use Within" values available on items (e.g. "3 days", "1 week", "1 m
 
 ---
 
+## Origin Date Labels
+
+Manage the dropdown options shown when setting the **Origin Date** label on an item (e.g. "Cooked On", "Purchased On", "Opened On").
+
+- **Add** a new label with the **+ Add** button.
+- **Edit** a label in-place by clicking it.
+- **Delete** a label with the trash icon. Items that use the deleted label keep their existing label text but the option is removed from the dropdown.
+- **Drag** the ☰ handle to reorder entries — the first entry in the list is the default shown on new items.
+
+Default labels included: Cooked On, Purchased On, Opened On, Made On, Frozen On, Received On, Prepared On, Picked On, Brewed On. You can rename, remove, or add your own.
+
+The selected label is printed on item labels when printing via the Label Designer.
+
+---
+
 ## Units
 
 Manage the units of measure available on items (e.g. "cans", "oz", "bottles", "grams").
