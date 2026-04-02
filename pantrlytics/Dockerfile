@@ -2,7 +2,7 @@ FROM python:3.11-slim
 
 # Install minimal system deps if your app needs them (adjust as necessary)
 RUN apt-get update \
- && apt-get install -y --no-install-recommends build-essential netcat \
+ && apt-get install -y --no-install-recommends build-essential \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/src/app
@@ -18,7 +18,7 @@ RUN chmod +x /run.sh
 
 # Default port and worker configuration (can be overridden by env)
 ENV PORT=8099
-ENV GUNICORN_WORKERS=2
+ENV GUNICORN_WORKERS=1
 
 EXPOSE ${PORT}
 

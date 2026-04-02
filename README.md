@@ -1,6 +1,6 @@
 # PantrLytics
 
-**Version 2026.03.30-16**
+**Version 2026.04.02**
 
 Inventory tracker with on-demand label generation and IPP printing. Runs as a Home Assistant add-on or as a standalone Docker container.
 
@@ -155,6 +155,16 @@ Surfaces items that haven't been touched (created, edited, depleted, or manually
 2. Add printer in CUPS (`http://<cups-host>:631/admin`), note queue name and host:port.
 3. In add-on config / `.env`: set `ipp_host` (e.g. `192.168.1.50:631`) and `ipp_printer` (queue name).
 4. Restart. Print from any item — IPP sends directly. If unreachable, you get a PNG preview instead.
+
+---
+
+## Home Assistant Lovelace cards
+
+A companion card bundle for HA dashboards is available at [lovelace-pantrlytics-cards](https://github.com/Psychman52OS/lovelace-pantrlytics-cards).
+
+Cards included: Stats, Expiring Items, Reports/Health Score, Quick Add, Quick Adjust (up to 10 items with swipe actions), App Status.
+
+Install via HACS as a custom Lovelace repository, or manually copy `dist/pantrlytics-cards.js` to `/config/www/`. See the cards repo for full configuration reference.
 
 ---
 

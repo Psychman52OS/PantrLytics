@@ -21,3 +21,6 @@ Thumbs.db
 # Claude Code collaboration files (local only)
 CLAUDE.md
 .claude/
+
+# Local development tools (not for repo)
+sync-to-ha.sh

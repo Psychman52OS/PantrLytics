@@ -1063,6 +1063,18 @@ dialog#app-modal::backdrop {
 .admin-list-row form {
   margin: 0;
 }
+
+.storage-chevron {
+  font-size: 0.8rem;
+  color: var(--muted);
+  display: inline-block;
+  transition: transform 0.2s ease;
+  line-height: 1;
+}
+
+.storage-chevron.open {
+  transform: rotate(180deg);
+}
 .bordered-row {
   border: 1px solid var(--border);
   border-radius: 10px;

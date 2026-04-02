@@ -1,5 +1,14 @@
 # PantrLytics Changelog
 
+## 2026.04.02
+
+### Features
+- **Home Assistant Lovelace cards** — new companion card bundle (`lovelace-pantrlytics-cards`) with 6 dashboard cards: Stats, Expiring Items, Reports/Health Score, Quick Add, Quick Adjust (up to 10 items with swipe actions), and App Status
+- **App Status card** — shows IPP connectivity, real app storage breakdown (db/photos/backups/other), active/total item counts, and app version; each row is individually toggleable
+- **App storage breakdown in Admin** — Health section now shows actual application storage (database, photos, backups, other) instead of total HA filesystem usage; expandable with a rotating chevron
+- **AJAX deplete support** — `/item/{id}/deplete` returns JSON `{ok: true}` when called with `X-Requested-With: xmlhttprequest` header (used by Lovelace cards)
+- **Swipe actions and depletion reasons in form-data API** — `/api/form-data` now includes `swipe_actions` and `depletion_reasons` for use by the Quick Adjust card
+
 ## 2026.03.30-16
 
 ### Features

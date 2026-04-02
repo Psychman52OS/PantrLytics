@@ -31,13 +31,33 @@
         <span class="admin-list-name">IPP connectivity</span>
         <span class="admin-section-help">{{ health.ipp_status }}</span>
       </div>
-      <div class="admin-list-row" style="border-radius:12px; border:1px solid var(--border); padding:8px 10px; background: var(--card);">
-        <span class="admin-list-name">Disk (DATA_DIR)</span>
-        <span class="admin-section-help">
-          {{ (health.disk.used / (1024*1024)) | round(0) }} MB used /
-          {{ (health.disk.total / (1024*1024)) | round(0) }} MB total
-        </span>
-      </div>
+      <details class="storage-details" style="border-radius:12px; border:1px solid var(--border); background: var(--card); overflow:hidden;">
+        <summary style="display:flex; justify-content:space-between; align-items:center; list-style:none; -webkit-appearance:none; padding:8px 10px; cursor:pointer; gap:8px;">
+          <span class="admin-list-name">App storage</span>
+          <span style="display:flex; align-items:center; gap:5px;">
+            <span class="admin-section-help">{{ (health.storage.total / (1024*1024)) | round(1) }} MB total</span>
+            <span class="storage-chevron">▾</span>
+          </span>
+        </summary>
+        <div style="padding:6px 10px 10px; display:flex; flex-direction:column; gap:4px; border-top:1px solid var(--border);">
+          {% set rows = [
+            ("Database",  health.storage.db),
+            ("Photos",    health.storage.photos),
+            ("Backups",   health.storage.backups),
+            ("Other",     health.storage.other),
+          ] %}
+          {% for label, size in rows %}
+          <div style="display:flex; justify-content:space-between; font-size:0.85rem; color:var(--muted);">
+            <span>{{ label }}</span>
+            <span>
+              {% if size >= 1048576 %}{{ (size / 1048576) | round(1) }} MB
+              {% elif size >= 1024 %}{{ (size / 1024) | round(0) | int }} KB
+              {% else %}{{ size }} B{% endif %}
+            </span>
+          </div>
+          {% endfor %}
+        </div>
+      </details>
       <div class="admin-list-row" style="border-radius:12px; border:1px solid var(--border); padding:8px 10px; background: var(--card);">
         <span class="admin-list-name">Total items</span>
         <span class="admin-section-help">{{ health.item_count }}</span>
@@ -982,6 +1002,16 @@ document.addEventListener('click', (e) => {
 
   document.addEventListener('click', (e) => {
     if (!input.contains(e.target) && !grid.contains(e.target)) hideGrid();
+  });
+})();
+
+// Storage chevron rotation
+(function() {
+  const details = document.querySelector('.storage-details');
+  if (!details) return;
+  details.addEventListener('toggle', () => {
+    const chevron = details.querySelector('.storage-chevron');
+    if (chevron) chevron.classList.toggle('open', details.open);
   });
 })();
 </script>

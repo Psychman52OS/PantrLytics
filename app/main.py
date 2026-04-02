@@ -12,6 +12,7 @@ import socket
 from typing import Optional, List
 
 from fastapi import FastAPI, Request, Form, UploadFile, File, Response
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import (
     HTMLResponse,
     RedirectResponse,
@@ -43,7 +44,7 @@ except Exception as e:
 # Timezone / datetime formatting helper
 # -------------------------------------------------
 LOCAL_TZ = tzlocal.get_localzone()
-APP_VERSION = "2026.03.30-16"
+APP_VERSION = "2026.04.02"
 APP_INTERNAL_PORT = 8099
 
 
@@ -439,8 +440,13 @@ EXPORTABLE_FIELD_KEYS = [f["key"] for f in EXPORTABLE_FIELDS]
 
 
 def init_db():
-    # Create any missing tables based on models
-    SQLModel.metadata.create_all(engine)
+    # Create any missing tables based on models.
+    # Use try/except to handle the race condition when multiple gunicorn workers
+    # all call init_db() simultaneously on first boot with a fresh database.
+    try:
+        SQLModel.metadata.create_all(engine)
+    except Exception as e:
+        print(f"[init_db] create_all skipped (likely race on first boot): {e}")
 
     def ensure_column(conn, table: str, column: str, ddl: str):
         """Add a column to 'table' if it does not already exist."""
@@ -1130,6 +1136,54 @@ def get_disk_usage(path: str) -> dict:
         return {"total": 0, "used": 0, "free": 0}
 
 
+def _dir_size(path: str) -> int:
+    """Recursively sum file sizes under path. Returns 0 if path doesn't exist."""
+    total = 0
+    try:
+        for root, _dirs, files in os.walk(path):
+            for f in files:
+                try:
+                    total += os.path.getsize(os.path.join(root, f))
+                except OSError:
+                    pass
+    except OSError:
+        pass
+    return total
+
+
+def get_app_storage() -> dict:
+    """Return actual app-owned storage breakdown in bytes."""
+    db_size = 0
+    try:
+        db_size = os.path.getsize(DB_PATH)
+    except OSError:
+        pass
+
+    photos_size  = _dir_size(PHOTOS_DIR)
+    backups_size = _dir_size(BACKUP_DIR)
+
+    # Other files sitting directly in DATA_DIR (options, icons, etc.)
+    other_size = 0
+    try:
+        for fname in os.listdir(DATA_DIR):
+            fp = os.path.join(DATA_DIR, fname)
+            if os.path.isfile(fp) and fp != DB_PATH:
+                try:
+                    other_size += os.path.getsize(fp)
+                except OSError:
+                    pass
+    except OSError:
+        pass
+
+    return {
+        "total":   db_size + photos_size + backups_size + other_size,
+        "db":      db_size,
+        "photos":  photos_size,
+        "backups": backups_size,
+        "other":   other_size,
+    }
+
+
 def create_backup_zip(opts: dict, session: Session, target_dir: str | None = None) -> tuple[str, str]:
     """Create a backup zip on disk. Returns (path, filename)."""
     target_dir = target_dir or BACKUP_DIR
@@ -1368,6 +1422,14 @@ def build_item_link(item: Item, request: Request | None = None) -> str:
 # App + middleware
 # -----------------------------
 app = FastAPI(title="Inventory & Labels")
+
+# Allow HA dashboard (and any local origin) to call the /api/* endpoints
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
+)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
@@ -2154,11 +2216,16 @@ def deplete_item(
             depleted_iso = parsed.isoformat()
         except ValueError:
             pass
+    is_ajax = request.headers.get("X-Requested-With", "").lower() == "xmlhttprequest"
     with Session(engine) as session:
         item = session.get(Item, item_id)
         if not item:
+            if is_ajax:
+                return JSONResponse({"ok": False, "reason": "not_found"}, status_code=404)
             return RedirectResponse(url=str(request.url_for("index")), status_code=303)
         if item.depleted_at:
+            if is_ajax:
+                return JSONResponse({"ok": False, "reason": "already_depleted"})
             return RedirectResponse(
                 url=str(request.url_for("show_item", item_id=item_id)),
                 status_code=303,
@@ -2170,6 +2237,8 @@ def deplete_item(
         item.last_audit_date = dt.date.today().isoformat()
         session.add(item)
         session.commit()
+    if is_ajax:
+        return JSONResponse({"ok": True})
     return RedirectResponse(
         url=str(request.url_for("show_item", item_id=item_id)),
         status_code=303,
@@ -4787,7 +4856,7 @@ async def admin(request: Request, response: Response):
         audit_window_days = int(_get_setting(session, "audit_window_days", "30") or "30")
         health = {
             "ipp_status": check_ipp_status(),
-            "disk": get_disk_usage(DATA_DIR),
+            "storage": get_app_storage(),
             "item_count": session.exec(select(func.count()).select_from(Item)).one(),
         }
 
@@ -4869,9 +4938,323 @@ def serve_icon_svg():
 
 
 # -------- Utilities --------
+# ---------------------------------------------------------------------------
+# JSON API endpoints — used by HA dashboard cards
+# ---------------------------------------------------------------------------
+
+@app.get("/api/stats")
+def api_stats():
+    today = dt.date.today()
+    cutoff_7 = today + dt.timedelta(days=7)
+    total_active = 0
+    expiring_7 = 0
+    depleted_today = 0
+    with Session(engine) as session:
+        items = session.exec(select(Item)).all()
+        for it in items:
+            if it.depleted_at:
+                dep_d = _parse_date(it.depleted_at)
+                if dep_d and dep_d == today:
+                    depleted_today += 1
+            else:
+                total_active += 1
+                if it.use_by_date:
+                    ub = _parse_date(it.use_by_date)
+                    if ub and ub <= cutoff_7:
+                        expiring_7 += 1
+    return JSONResponse({
+        "total_active": total_active,
+        "expiring_7_days": expiring_7,
+        "depleted_today": depleted_today,
+    })
+
+
+@app.get("/api/health-score")
+def api_health_score():
+    today = dt.date.today()
+    health_all_active = 0
+    health_with_date = 0
+    health_noncompliant = 0
+    health_audited = 0
+    n_expired = 0
+    n_expiring_7d = 0
+    g_no_date = 0
+    waste_count = 0
+    total_depleted_with_date = 0
+    with Session(engine) as session:
+        audit_window = int(_get_setting(session, "audit_window_days", "30") or "30")
+        items = session.exec(select(Item)).all()
+        for it in items:
+            object.__setattr__(it, "expiry_info", _expiry_info(it))
+            if not it.depleted_at:
+                health_all_active += 1
+                if it.use_by_date:
+                    health_with_date += 1
+                else:
+                    g_no_date += 1
+                if it.expiry_info and it.expiry_info["days"] < 0:
+                    health_noncompliant += 1
+                    n_expired += 1
+                elif it.expiry_info and it.expiry_info["days"] <= 7:
+                    n_expiring_7d += 1
+                if it.last_audit_date:
+                    audit_d = _parse_date(it.last_audit_date)
+                    item_window = it.review_window_days or audit_window
+                    if audit_d and (today - audit_d).days <= item_window:
+                        health_audited += 1
+            else:
+                dep_d = _parse_date(it.depleted_at)
+                ub = _parse_date(it.use_by_date)
+                if dep_d and ub:
+                    total_depleted_with_date += 1
+                    if dep_d > ub:
+                        waste_count += 1
+
+    compliance_component = round(100 * (1 - health_noncompliant / health_all_active)) if health_all_active else 0
+    coverage_component = round(100 * health_with_date / health_all_active) if health_all_active else 0
+    audit_component = round(100 * health_audited / health_all_active) if health_all_active else 0
+
+    health_score = None
+    health_grade = None
+    if health_all_active > 0:
+        health_score = round(compliance_component * 0.5 + coverage_component * 0.3 + audit_component * 0.2)
+        if health_score >= 90:
+            health_grade = "A"
+        elif health_score >= 80:
+            health_grade = "B"
+        elif health_score >= 70:
+            health_grade = "C"
+        elif health_score >= 60:
+            health_grade = "D"
+        else:
+            health_grade = "F"
+
+    waste_rate = round(100 * waste_count / total_depleted_with_date) if total_depleted_with_date > 0 else None
+
+    action_items = []
+    if n_expired > 0:
+        action_items.append({
+            "severity": "danger",
+            "text": f"{n_expired} item{'s' if n_expired != 1 else ''} expired and still in stock",
+            "bucket": "overdue",
+        })
+    if n_expiring_7d > 0:
+        action_items.append({
+            "severity": "warn",
+            "text": f"{n_expiring_7d} item{'s' if n_expiring_7d != 1 else ''} expire{'s' if n_expiring_7d == 1 else ''} within 7 days",
+            "bucket": "d7",
+        })
+    if g_no_date > 0:
+        action_items.append({
+            "severity": "info",
+            "text": f"{g_no_date} item{'s' if g_no_date != 1 else ''} {'has' if g_no_date == 1 else 'have'} no use-by date set",
+            "bucket": "no_date",
+        })
+    if waste_rate is not None and waste_rate > 20:
+        action_items.append({
+            "severity": "warn",
+            "text": f"{waste_rate}% of tracked depletions were past their use-by date",
+            "bucket": None,
+        })
+
+    return JSONResponse({
+        "total_active": health_all_active,
+        "score": health_score,
+        "grade": health_grade,
+        "compliance": compliance_component,
+        "coverage": coverage_component,
+        "audit": audit_component,
+        "waste_rate": waste_rate,
+        "action_items": action_items,
+    })
+
+
+@app.get("/api/items/expiring")
+def api_items_expiring(days: int = 7, max_items: int = 25):
+    today = dt.date.today()
+    result = []
+    with Session(engine) as session:
+        items = session.exec(select(Item)).all()
+        for it in items:
+            if it.depleted_at or not it.use_by_date:
+                continue
+            ub = _parse_date(it.use_by_date)
+            if ub is None:
+                continue
+            days_remaining = (ub - today).days
+            if days_remaining > days:
+                continue
+            result.append({
+                "id": it.id,
+                "serial_number": it.serial_number,
+                "name": it.name,
+                "category": it.category,
+                "location": it.location,
+                "use_by_date": it.use_by_date,
+                "days_remaining": days_remaining,
+                "quantity": it.quantity,
+            })
+    result.sort(key=lambda x: x["days_remaining"])
+    return JSONResponse(result[:max_items])
+
+
+@app.get("/api/items/{item_id}")
+def api_get_item(item_id: int):
+    with Session(engine) as session:
+        item = session.get(Item, item_id)
+        if not item:
+            return JSONResponse({"error": "not found"}, status_code=404)
+    return JSONResponse({
+        "id": item.id,
+        "serial_number": item.serial_number,
+        "name": item.name,
+        "quantity": item.quantity,
+        "unit": item.unit,
+        "category": item.category,
+        "location": item.location,
+        "use_by_date": item.use_by_date,
+        "depleted_at": item.depleted_at,
+    })
+
+
+@app.get("/api/form-data")
+def api_form_data():
+    with Session(engine) as session:
+        cats, bins, locations, use_withins = _choices(session)
+        unit_names = get_unit_names(session)
+        required_fields = get_required_field_keys(session)
+        audit_window_days = int(_get_setting(session, "audit_window_days", "30") or "30")
+        origin_date_labels = get_origin_date_label_names(session)
+        swipe_actions = get_swipe_actions(session)
+    return JSONResponse({
+        "categories": cats,
+        "bins": bins,
+        "locations": locations,
+        "use_withins": use_withins,
+        "units": unit_names,
+        "required_fields": required_fields,
+        "audit_window_days": audit_window_days,
+        "origin_date_labels": origin_date_labels,
+        "swipe_actions": swipe_actions,
+        "depletion_reasons": DEPLETION_REASONS,
+    })
+
+
+@app.post("/api/items")
+async def api_create_item(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "Invalid JSON body"}, status_code=400)
+
+    name = _norm(body.get("name", ""))
+    category = _norm(body.get("category", "")) or ""
+    tags = _norm(body.get("tags", "")) or ""
+    location = _norm(body.get("location", "")) or ""
+    bin_number = _norm(body.get("bin_number", "")) or ""
+    unit = _norm(body.get("unit", "each")) or "each"
+    condition = _norm(body.get("condition", "")) or ""
+    origin_date = _norm(body.get("origin_date", "")) or ""
+    origin_date_label = _norm(body.get("origin_date_label", "")) or "Cooked On"
+    use_by_date = _norm(body.get("use_by_date", "")) or ""
+    use_within = _norm(body.get("use_within", "")) or ""
+    notes = _norm(body.get("notes", "")) or ""
+    quantity = body.get("quantity", 1)
+    if not isinstance(quantity, int):
+        try:
+            quantity = int(quantity)
+        except (ValueError, TypeError):
+            quantity = 1
+    review_window_days = None
+    rwd_raw = body.get("review_window_days")
+    if rwd_raw is not None:
+        try:
+            review_window_days = int(rwd_raw)
+        except (ValueError, TypeError):
+            pass
+
+    if not name:
+        return JSONResponse({"ok": False, "error": "name is required"}, status_code=400)
+
+    with Session(engine) as session:
+        required_fields = get_required_field_keys(session)
+        field_map = {
+            "name": name, "category": category, "tags": tags,
+            "location": location, "bin_number": bin_number,
+            "quantity": quantity, "unit": unit, "condition": condition,
+            "origin_date": origin_date, "use_by_date": use_by_date,
+            "use_within": use_within, "notes": notes,
+        }
+        missing = []
+        for key in required_fields:
+            val = field_map.get(key)
+            if key == "quantity":
+                if val is None:
+                    missing.append(key)
+                continue
+            if not val or (isinstance(val, str) and not val.strip()):
+                missing.append(key)
+        if missing:
+            label_list = [REQUIRED_FIELD_LABELS.get(k, k) for k in missing]
+            return JSONResponse({"ok": False, "error": "Required fields: " + ", ".join(label_list)}, status_code=400)
+
+        _upsert_name(session, Category, category)
+        _upsert_name(session, Bin, bin_number)
+        _upsert_name(session, Location, location)
+        _upsert_name(session, UseWithin, use_within)
+        ensure_unit_entry(session, unit)
+
+        serial = next_serial(session)
+        item = Item(
+            serial_number=serial,
+            name=name or "Unnamed Item",
+            category=category or None,
+            tags=tags or None,
+            location=location or None,
+            bin_number=bin_number or None,
+            quantity=quantity,
+            unit=unit or None,
+            condition=condition or None,
+            origin_date=origin_date or None,
+            origin_date_label=origin_date_label or "Cooked On",
+            use_by_date=use_by_date or None,
+            use_within=use_within or None,
+            notes=notes or None,
+            barcode=serial,
+            photo_path=None,
+            last_audit_date=dt.date.today().isoformat(),
+            review_window_days=review_window_days,
+        )
+        session.add(item)
+        session.commit()
+        session.refresh(item)
+        item_id = item.id
+
+    return JSONResponse({"ok": True, "item_id": item_id, "serial_number": serial})
+
+
 @app.get("/health")
 def health():
     return JSONResponse({"status": "ok", "version": APP_VERSION})
+
+
+@app.get("/api/health-status")
+def api_health_status():
+    storage = get_app_storage()
+    with Session(engine) as session:
+        total_items  = session.exec(select(func.count()).select_from(Item)).one()
+        active_items = session.exec(
+            select(func.count()).select_from(Item).where(Item.depleted_at == None)  # noqa: E711
+        ).one()
+    return JSONResponse({
+        "version":      APP_VERSION,
+        "ipp_status":   check_ipp_status(),
+        "ipp_host":     IPP_HOST or "",
+        "ipp_printer":  IPP_PRINTER or "",
+        "storage":      storage,
+        "total_items":  total_items,
+        "active_items": active_items,
+    })
 
 
 @app.get("/whoami")
